@@ -1,6 +1,6 @@
-# Translate Popup
+# GlossShift
 
-Translate Popup is a macOS-only translation application with GPUI desktop and command-line interfaces. Both interfaces load the same XDG configuration and credentials, build the same translation prompt, and stream text through Rig from any server that implements the OpenAI Chat Completions API.
+GlossShift is a macOS-only translation application with GPUI desktop and command-line interfaces. Both interfaces load the same XDG configuration and credentials, build the same translation prompt, and stream text through Rig from any server that implements the OpenAI Chat Completions API.
 
 ## Current scope
 
@@ -13,7 +13,7 @@ Translate Popup is a macOS-only translation application with GPUI desktop and co
 - An `mdt`-style CLI that translates one Markdown file with the desktop application's active provider.
 - Plain streamed stdout for pipelines and Tree-sitter-based ANSI Markdown highlighting for terminals.
 - Whole-pane copy controls for the source text and translation.
-- Plain-text TOML configuration under `~/.config/translate-popup`.
+- Plain-text TOML configuration under `~/.config/glossshift`.
 - No local model or llama integration.
 
 ## Requirements
@@ -35,17 +35,19 @@ For a stable macOS application identity, build a local `.app` bundle and open it
 
 ```bash
 just package-app
-open "target/Translate Popup.app"
+open "target/GlossShift.app"
 ```
 
 The generated bundle stays under `target` and is not committed. `just package-app` applies and verifies a local ad-hoc signature after copying the final bundle contents. This is the recommended form for granting Accessibility permission because macOS can identify the application by its bundle identifier.
 
 The first launch creates these files:
 
-- `~/.config/translate-popup/config.toml`
-- `~/.config/translate-popup/credentials.toml` with mode `0600`
+- `~/.config/glossshift/config.toml`
+- `~/.config/glossshift/credentials.toml` with mode `0600`
 
 Replace `replace-me` in `credentials.toml`, adjust the provider and shortcuts in `config.toml`, and restart the application. Grant Accessibility permission in System Settings, select text in another application, and press the shortcut for the desired target language. The application first reads the selection through Accessibility and automatically sends `Cmd+C` to the source application when that element does not export selected text. The generated default translates to Japanese with Control+Meta+J (`Ctrl+Super+KeyJ` in the configuration syntax). On macOS, `global-hotkey` calls the Meta/Command modifier `Super`.
+
+The application bundle identifier is `com.totto2727.glossshift`. Grant Accessibility permission to this bundle before using global selection capture.
 
 Use the `COPY` control beside `SOURCE` or `TRANSLATION` to copy that pane's complete text to the system clipboard. GPUI 0.2.2 does not provide a ready-made selectable multiline text element, so partial mouse selection is outside the current simple popup scope.
 
@@ -60,7 +62,7 @@ Window keyboard shortcuts follow standard macOS conventions:
 
 ## CLI
 
-The `translate-popup-cli` binary reuses `~/.config/translate-popup/config.toml` and `credentials.toml`; it does not have separate provider, model, prompt, or token settings. The target language comes from `--lang`, while `active_provider`, `source_language`, timeout values, and provider-specific request parameters come from the shared application configuration.
+The `gshift` binary reuses `~/.config/glossshift/config.toml` and `credentials.toml`; it does not have separate provider, model, prompt, or token settings. The target language comes from `--lang`, while `active_provider`, `source_language`, timeout values, and provider-specific request parameters come from the shared application configuration.
 
 ```bash
 just cli README.md --lang ja
@@ -87,16 +89,16 @@ just cli README.md --lang ja --stdout --color always
 The flake exposes both entry points and a reusable overlay. The underlying package contains both binaries; each flake package selects the appropriate `meta.mainProgram` for `nix run`.
 
 ```bash
-nix run .#translate-popup-cli -- README.md --lang ja --stdout
-nix run .#translate-popup
+nix run .#gshift -- README.md --lang ja --stdout
+nix run .#glossshift
 ```
 
-Downstream flakes can add `translate-popup.overlays.default` and then use `pkgs.translate-popup` or `pkgs.translate-popup-cli`.
+Downstream flakes can add `glossshift.overlays.default` and then use `pkgs.glossshift` or `pkgs.gshift`.
 
-For an isolated local test, set the standard `XDG_CONFIG_HOME` before launching. The application appends its `translate-popup` directory automatically:
+For an isolated local test, set the standard `XDG_CONFIG_HOME` before launching. The application appends its `glossshift` directory automatically:
 
 ```bash
-XDG_CONFIG_HOME=/tmp/translate-popup-test just run
+XDG_CONFIG_HOME=/tmp/glossshift-test just run
 ```
 
 ## Configuration

@@ -25,12 +25,12 @@
 - Keep Accessibility access in `selection.rs`, provider streaming in `llm.rs`, and UI rendering in `ui.rs`.
 - Keep XDG configuration, prompt construction, and provider streaming in the shared library used by both binaries.
 - Keep CLI path resolution and ANSI Markdown rendering in `cli.rs`; never write ANSI escapes to generated files or redirected stdout in automatic color mode.
-- Keep both binaries in the package derivation and expose `translate-popup` and `translate-popup-cli` through the default flake overlay with the matching `meta.mainProgram`.
+- Keep both binaries in the package derivation and expose `glossshift` and `gshift` through the default flake overlay with the matching `meta.mainProgram`.
 - Avoid `unsafe` code. Prefer safe wrappers around macOS APIs.
 
 ## Configuration compatibility
 
-- Resolve the configuration root through `xdg::BaseDirectories`; it defaults to `~/.config/translate-popup` and honors `XDG_CONFIG_HOME`.
+- Resolve the configuration root through `xdg::BaseDirectories`; it defaults to `~/.config/glossshift` and honors `XDG_CONFIG_HOME`.
 - Preserve the named provider-to-credential relationship.
 - Preserve the target language attached to each configured global shortcut across the hotkey, UI, and network boundaries.
 - Treat shortcut strings, TOML content, Accessibility values, and HTTP responses as untrusted boundary input.

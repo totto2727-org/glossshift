@@ -12,9 +12,9 @@
       ];
       forEachSystem = nixpkgs.lib.genAttrs supportedSystems;
       overlay = final: _previous: {
-        translate-popup = final.callPackage ./package.nix { };
-        translate-popup-cli = final.callPackage ./package.nix {
-          mainProgram = "translate-popup-cli";
+        glossshift = final.callPackage ./package.nix { };
+        gshift = final.callPackage ./package.nix {
+          mainProgram = "gshift";
         };
       };
       mkPkgs = system: import nixpkgs {
@@ -31,8 +31,8 @@
           pkgs = mkPkgs system;
         in
         rec {
-          inherit (pkgs) translate-popup translate-popup-cli;
-          default = translate-popup;
+          inherit (pkgs) glossshift gshift;
+          default = glossshift;
         }
       );
 

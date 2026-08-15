@@ -144,7 +144,7 @@ pub fn parse_config(source: &str) -> anyhow::Result<AppConfig> {
 /// # Errors
 /// Returns an error when configuration files cannot be created, read, parsed, or validated.
 pub fn load_or_initialize() -> anyhow::Result<LoadedConfig> {
-    let directories = xdg::BaseDirectories::with_prefix("translate-popup");
+    let directories = xdg::BaseDirectories::with_prefix("glossshift");
     let directory = directories
         .get_config_home()
         .context("HOME and XDG_CONFIG_HOME are unavailable")?;

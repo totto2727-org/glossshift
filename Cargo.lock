@@ -3736,6 +3736,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "glossshift"
+version = "0.1.0"
+dependencies = [
+ "accessibility",
+ "anyhow",
+ "async-channel 2.5.0",
+ "clap",
+ "core-foundation 0.10.0",
+ "core-graphics 0.24.0",
+ "futures",
+ "global-hotkey",
+ "gpui",
+ "macos-accessibility-client",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "rig",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-util",
+ "toml 0.9.12+spec-1.1.0",
+ "tree-sitter-highlight",
+ "tree-sitter-md",
+ "xdg",
+]
+
+[[package]]
 name = "glow"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9632,34 +9660,6 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
-]
-
-[[package]]
-name = "translate-popup"
-version = "0.1.0"
-dependencies = [
- "accessibility",
- "anyhow",
- "async-channel 2.5.0",
- "clap",
- "core-foundation 0.10.0",
- "core-graphics 0.24.0",
- "futures",
- "global-hotkey",
- "gpui",
- "macos-accessibility-client",
- "objc2-app-kit",
- "objc2-foundation",
- "rig",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "tokio",
- "tokio-util",
- "toml 0.9.12+spec-1.1.0",
- "tree-sitter-highlight",
- "tree-sitter-md",
- "xdg",
 ]
 
 [[package]]

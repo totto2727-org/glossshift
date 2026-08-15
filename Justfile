@@ -1,16 +1,16 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-bundle := "target/Translate Popup.app"
+bundle := "target/GlossShift.app"
 
 default: ci
 
 # Run the application directly with Cargo.
 dev:
-    cargo run --bin translate-popup
+    cargo run --bin glossshift
 
 # Run the CLI with arguments, for example: just cli README.md --lang ja.
 cli *args:
-    cargo run --bin translate-popup-cli -- {{args}}
+    cargo run --bin gshift -- {{args}}
 
 # Apply all automatic fixes.
 fix: fix-format fix-lint
@@ -48,7 +48,7 @@ ci: check test build
 # Build a local macOS application bundle with a stable identity.
 package-app: build
     mkdir -p "{{ bundle }}/Contents/MacOS"
-    cp target/debug/translate-popup "{{ bundle }}/Contents/MacOS/translate-popup"
+    cp target/debug/glossshift "{{ bundle }}/Contents/MacOS/glossshift"
     cp packaging/Info.plist "{{ bundle }}/Contents/Info.plist"
     codesign --force --deep --sign - "{{ bundle }}"
     codesign --verify --deep --strict "{{ bundle }}"

@@ -6,7 +6,7 @@ use gpui::{
     rgb,
 };
 
-use translate_popup::{
+use glossshift::{
     config::AppConfig,
     llm::{RequestId, TranslationEvent, TranslationRequest},
 };
@@ -14,7 +14,7 @@ use translate_popup::{
 use crate::selection;
 
 actions!(
-    translate_popup,
+    glossshift,
     [CloseWindow, CopySource, CopyTranslation, Quit,]
 );
 
@@ -81,7 +81,7 @@ impl PopupView {
         };
         if self.api_key.trim().is_empty() || self.api_key == "replace-me" {
             self.fail(
-                "Set api_key in ~/.config/translate-popup/credentials.toml, then restart the app."
+                "Set api_key in ~/.config/glossshift/credentials.toml, then restart the app."
                     .into(),
                 cx,
             );
@@ -216,7 +216,7 @@ impl Render for PopupView {
                         div()
                             .text_lg()
                             .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child("Translate Popup"),
+                            .child("GlossShift"),
                     )
                     .child(
                         div()

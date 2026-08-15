@@ -5,15 +5,15 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>Translate Popup</string>
+    <string>GlossShift</string>
     <key>CFBundleExecutable</key>
-    <string>translate-popup</string>
+    <string>glossshift</string>
     <key>CFBundleIdentifier</key>
-    <string>com.totto2727.translate-popup</string>
+    <string>com.totto2727.glossshift</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Translate Popup</string>
+    <string>GlossShift</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

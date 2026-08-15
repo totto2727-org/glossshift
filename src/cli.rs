@@ -18,9 +18,9 @@ const HIGHLIGHT_NAMES: [&str; 8] = [
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "translate-popup-cli",
+    name = "gshift",
     version,
-    about = "Translate a Markdown file with Translate Popup's configured provider"
+    about = "Translate a Markdown file with GlossShift's configured provider"
 )]
 pub struct Cli {
     /// Markdown file to translate.

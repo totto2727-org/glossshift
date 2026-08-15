@@ -1,9 +1,11 @@
 [package]
-name = "translate-popup"
+name = "glossshift"
 version = "0.1.0"
 edition = "2024"
-description = "A macOS global-shortcut translation popup built with GPUI and Rig"
+description = "A macOS GPUI popup and CLI for streaming translations through OpenAI-compatible APIs"
 license = "MIT"
+repository = "https://github.com/totto2727/glossshift"
+homepage = "https://github.com/totto2727/glossshift"
 
 [dependencies]
 accessibility = "0.2.0"

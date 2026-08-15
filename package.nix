@@ -1,23 +1,23 @@
 {
   lib,
-  mainProgram ? "translate-popup",
+  mainProgram ? "glossshift",
   rustPlatform,
 }:
 
 rustPlatform.buildRustPackage {
-  pname = "translate-popup";
+  pname = "glossshift";
   version = "0.1.0";
 
   src = lib.cleanSource ./.;
   cargoLock.lockFile = ./Cargo.lock;
 
   postInstall = ''
-    test -x "$out/bin/translate-popup"
-    test -x "$out/bin/translate-popup-cli"
-    app="$out/Applications/Translate Popup.app/Contents"
+    test -x "$out/bin/glossshift"
+    test -x "$out/bin/gshift"
+    app="$out/Applications/GlossShift.app/Contents"
     mkdir -p "$app/MacOS"
     cp packaging/Info.plist "$app/Info.plist"
-    ln -s "$out/bin/translate-popup" "$app/MacOS/translate-popup"
+    ln -s "$out/bin/glossshift" "$app/MacOS/glossshift"
   '';
 
   meta = {

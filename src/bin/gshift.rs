@@ -5,17 +5,17 @@ use std::{
 
 use anyhow::{Context as _, bail};
 use clap::Parser as _;
-use tokio_util::sync::CancellationToken;
-use translate_popup::{
+use glossshift::{
     cli::{Cli, highlight_markdown, normalize_language, target_path},
     config,
     llm::{RequestId, TranslationEvent, TranslationRequest},
 };
+use tokio_util::sync::CancellationToken;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() {
     if let Err(error) = run(Cli::parse()).await {
-        eprintln!("translate-popup-cli failed: {error:#}");
+        eprintln!("gshift failed: {error:#}");
         std::process::exit(1);
     }
 }
@@ -39,8 +39,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     let loaded = config::load_or_initialize()?;
     if loaded.api_key.trim().is_empty() || loaded.api_key == "replace-me" {
         bail!(
-            "set api_key in {}/credentials.toml before translating",
-            loaded.directory.display()
+            "set api_key in {} before translating",
+            loaded.directory.join("credentials.toml").display()
         );
     }
     let request = TranslationRequest {
@@ -53,7 +53,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     };
     let color = cli.color.enabled(std::io::stdout().is_terminal());
     let (event_tx, event_rx) = async_channel::bounded(256);
-    let translation = tokio::spawn(translate_popup::llm::translate(
+    let translation = tokio::spawn(glossshift::llm::translate(
         request,
         event_tx,
         CancellationToken::new(),

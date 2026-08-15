@@ -1,7 +1,7 @@
 #![cfg_attr(not(target_os = "macos"), allow(dead_code, unused_imports))]
 
 #[cfg(not(target_os = "macos"))]
-compile_error!("translate-popup currently supports macOS only");
+compile_error!("glossshift currently supports macOS only");
 
 mod selection;
 mod ui;
@@ -16,7 +16,7 @@ use gpui::{
     WindowOptions, prelude::*, px, size,
 };
 
-use translate_popup::{
+use glossshift::{
     config,
     config::LoadedConfig,
     llm::{self, TranslationEvent},
@@ -36,7 +36,7 @@ impl Global for AppResources {}
 
 fn main() {
     if let Err(error) = run() {
-        eprintln!("translate-popup failed to start: {error:#}");
+        eprintln!("glossshift failed to start: {error:#}");
     }
 }
 
@@ -97,7 +97,7 @@ fn run() -> anyhow::Result<()> {
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 titlebar: Some(TitlebarOptions {
-                    title: Some("Translate Popup".into()),
+                    title: Some("GlossShift".into()),
                     ..Default::default()
                 }),
                 kind: WindowKind::PopUp,
