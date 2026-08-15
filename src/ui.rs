@@ -57,31 +57,18 @@ impl PopupView {
             next_request_id: 1,
             active_request: None,
             source_text: "No text captured yet.".into(),
-            output: "Select text in any application, or copy it first, then press a configured shortcut."
-                .into(),
+            output: "Select text in any application, then press a configured shortcut.".into(),
             status: initial_status.into(),
             phase: Phase::Ready,
         }
     }
 
     pub fn trigger_translation(&mut self, target_language: String, cx: &mut Context<Self>) {
-        let (text, uses_clipboard) = match selection::selected_text() {
-            Ok(text) => (text, false),
+        let text = match selection::selected_text() {
+            Ok(text) => text,
             Err(error) => {
-                let Some(text) = cx
-                    .read_from_clipboard()
-                    .and_then(|item| item.text())
-                    .filter(|text| !text.trim().is_empty())
-                else {
-                    self.fail(
-                        format!(
-                            "{error:#}. Copy text to the clipboard and try the shortcut again."
-                        ),
-                        cx,
-                    );
-                    return;
-                };
-                (text, true)
+                self.fail(format!("{error:#}"), cx);
+                return;
             }
         };
         let provider = match self.config.provider() {
@@ -102,11 +89,7 @@ impl PopupView {
 
         let id = RequestId(self.next_request_id);
         self.next_request_id = self.next_request_id.saturating_add(1);
-        let status = if uses_clipboard {
-            format!("Translating clipboard to {target_language}")
-        } else {
-            format!("Translating to {target_language}")
-        };
+        let status = format!("Translating to {target_language}");
         let request = TranslationRequest {
             id,
             provider,

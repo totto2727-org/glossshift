@@ -10,10 +10,13 @@ accessibility = "0.2.0"
 anyhow = "1.0"
 async-channel = "2.5"
 core-foundation = "0.10"
+core-graphics = "0.24.0"
 futures = "0.3"
 global-hotkey = { version = "0.8.0", features = ["serde"] }
 gpui = { version = "0.2.2", features = ["runtime_shaders"] }
 macos-accessibility-client = "0.0.2"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSPasteboard"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSString"] }
 rig = "0.41.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

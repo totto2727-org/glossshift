@@ -8,7 +8,7 @@ Translate Popup is a macOS-only desktop application that translates the text sel
 - A native title bar and a freely resizable popup, with configurable initial and minimum sizes.
 - Closing the popup hides it without stopping the app; the next configured shortcut shows it again and starts translation.
 - Configurable global shortcuts, each assigned to a target language.
-- Selection capture through the macOS Accessibility API, with a text-clipboard fallback.
+- Selection capture through the macOS Accessibility API, followed by a simulated `Cmd+C` when the focused element does not export selected text.
 - Streaming translation through an arbitrary OpenAI-compatible Chat Completions endpoint.
 - Whole-pane copy controls for the source text and translation.
 - Plain-text TOML configuration under `~/.config/translate-popup`.
@@ -18,7 +18,7 @@ Translate Popup is a macOS-only desktop application that translates the text sel
 
 - macOS.
 - Rust 1.85 or newer with Cargo. The repository currently builds with Rust 1.95.
-- Accessibility permission for direct selection capture by the built application or terminal used to launch it. Without permission, copy the text before pressing a shortcut.
+- Accessibility permission for direct selection capture and automatic `Cmd+C` by the built application or terminal used to launch it.
 - An API key and model exposed by an OpenAI-compatible Chat Completions server.
 
 GPUI is built with its `runtime_shaders` feature, so Xcode Command Line Tools are sufficient and the standalone Metal compiler from the full Xcode installation is not required.
@@ -43,7 +43,7 @@ The first launch creates these files:
 - `~/.config/translate-popup/config.toml`
 - `~/.config/translate-popup/credentials.toml` with mode `0600`
 
-Replace `replace-me` in `credentials.toml`, adjust the provider and shortcuts in `config.toml`, and restart the application. For direct selection capture, grant Accessibility permission in System Settings, select text in another application, and press the shortcut for the desired target language. Without permission, or if the focused element does not expose selected text, copy the text first and press the same shortcut; the application automatically falls back to the system clipboard. The generated default translates to Japanese with Control+Meta+J (`Ctrl+Super+KeyJ` in the configuration syntax). On macOS, `global-hotkey` calls the Meta/Command modifier `Super`.
+Replace `replace-me` in `credentials.toml`, adjust the provider and shortcuts in `config.toml`, and restart the application. Grant Accessibility permission in System Settings, select text in another application, and press the shortcut for the desired target language. The application first reads the selection through Accessibility and automatically sends `Cmd+C` to the source application when that element does not export selected text. The generated default translates to Japanese with Control+Meta+J (`Ctrl+Super+KeyJ` in the configuration syntax). On macOS, `global-hotkey` calls the Meta/Command modifier `Super`.
 
 Use the `COPY` control beside `SOURCE` or `TRANSLATION` to copy that pane's complete text to the system clipboard. GPUI 0.2.2 does not provide a ready-made selectable multiline text element, so partial mouse selection is outside the current simple popup scope.
 
@@ -108,13 +108,18 @@ flowchart LR
     A["Language-specific global shortcut"] --> B["Bounded channel: target language"]
     B --> C["GPUI main thread"]
     C --> D["macOS Accessibility API"]
-    D --> E["Bounded request channel"]
-    E --> F["Tokio network thread"]
-    F --> G["Rig CompletionsClient"]
-    G --> H["OpenAI-compatible /chat/completions stream"]
-    H --> I["Request-scoped deltas"]
-    I --> J["Bounded UI event channel"]
-    J --> C
+    D --> E{"Selected text available?"}
+    E -->|"Yes"| H["Captured source text"]
+    E -->|"No"| F["Post Cmd+C with Core Graphics"]
+    F --> G["Wait for NSPasteboard change"]
+    G --> H
+    H --> I["Bounded request channel"]
+    I --> J["Tokio network thread"]
+    J --> K["Rig CompletionsClient"]
+    K --> L["OpenAI-compatible /chat/completions stream"]
+    L --> M["Request-scoped deltas"]
+    M --> N["Bounded UI event channel"]
+    N --> C
 ```
 
 ```mermaid
@@ -123,12 +128,21 @@ sequenceDiagram
     participant Hotkey as global-hotkey
     participant UI as GPUI main thread
     participant AX as Accessibility API
+    participant Source as Source application
+    participant Clipboard as NSPasteboard
     participant Worker as Tokio worker
     participant LLM as OpenAI-compatible API
     User->>Hotkey: Press configured shortcut
     Hotkey->>UI: Shortcut event(target_language)
     UI->>AX: Read focused element and selected text
-    AX-->>UI: Selected text
+    alt AXSelectedText is available
+        AX-->>UI: Selected text
+    else Focused element does not export selected text
+        UI->>Clipboard: Record changeCount
+        UI->>Source: Post Cmd+C
+        Source->>Clipboard: Copy selected text
+        Clipboard-->>UI: Changed plain text
+    end
     UI->>Worker: TranslationRequest(request_id, target_language)
     Worker->>Worker: Cancel the previous request
     Worker->>LLM: Start streaming Chat Completions request
@@ -147,7 +161,8 @@ sequenceDiagram
 - Events from stale request IDs are ignored.
 - The first chunk and subsequent idle periods use separately configurable timeouts.
 - Missing Accessibility permission, missing selected text, invalid configuration, and provider failures are shown in the popup or reported at startup.
-- If Accessibility selection capture fails, a non-empty text clipboard is used; otherwise the popup asks the user to copy text and retry.
+- If Accessibility selection capture fails while permission is available, the application sends `Cmd+C` and waits up to 300 milliseconds for a new non-empty plain-text pasteboard value before showing the popup.
+- If automatic capture also fails, the popup reports the capture error instead of translating an older clipboard value.
 - Tokens are never included in `Debug` output, but the current credential store is still plain text. Keychain integration is intentionally deferred.
 
 ## Development
@@ -184,6 +199,8 @@ Commit the generated `README.ja.md` and `AGENTS.ja.md` beside their sources.
 - [`global-hotkey` crate documentation](https://docs.rs/global-hotkey/0.8.0/global_hotkey/)
 - [`accessibility` crate documentation](https://docs.rs/accessibility/0.2.0/accessibility/)
 - [`macos-accessibility-client` crate documentation](https://docs.rs/macos-accessibility-client/0.0.2/macos_accessibility_client/)
+- [`core-graphics` crate documentation](https://docs.rs/core-graphics/0.24.0/core_graphics/)
+- [`objc2-app-kit` pasteboard documentation](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/struct.NSPasteboard.html)
 - [`xdg` crate documentation](https://docs.rs/xdg/3.0.0/xdg/)
 - [Apple Accessibility trust API](https://developer.apple.com/documentation/applicationservices/1459186-axisprocesstrustedwithoptions)
 

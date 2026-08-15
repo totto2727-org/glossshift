@@ -177,7 +177,7 @@ fn initial_status(loaded: &LoadedConfig) -> String {
         return format!("Created configuration in {}", loaded.directory.display());
     }
     if !macos_accessibility_client::accessibility::application_is_trusted() {
-        return "Ready · clipboard fallback".into();
+        return "Ready · Accessibility permission required".into();
     }
     format!("Ready · {} shortcuts", loaded.app.shortcuts.len())
 }
