@@ -1,0 +1,25 @@
+active_provider = "default"
+
+[providers.default]
+base_url = "https://api.openai.com/v1"
+model = "gpt-4.1-mini"
+credential = "default"
+first_chunk_timeout_seconds = 15
+stream_idle_timeout_seconds = 30
+
+[translation]
+source_language = "auto"
+
+[[shortcuts]]
+keys = "Ctrl+Super+KeyJ"
+target_language = "Japanese"
+
+[[shortcuts]]
+keys = "Ctrl+Super+KeyE"
+target_language = "English"
+
+[window]
+width = 560
+height = 360
+min_width = 320
+min_height = 180
