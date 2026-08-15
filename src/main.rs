@@ -9,7 +9,7 @@ mod prompt;
 mod selection;
 mod ui;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_channel::Receiver;
@@ -24,6 +24,8 @@ use crate::{
     llm::TranslationEvent,
     ui::{CloseWindow, CopySource, CopyTranslation, PopupView, Quit},
 };
+
+const SHORTCUT_RELEASE_SETTLE_DELAY: Duration = Duration::from_millis(100);
 
 struct AppResources {
     _hotkey_manager: GlobalHotKeyManager,
@@ -55,10 +57,8 @@ fn run() -> anyhow::Result<()> {
 
     let (shortcut_tx, shortcut_rx) = async_channel::bounded(8);
     GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
-        if event.state == HotKeyState::Pressed
-            && let Some(target_language) = shortcut_targets.get(&event.id)
-        {
-            let _ = shortcut_tx.try_send(target_language.clone());
+        if let Some(target_language) = shortcut_target(event, &shortcut_targets) {
+            let _ = shortcut_tx.try_send(target_language.to_owned());
         }
     }));
 
@@ -149,6 +149,9 @@ fn spawn_shortcut_listener(
     window
         .spawn(cx, async move |cx| {
             while let Ok(target_language) = receiver.recv().await {
+                cx.background_executor()
+                    .timer(SHORTCUT_RELEASE_SETTLE_DELAY)
+                    .await;
                 let _ = cx.update(|window, app| {
                     let _ = view.update(app, |view, cx| {
                         view.trigger_translation(target_language, cx);
@@ -200,6 +203,13 @@ fn shortcut_targets(shortcuts: &[config::ShortcutConfig]) -> HashMap<u32, String
         .collect()
 }
 
+fn shortcut_target(event: GlobalHotKeyEvent, targets: &HashMap<u32, String>) -> Option<&str> {
+    if event.state != HotKeyState::Released {
+        return None;
+    }
+    targets.get(&event.id).map(String::as_str)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +235,31 @@ mod tests {
             targets.get(&app.shortcuts[1].keys.id()).map(String::as_str),
             Some("English")
         );
+    }
+
+    #[test]
+    fn dispatches_hotkey_on_release_event() {
+        // Given
+        let source =
+            config::parse_config(config::DEFAULT_CONFIG).unwrap_or_else(|error| panic!("{error}"));
+        let targets = shortcut_targets(&source.shortcuts);
+        let id = source.shortcuts[0].keys.id();
+        let pressed = GlobalHotKeyEvent {
+            id,
+            state: HotKeyState::Pressed,
+        };
+        let released = GlobalHotKeyEvent {
+            id,
+            state: HotKeyState::Released,
+        };
+
+        // When
+        let target_while_pressed = shortcut_target(pressed, &targets);
+        let target_after_release = shortcut_target(released, &targets);
+
+        // Then
+        assert_eq!(target_while_pressed, None);
+        assert_eq!(target_after_release, Some("Japanese"));
     }
 
     #[test]
