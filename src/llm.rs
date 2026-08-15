@@ -1,4 +1,4 @@
-use std::{thread, time::Duration};
+use std::time::Duration;
 
 use anyhow::Context as _;
 use async_channel::{Receiver, Sender};
@@ -33,26 +33,7 @@ pub enum TranslationEvent {
     Failed { id: RequestId, message: String },
 }
 
-pub fn spawn_worker(
-    requests: Receiver<TranslationRequest>,
-    events: Sender<TranslationEvent>,
-) -> anyhow::Result<thread::JoinHandle<()>> {
-    thread::Builder::new()
-        .name("translate-popup-network".into())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(2)
-                .enable_all()
-                .build();
-            match runtime {
-                Ok(runtime) => runtime.block_on(worker_loop(requests, events)),
-                Err(error) => eprintln!("failed to create network runtime: {error}"),
-            }
-        })
-        .context("failed to start network thread")
-}
-
-async fn worker_loop(requests: Receiver<TranslationRequest>, events: Sender<TranslationEvent>) {
+pub async fn run_worker(requests: Receiver<TranslationRequest>, events: Sender<TranslationEvent>) {
     let mut active: Option<CancellationToken> = None;
     while let Ok(request) = requests.recv().await {
         if let Some(token) = active.take() {

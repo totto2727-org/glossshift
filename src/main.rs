@@ -27,7 +27,8 @@ use crate::{
 
 struct AppResources {
     _hotkey_manager: GlobalHotKeyManager,
-    _network_thread: std::thread::JoinHandle<()>,
+    _network_task: tokio::task::JoinHandle<()>,
+    _tokio_runtime: tokio::runtime::Runtime,
 }
 
 impl Global for AppResources {}
@@ -63,7 +64,12 @@ fn run() -> anyhow::Result<()> {
 
     let (request_tx, request_rx) = async_channel::bounded(4);
     let (event_tx, event_rx) = async_channel::bounded(256);
-    let network_thread = llm::spawn_worker(request_rx, event_tx)?;
+    let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .context("failed to create Tokio runtime")?;
+    let network_task = tokio_runtime.spawn(llm::run_worker(request_rx, event_tx));
     let window_config = loaded.app.window.clone();
     let initial_status = initial_status(&loaded);
     let app_config = Arc::new(loaded.app);
@@ -80,7 +86,8 @@ fn run() -> anyhow::Result<()> {
         cx.on_action(|_: &CloseWindow, cx| cx.hide());
         cx.set_global(AppResources {
             _hotkey_manager: hotkey_manager,
-            _network_thread: network_thread,
+            _network_task: network_task,
+            _tokio_runtime: tokio_runtime,
         });
         let bounds = Bounds::centered(
             None,

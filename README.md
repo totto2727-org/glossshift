@@ -101,7 +101,7 @@ Do not set this for models that reject `reasoning_effort` or do not support `non
 
 ## Architecture
 
-The GPUI main thread owns the window, global hotkey manager, and UI state. A dedicated Tokio runtime thread owns LLM network work. Bounded channels isolate the two runtimes. A monotonically increasing request ID prevents a cancelled or late stream from overwriting a newer translation.
+The GPUI main thread owns the window, global hotkey manager, UI state, and a shared two-worker Tokio runtime. Tokio-dependent libraries run their asynchronous work on that runtime without creating an additional owner thread. Bounded channels isolate GPUI state from network work. A monotonically increasing request ID prevents a cancelled or late stream from overwriting a newer translation.
 
 ```mermaid
 flowchart LR
@@ -114,7 +114,7 @@ flowchart LR
     F --> G["Wait for NSPasteboard change"]
     G --> H
     H --> I["Bounded request channel"]
-    I --> J["Tokio network thread"]
+    I --> J["Shared Tokio runtime"]
     J --> K["Rig CompletionsClient"]
     K --> L["OpenAI-compatible /chat/completions stream"]
     L --> M["Request-scoped deltas"]
