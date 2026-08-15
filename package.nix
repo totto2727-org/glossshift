@@ -1,5 +1,6 @@
 {
   lib,
+  mainProgram ? "translate-popup",
   rustPlatform,
 }:
 
@@ -11,6 +12,8 @@ rustPlatform.buildRustPackage {
   cargoLock.lockFile = ./Cargo.lock;
 
   postInstall = ''
+    test -x "$out/bin/translate-popup"
+    test -x "$out/bin/translate-popup-cli"
     app="$out/Applications/Translate Popup.app/Contents"
     mkdir -p "$app/MacOS"
     cp packaging/Info.plist "$app/Info.plist"
@@ -18,9 +21,9 @@ rustPlatform.buildRustPackage {
   '';
 
   meta = {
-    description = "A macOS global-shortcut translation popup built with GPUI and Rig";
+    description = "A macOS GPUI popup and CLI for streaming translations through Rig";
     license = lib.licenses.mit;
-    mainProgram = "translate-popup";
+    inherit mainProgram;
     platforms = lib.platforms.darwin;
   };
 }

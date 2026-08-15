@@ -6,11 +6,12 @@ use gpui::{
     rgb,
 };
 
-use crate::{
+use translate_popup::{
     config::AppConfig,
     llm::{RequestId, TranslationEvent, TranslationRequest},
-    selection,
 };
+
+use crate::selection;
 
 actions!(
     translate_popup,
@@ -186,17 +187,6 @@ impl PopupView {
                     .child("COPY")
                     .on_click(cx.listener(move |this, _, _, cx| this.copy_pane(pane, cx))),
             )
-    }
-}
-
-impl TranslationEvent {
-    fn request_id(&self) -> RequestId {
-        match self {
-            Self::Started { id, .. }
-            | Self::Delta { id, .. }
-            | Self::Finished { id }
-            | Self::Failed { id, .. } => *id,
-        }
     }
 }
 

@@ -33,6 +33,18 @@ pub enum TranslationEvent {
     Failed { id: RequestId, message: String },
 }
 
+impl TranslationEvent {
+    #[must_use]
+    pub const fn request_id(&self) -> RequestId {
+        match self {
+            Self::Started { id, .. }
+            | Self::Delta { id, .. }
+            | Self::Finished { id }
+            | Self::Failed { id, .. } => *id,
+        }
+    }
+}
+
 pub async fn run_worker(requests: Receiver<TranslationRequest>, events: Sender<TranslationEvent>) {
     let mut active: Option<CancellationToken> = None;
     while let Ok(request) = requests.recv().await {
@@ -56,7 +68,11 @@ pub async fn run_worker(requests: Receiver<TranslationRequest>, events: Sender<T
     }
 }
 
-async fn translate(
+/// Stream one translation request into the supplied event channel.
+///
+/// # Errors
+/// Returns an error when the provider cannot be configured, streamed, or reported to the receiver.
+pub async fn translate(
     request: TranslationRequest,
     events: Sender<TranslationEvent>,
     cancellation: CancellationToken,

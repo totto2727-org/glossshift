@@ -1,6 +1,6 @@
 # Translate Popup
 
-Translate Popup is a macOS-only desktop application that translates the text selected in any application and displays the result in a resizable GPUI popup. Configurable global shortcuts select the target language and start the translation, and Rig streams text from any server that implements the OpenAI Chat Completions API.
+Translate Popup is a macOS-only translation application with GPUI desktop and command-line interfaces. Both interfaces load the same XDG configuration and credentials, build the same translation prompt, and stream text through Rig from any server that implements the OpenAI Chat Completions API.
 
 ## Current scope
 
@@ -10,6 +10,8 @@ Translate Popup is a macOS-only desktop application that translates the text sel
 - Configurable global shortcuts, each assigned to a target language.
 - Selection capture through the macOS Accessibility API, followed by a simulated `Cmd+C` when the focused element does not export selected text.
 - Streaming translation through an arbitrary OpenAI-compatible Chat Completions endpoint.
+- An `mdt`-style CLI that translates one Markdown file with the desktop application's active provider.
+- Plain streamed stdout for pipelines and Tree-sitter-based ANSI Markdown highlighting for terminals.
 - Whole-pane copy controls for the source text and translation.
 - Plain-text TOML configuration under `~/.config/translate-popup`.
 - No local model or llama integration.
@@ -56,6 +58,41 @@ Window keyboard shortcuts follow standard macOS conventions:
 - `Cmd+C` copies the complete translated text.
 - `Cmd+Shift+C` copies the complete source text.
 
+## CLI
+
+The `translate-popup-cli` binary reuses `~/.config/translate-popup/config.toml` and `credentials.toml`; it does not have separate provider, model, prompt, or token settings. The target language comes from `--lang`, while `active_provider`, `source_language`, timeout values, and provider-specific request parameters come from the shared application configuration.
+
+```bash
+just cli README.md --lang ja
+```
+
+By default, the CLI writes a sibling file and refuses to overwrite an existing output unless `--force` is present. It follows the `mdt` path convention, including MoonBit Markdown compound extensions and replacement of existing `ja` or `en` language segments.
+
+| Input | `--lang ja` output |
+| --- | --- |
+| `guide.md` | `guide.ja.md` |
+| `guide.mbt.md` | `guide.ja.mbt.md` |
+| `guide.en.md` | `guide.ja.md` |
+| `guide.en.mbt.md` | `guide.ja.mbt.md` |
+
+Use `--stdout` for pipelines or terminal display:
+
+```bash
+just cli README.md --lang ja --stdout
+just cli README.md --lang ja --stdout --color always
+```
+
+`--color auto` is the default. Redirected stdout stays byte-plain and streams each provider delta immediately. Terminal stdout is buffered until the response completes, then rendered with ANSI styles from `tree-sitter-highlight` and the `tree-sitter-md` Markdown queries. `--color never` keeps terminal output plain and fully streamed; `--color always` enables ANSI output even when stdout is redirected. File output never contains ANSI escape sequences.
+
+The flake exposes both entry points and a reusable overlay. The underlying package contains both binaries; each flake package selects the appropriate `meta.mainProgram` for `nix run`.
+
+```bash
+nix run .#translate-popup-cli -- README.md --lang ja --stdout
+nix run .#translate-popup
+```
+
+Downstream flakes can add `translate-popup.overlays.default` and then use `pkgs.translate-popup` or `pkgs.translate-popup-cli`.
+
 For an isolated local test, set the standard `XDG_CONFIG_HOME` before launching. The application appends its `translate-popup` directory automatically:
 
 ```bash
@@ -101,7 +138,7 @@ Do not set this for models that reject `reasoning_effort` or do not support `non
 
 ## Architecture
 
-The GPUI main thread owns the window, global hotkey manager, UI state, and a shared two-worker Tokio runtime. Tokio-dependent libraries run their asynchronous work on that runtime without creating an additional owner thread. Bounded channels isolate GPUI state from network work. A monotonically increasing request ID prevents a cancelled or late stream from overwriting a newer translation.
+The reusable library owns XDG configuration, prompt construction, and provider streaming. The desktop binary adds GPUI, global shortcuts, and macOS selection capture; the CLI binary adds file/stdout handling and optional Markdown highlighting. The GPUI main thread owns the window, global hotkey manager, UI state, and a shared two-worker Tokio runtime. Tokio-dependent libraries run their asynchronous work on that runtime without creating an additional owner thread. Bounded channels isolate UI and CLI consumers from network work. A monotonically increasing request ID prevents a cancelled or late desktop stream from overwriting a newer translation.
 
 ```mermaid
 flowchart LR
@@ -120,6 +157,12 @@ flowchart LR
     L --> M["Request-scoped deltas"]
     M --> N["Bounded UI event channel"]
     N --> C
+    O["CLI file + --lang"] --> P["Shared XDG config and prompt"]
+    P --> J
+    M --> Q{"CLI output mode"}
+    Q -->|"File"| R["Sibling .lang.md or .lang.mbt.md"]
+    Q -->|"Plain stdout"| S["Stream deltas directly"]
+    Q -->|"TTY color"| T["tree-sitter-md + ANSI"]
 ```
 
 ```mermaid
@@ -172,6 +215,7 @@ just fix
 just check
 just ci
 just package-app
+just cli README.md --lang ja
 ```
 
 `just fix` aggregates the `fix-*` recipes, `just check` aggregates the `check-*` recipes, and `just ci` runs checks, tests, and the build. Repository automation belongs in the root `Justfile`. Add a Just recipe instead of introducing a standalone shell script unless the workflow cannot reasonably be expressed as a recipe.
@@ -202,6 +246,8 @@ Commit the generated `README.ja.md` and `AGENTS.ja.md` beside their sources.
 - [`core-graphics` crate documentation](https://docs.rs/core-graphics/0.24.0/core_graphics/)
 - [`objc2-app-kit` pasteboard documentation](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/struct.NSPasteboard.html)
 - [`xdg` crate documentation](https://docs.rs/xdg/3.0.0/xdg/)
+- [`tree-sitter-highlight` crate documentation](https://docs.rs/tree-sitter-highlight/latest/tree_sitter_highlight/)
+- [`tree-sitter-md` crate documentation](https://docs.rs/tree-sitter-md/latest/tree_sitter_md/)
 - [Apple Accessibility trust API](https://developer.apple.com/documentation/applicationservices/1459186-axisprocesstrustedwithoptions)
 
 ## License

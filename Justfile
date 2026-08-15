@@ -6,7 +6,11 @@ default: ci
 
 # Run the application directly with Cargo.
 dev:
-    cargo run
+    cargo run --bin translate-popup
+
+# Run the CLI with arguments, for example: just cli README.md --lang ja.
+cli *args:
+    cargo run --bin translate-popup-cli -- {{args}}
 
 # Apply all automatic fixes.
 fix: fix-format fix-lint

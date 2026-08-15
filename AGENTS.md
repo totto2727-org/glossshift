@@ -23,6 +23,9 @@
 - Attach a request ID to every streaming event and ignore stale events.
 - Cancel the active stream before starting a newer translation.
 - Keep Accessibility access in `selection.rs`, provider streaming in `llm.rs`, and UI rendering in `ui.rs`.
+- Keep XDG configuration, prompt construction, and provider streaming in the shared library used by both binaries.
+- Keep CLI path resolution and ANSI Markdown rendering in `cli.rs`; never write ANSI escapes to generated files or redirected stdout in automatic color mode.
+- Keep both binaries in the package derivation and expose `translate-popup` and `translate-popup-cli` through the default flake overlay with the matching `meta.mainProgram`.
 - Avoid `unsafe` code. Prefer safe wrappers around macOS APIs.
 
 ## Configuration compatibility
@@ -47,6 +50,7 @@ just check-lint
 just test
 just build
 just ci
+just cli README.md --lang ja
 ```
 
 Use `just ci` to run the full local validation gate. Use the smallest relevant `check-*` or `fix-*` recipe while iterating and run the full gate before handoff. Do not weaken a failing test or lint.

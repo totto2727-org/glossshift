@@ -1,5 +1,5 @@
 {
-  description = "A macOS global-shortcut translation popup built with GPUI and Rig";
+  description = "A macOS GPUI popup and CLI for streaming translations through Rig";
 
   inputs.nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1";
 
@@ -11,16 +11,27 @@
         "x86_64-darwin"
       ];
       forEachSystem = nixpkgs.lib.genAttrs supportedSystems;
-      mkPkgs = system: import nixpkgs { inherit system; };
+      overlay = final: _previous: {
+        translate-popup = final.callPackage ./package.nix { };
+        translate-popup-cli = final.callPackage ./package.nix {
+          mainProgram = "translate-popup-cli";
+        };
+      };
+      mkPkgs = system: import nixpkgs {
+        inherit system;
+        overlays = [ overlay ];
+      };
     in
     {
+      overlays.default = overlay;
+
       packages = forEachSystem (
         system:
         let
           pkgs = mkPkgs system;
         in
         rec {
-          translate-popup = pkgs.callPackage ./package.nix { };
+          inherit (pkgs) translate-popup translate-popup-cli;
           default = translate-popup;
         }
       );

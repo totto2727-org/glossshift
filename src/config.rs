@@ -96,6 +96,10 @@ pub struct LoadedConfig {
 }
 
 impl AppConfig {
+    /// Return the provider selected by `active_provider`.
+    ///
+    /// # Errors
+    /// Returns an error when the selected provider is not configured.
     pub fn provider(&self) -> anyhow::Result<&ProviderConfig> {
         self.providers
             .get(&self.active_provider)
@@ -103,6 +107,10 @@ impl AppConfig {
     }
 }
 
+/// Parse and validate application configuration TOML.
+///
+/// # Errors
+/// Returns an error when the TOML or any required application invariant is invalid.
 pub fn parse_config(source: &str) -> anyhow::Result<AppConfig> {
     let config: AppConfig = toml::from_str(source).context("config.toml is invalid")?;
     let provider = config.provider()?;
@@ -131,6 +139,10 @@ pub fn parse_config(source: &str) -> anyhow::Result<AppConfig> {
     Ok(config)
 }
 
+/// Load the shared XDG configuration and create templates when missing.
+///
+/// # Errors
+/// Returns an error when configuration files cannot be created, read, parsed, or validated.
 pub fn load_or_initialize() -> anyhow::Result<LoadedConfig> {
     let directories = xdg::BaseDirectories::with_prefix("translate-popup");
     let directory = directories

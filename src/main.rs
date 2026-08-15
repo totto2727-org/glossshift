@@ -3,9 +3,6 @@
 #[cfg(not(target_os = "macos"))]
 compile_error!("translate-popup currently supports macOS only");
 
-mod config;
-mod llm;
-mod prompt;
 mod selection;
 mod ui;
 
@@ -19,11 +16,13 @@ use gpui::{
     WindowOptions, prelude::*, px, size,
 };
 
-use crate::{
+use translate_popup::{
+    config,
     config::LoadedConfig,
-    llm::TranslationEvent,
-    ui::{CloseWindow, CopySource, CopyTranslation, PopupView, Quit},
+    llm::{self, TranslationEvent},
 };
+
+use crate::ui::{CloseWindow, CopySource, CopyTranslation, PopupView, Quit};
 
 const SHORTCUT_RELEASE_SETTLE_DELAY: Duration = Duration::from_millis(100);
 
