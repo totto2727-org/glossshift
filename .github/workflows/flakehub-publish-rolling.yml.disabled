@@ -1,0 +1,22 @@
+# This workflow is disabled by default. Rename this file to
+# flakehub-publish-rolling.yml to publish the repository root flake.
+name: Publish every Git push to main to FlakeHub
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  flakehub-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: totto2727-org/monorepo/.github/actions/setup-nix@main
+      - uses: totto2727-org/monorepo/.github/actions/publish-flakehub@main
