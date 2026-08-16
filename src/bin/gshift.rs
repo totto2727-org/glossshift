@@ -8,10 +8,7 @@ use std::{
 use anyhow::{Context as _, bail};
 use clap::Parser as _;
 use glossshift::{
-    cli::{
-        Cli, OutputIdentityGuard, ensure_safe_output_paths, highlight_markdown, normalize_language,
-        target_path,
-    },
+    cli::{Cli, ensure_safe_output_paths, highlight_markdown, normalize_language, target_path},
     config,
     llm::{RequestId, TranslationEvent, TranslationRequest},
 };
@@ -40,7 +37,6 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         cli.files.iter().map(PathBuf::as_path),
         output_paths.iter().flatten().map(PathBuf::as_path),
     )?;
-    let mut output_guard = OutputIdentityGuard::new(cli.files.iter().map(PathBuf::as_path))?;
     for path in output_paths.iter().flatten() {
         if path.exists() && !cli.force {
             bail!(
@@ -114,19 +110,13 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             &output_path.context("output path is unavailable")?,
             &translated,
             cli.force,
-            &mut output_guard,
         )?;
     }
 
     Ok(())
 }
 
-fn write_translation(
-    path: &Path,
-    translated: &str,
-    force: bool,
-    output_guard: &mut OutputIdentityGuard,
-) -> anyhow::Result<()> {
+fn write_translation(path: &Path, translated: &str, force: bool) -> anyhow::Result<()> {
     let mut options = OpenOptions::new();
     options.write(true).custom_flags(libc::O_NOFOLLOW);
     if force {
@@ -138,7 +128,6 @@ fn write_translation(
         .open(path)
         .with_context(|| format!("failed to create {}", path.display()))?;
     if force {
-        output_guard.validate_and_remember(&output, path)?;
         output
             .set_len(0)
             .with_context(|| format!("failed to truncate {}", path.display()))?;

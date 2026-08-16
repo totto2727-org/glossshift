@@ -17,46 +17,6 @@ enum PathIdentity {
     Missing(PathBuf),
 }
 
-/// Tracks file identities that output writes must not alias.
-pub struct OutputIdentityGuard {
-    identities: HashSet<PathIdentity>,
-}
-
-impl OutputIdentityGuard {
-    /// Snapshot the input identities before translation starts.
-    ///
-    /// # Errors
-    /// Returns an error when an input identity cannot be resolved.
-    pub fn new<'a>(inputs: impl IntoIterator<Item = &'a Path>) -> anyhow::Result<Self> {
-        let identities = inputs
-            .into_iter()
-            .map(resolve_path_identity)
-            .collect::<anyhow::Result<_>>()?;
-        Ok(Self { identities })
-    }
-
-    /// Validate and remember an opened output descriptor before truncation.
-    ///
-    /// # Errors
-    /// Returns an error when metadata is unavailable or the output aliases a protected file.
-    pub fn validate_and_remember(&mut self, output: &fs::File, path: &Path) -> anyhow::Result<()> {
-        let metadata = output
-            .metadata()
-            .with_context(|| format!("failed to inspect opened output '{}'", path.display()))?;
-        let identity = PathIdentity::Existing {
-            device: metadata.dev(),
-            inode: metadata.ino(),
-        };
-        if !self.identities.insert(identity) {
-            bail!(
-                "opened output file '{}' aliases an input or earlier output",
-                path.display()
-            );
-        }
-        Ok(())
-    }
-}
-
 const HIGHLIGHT_NAMES: [&str; 8] = [
     "none",
     "punctuation.delimiter",

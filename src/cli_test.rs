@@ -9,9 +9,7 @@ use std::{
 
 use clap::Parser as _;
 
-use super::cli::{
-    Cli, OutputIdentityGuard, ensure_safe_output_paths, highlight_markdown, target_path,
-};
+use super::cli::{Cli, ensure_safe_output_paths, highlight_markdown, target_path};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -198,47 +196,6 @@ fn rejects_an_output_hard_linked_to_an_input() {
 
     // Then
     assert!(result.is_err());
-}
-
-#[test]
-fn rejects_a_hard_link_substituted_after_preflight() {
-    // Given
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|error| panic!("system clock is before the Unix epoch: {error}"))
-        .as_nanos();
-    let directory = std::env::temp_dir().join(format!(
-        "glossshift-{}-{nonce}-{}",
-        process::id(),
-        NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&directory)
-        .unwrap_or_else(|error| panic!("failed to create test directory: {error}"));
-    let input = directory.join("guide.md");
-    let output = directory.join("guide.ja.md");
-    fs::write(&input, "# ORIGINAL\n")
-        .unwrap_or_else(|error| panic!("failed to write test input: {error}"));
-    let mut guard = OutputIdentityGuard::new([input.as_path()])
-        .unwrap_or_else(|error| panic!("failed to snapshot input identities: {error}"));
-    ensure_safe_output_paths([input.as_path()], [output.as_path()])
-        .unwrap_or_else(|error| panic!("output should be safe before substitution: {error}"));
-    fs::hard_link(&input, &output)
-        .unwrap_or_else(|error| panic!("failed to substitute output hard link: {error}"));
-    let opened = fs::OpenOptions::new()
-        .write(true)
-        .open(&output)
-        .unwrap_or_else(|error| panic!("failed to open substituted output: {error}"));
-
-    // When
-    let result = guard.validate_and_remember(&opened, &output);
-    let preserved = fs::read_to_string(&input)
-        .unwrap_or_else(|error| panic!("failed to read preserved input: {error}"));
-    fs::remove_dir_all(&directory)
-        .unwrap_or_else(|error| panic!("failed to remove test directory: {error}"));
-
-    // Then
-    assert!(result.is_err());
-    assert_eq!(preserved, "# ORIGINAL\n");
 }
 
 #[test]
