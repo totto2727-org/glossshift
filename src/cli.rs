@@ -1,4 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    fs,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context as _, bail};
 use clap::{Parser, ValueEnum};
@@ -103,6 +108,47 @@ pub fn target_path(input: &Path, language: &str) -> anyhow::Result<PathBuf> {
     Ok(input.with_file_name(format!("{stem}.{language}{extension}")))
 }
 
+/// Reject output paths that identify the same file.
+///
+/// # Errors
+/// Returns an error when an output path cannot be resolved or multiple paths resolve to one file.
+pub fn ensure_distinct_output_paths<'a>(
+    paths: impl IntoIterator<Item = &'a Path>,
+) -> anyhow::Result<()> {
+    let mut resolved_paths = HashSet::new();
+    for path in paths {
+        let resolved = match fs::canonicalize(path) {
+            Ok(resolved) => resolved,
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                let parent = path
+                    .parent()
+                    .filter(|parent| !parent.as_os_str().is_empty())
+                    .unwrap_or_else(|| Path::new("."));
+                let file_name = path.file_name().with_context(|| {
+                    format!("output path '{}' has no file name", path.display())
+                })?;
+                fs::canonicalize(parent)
+                    .with_context(|| {
+                        format!("failed to resolve output directory '{}'", parent.display())
+                    })?
+                    .join(file_name)
+            }
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!("failed to resolve output path '{}'", path.display())
+                });
+            }
+        };
+        if !resolved_paths.insert(resolved) {
+            bail!(
+                "multiple inputs resolve to the same output file '{}'",
+                path.display()
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Convert Markdown highlight events to ANSI-styled source text.
 ///
 /// # Errors
@@ -172,7 +218,7 @@ mod tests {
 
     use clap::Parser as _;
 
-    use super::{Cli, highlight_markdown, target_path};
+    use super::{Cli, ensure_distinct_output_paths, highlight_markdown, target_path};
 
     #[test]
     fn accepts_multiple_files_in_input_order() {
@@ -234,6 +280,23 @@ mod tests {
 
         // Then
         assert_eq!(output, Path::new("docs/guide.ja.mbt.md"));
+    }
+
+    #[test]
+    fn rejects_inputs_that_resolve_to_the_same_output_path() {
+        // Given
+        let outputs = [
+            target_path(Path::new("guide.md"), "ja")
+                .unwrap_or_else(|error| panic!("failed to resolve first output path: {error}")),
+            target_path(Path::new("./guide.en.md"), "ja")
+                .unwrap_or_else(|error| panic!("failed to resolve second output path: {error}")),
+        ];
+
+        // When
+        let result = ensure_distinct_output_paths(outputs.iter().map(PathBuf::as_path));
+
+        // Then
+        assert!(result.is_err());
     }
 
     #[test]

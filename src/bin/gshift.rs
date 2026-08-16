@@ -1,12 +1,13 @@
 use std::{
     fs::{self, OpenOptions},
     io::{IsTerminal as _, Write as _},
+    path::PathBuf,
 };
 
 use anyhow::{Context as _, bail};
 use clap::Parser as _;
 use glossshift::{
-    cli::{Cli, highlight_markdown, normalize_language, target_path},
+    cli::{Cli, ensure_distinct_output_paths, highlight_markdown, normalize_language, target_path},
     config,
     llm::{RequestId, TranslationEvent, TranslationRequest},
 };
@@ -31,6 +32,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 .transpose()
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
+    ensure_distinct_output_paths(output_paths.iter().flatten().map(PathBuf::as_path))?;
     for path in output_paths.iter().flatten() {
         if path.exists() && !cli.force {
             bail!(
