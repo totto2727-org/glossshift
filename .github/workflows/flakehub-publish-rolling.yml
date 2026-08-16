@@ -1,5 +1,3 @@
-# This workflow is disabled by default. Rename this file to
-# flakehub-publish-rolling.yml to publish the repository root flake.
 name: Publish every Git push to main to FlakeHub
 
 on:
