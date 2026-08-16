@@ -110,6 +110,28 @@ fn rejects_an_output_path_that_is_also_an_input_path() {
 }
 
 #[test]
+fn rejects_output_paths_that_differ_only_by_case() {
+    // Given
+    let inputs = [PathBuf::from("guide.md"), PathBuf::from("GUIDE.en.md")];
+    let outputs = inputs
+        .iter()
+        .map(|input| {
+            target_path(input, "ja")
+                .unwrap_or_else(|error| panic!("failed to resolve output path: {error}"))
+        })
+        .collect::<Vec<_>>();
+
+    // When
+    let result = ensure_safe_output_paths(
+        inputs.iter().map(PathBuf::as_path),
+        outputs.iter().map(PathBuf::as_path),
+    );
+
+    // Then
+    assert!(result.is_err());
+}
+
+#[test]
 fn highlights_markdown_without_changing_source_text() {
     // Given
     let source = "# Heading\n\n- item\n";

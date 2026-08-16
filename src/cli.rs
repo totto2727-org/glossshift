@@ -137,8 +137,8 @@ pub fn ensure_safe_output_paths<'a>(
 }
 
 fn resolve_path_identity(path: &Path) -> anyhow::Result<PathBuf> {
-    match fs::canonicalize(path) {
-        Ok(resolved) => Ok(resolved),
+    let resolved = match fs::canonicalize(path) {
+        Ok(resolved) => resolved,
         Err(error) if error.kind() == ErrorKind::NotFound => {
             let parent = path
                 .parent()
@@ -147,14 +147,16 @@ fn resolve_path_identity(path: &Path) -> anyhow::Result<PathBuf> {
             let file_name = path
                 .file_name()
                 .with_context(|| format!("path '{}' has no file name", path.display()))?;
-            Ok(fs::canonicalize(parent)
+            fs::canonicalize(parent)
                 .with_context(|| format!("failed to resolve directory '{}'", parent.display()))?
-                .join(file_name))
+                .join(file_name)
         }
         Err(error) => {
-            Err(error).with_context(|| format!("failed to resolve path '{}'", path.display()))
+            return Err(error)
+                .with_context(|| format!("failed to resolve path '{}'", path.display()));
         }
-    }
+    };
+    Ok(PathBuf::from(resolved.to_string_lossy().to_lowercase()))
 }
 
 /// Convert Markdown highlight events to ANSI-styled source text.

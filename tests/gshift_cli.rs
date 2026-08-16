@@ -213,3 +213,28 @@ fn rejects_an_output_that_would_overwrite_a_later_input() {
     );
     assert!(!fixture.root.join("guide.fr.fr.md").exists());
 }
+
+#[test]
+fn rejects_case_insensitive_output_collisions() {
+    // Given
+    let fixture = Fixture::new("case-insensitive-collision");
+    let first = fixture.input("guide.md", "# FIRST\n");
+    let second = fixture.input("GUIDE.en.md", "# SECOND\n");
+
+    // When
+    let output = fixture
+        .command(&[first.as_path(), second.as_path()])
+        .args(["--lang", "ja", "--force"])
+        .output()
+        .unwrap_or_else(|error| panic!("failed to run gshift: {error}"));
+
+    // Then
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("same output file"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!fixture.root.join("guide.ja.md").exists());
+    assert!(!fixture.root.join("GUIDE.ja.md").exists());
+}
