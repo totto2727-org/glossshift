@@ -38,7 +38,9 @@ The CLI writes a language-suffixed sibling file by default or writes the transla
 ## Prerequisites
 
 - **macOS**: GlossShift currently supports macOS only.
-- **Rust and Cargo**: Rust 1.85 or newer is required; the repository currently builds with Rust 1.95.
+- **Rust and Cargo**: Rust 1.85 or newer is required.
+- **Just**: The documented `just` recipes provide the development, packaging, and CLI workflows.
+- **Nix (optional)**: `nix develop` provides the Rust toolchain and Just in a reproducible Darwin development shell; use it when those tools are not already installed.
 - **Accessibility permission**: Grant permission to the application bundle or terminal that captures selections and sends the fallback `Cmd+C`.
 - **OpenAI-compatible credentials**: Provide an API key and model through a server implementing Chat Completions.
 - **Xcode Command Line Tools**: GPUI's `runtime_shaders` feature does not require the standalone Metal compiler from a full Xcode installation.
@@ -95,8 +97,9 @@ GlossShift has no maintained API registry, so the public Rust API is documented 
 Provides the default `config.toml` template used by `config::load_or_initialize`.
 
 ```rust
-let source = glossshift::config::DEFAULT_CONFIG;
-let config = glossshift::config::parse_config(source)?;
+fn default_config() -> anyhow::Result<glossshift::config::AppConfig> {
+    glossshift::config::parse_config(glossshift::config::DEFAULT_CONFIG)
+}
 ```
 
 ### `config::AppConfig`, `config::ProviderConfig`, `config::TranslationConfig`, `config::ShortcutConfig`, `config::WindowConfig`, and `config::LoadedConfig`
@@ -104,8 +107,11 @@ let config = glossshift::config::parse_config(source)?;
 These public data types represent validated application configuration, provider endpoint and timeout settings, source-language settings, target-language shortcuts, popup dimensions, and the loaded API key plus configuration directory. `ProviderConfig::request_parameters` carries optional JSON fields unchanged to Rig.
 
 ```rust
-let provider = config.provider()?;
-println!("{} via {}", provider.model, provider.base_url);
+fn active_provider(
+    config: &glossshift::config::AppConfig,
+) -> anyhow::Result<&glossshift::config::ProviderConfig> {
+    config.provider()
+}
 ```
 
 ### `config::AppConfig::provider`
@@ -113,7 +119,11 @@ println!("{} via {}", provider.model, provider.base_url);
 Returns the provider selected by `active_provider` or an error when that name is not configured.
 
 ```rust
-let provider = app_config.provider()?;
+fn active_provider(
+    app_config: &glossshift::config::AppConfig,
+) -> anyhow::Result<&glossshift::config::ProviderConfig> {
+    app_config.provider()
+}
 ```
 
 ### `config::parse_config`
@@ -121,7 +131,9 @@ let provider = app_config.provider()?;
 Parses TOML and validates the active provider, popup dimensions, shortcut list, target languages, and duplicate hotkeys.
 
 ```rust
-let app = glossshift::config::parse_config(toml_source)?;
+fn parse(source: &str) -> anyhow::Result<glossshift::config::AppConfig> {
+    glossshift::config::parse_config(source)
+}
 ```
 
 ### `config::load_or_initialize`
@@ -129,7 +141,9 @@ let app = glossshift::config::parse_config(toml_source)?;
 Resolves the XDG configuration directory, creates missing configuration and credential templates, enforces credential mode `0600`, and returns `LoadedConfig` with the active API key.
 
 ```rust
-let loaded = glossshift::config::load_or_initialize()?;
+fn load() -> anyhow::Result<glossshift::config::LoadedConfig> {
+    glossshift::config::load_or_initialize()
+}
 ```
 
 ### `prompt::translation_prompt`
@@ -137,7 +151,7 @@ let loaded = glossshift::config::load_or_initialize()?;
 Builds the shared translation-only prompt while preserving meaning, tone, paragraphs, and formatting.
 
 ```rust
-let prompt = glossshift::prompt::translation_prompt("auto", "Japanese", markdown);
+let prompt = glossshift::prompt::translation_prompt("auto", "Japanese", "# Heading\n");
 ```
 
 ### `llm::RequestId` and `llm::TranslationRequest`
@@ -145,14 +159,20 @@ let prompt = glossshift::prompt::translation_prompt("auto", "Japanese", markdown
 `RequestId` identifies one stream so consumers can ignore stale events. `TranslationRequest` carries that ID, a `ProviderConfig`, API key, source and target languages, and source text.
 
 ```rust
-let request = glossshift::llm::TranslationRequest {
-    id: glossshift::llm::RequestId(1),
-    provider: provider.clone(),
-    api_key,
-    source_language: "auto".into(),
-    target_language: "Japanese".into(),
-    text: markdown.into(),
-};
+fn request(
+    provider: glossshift::config::ProviderConfig,
+    api_key: String,
+    text: String,
+) -> glossshift::llm::TranslationRequest {
+    glossshift::llm::TranslationRequest {
+        id: glossshift::llm::RequestId(1),
+        provider,
+        api_key,
+        source_language: "auto".into(),
+        target_language: "Japanese".into(),
+        text,
+    }
+}
 ```
 
 ### `llm::TranslationEvent` and `TranslationEvent::request_id`
@@ -160,8 +180,8 @@ let request = glossshift::llm::TranslationRequest {
 `TranslationEvent` reports `Started`, streamed `Delta`, `Finished`, or `Failed` for a request, and `request_id()` returns the event's associated `RequestId`.
 
 ```rust
-if event.request_id() == glossshift::llm::RequestId(1) {
-    handle_event(event);
+fn is_current(event: &glossshift::llm::TranslationEvent) -> bool {
+    event.request_id() == glossshift::llm::RequestId(1)
 }
 ```
 
@@ -170,7 +190,17 @@ if event.request_id() == glossshift::llm::RequestId(1) {
 Streams one `TranslationRequest` through Rig into an `async_channel::Sender<TranslationEvent>` and observes a `CancellationToken`; it returns an error for provider, timeout, or closed-channel failures.
 
 ```rust
-glossshift::llm::translate(request, events, tokio_util::sync::CancellationToken::new()).await?;
+async fn translate_request(
+    request: glossshift::llm::TranslationRequest,
+    events: async_channel::Sender<glossshift::llm::TranslationEvent>,
+) -> anyhow::Result<()> {
+    glossshift::llm::translate(
+        request,
+        events,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await
+}
 ```
 
 ### `llm::run_worker`
@@ -178,7 +208,12 @@ glossshift::llm::translate(request, events, tokio_util::sync::CancellationToken:
 Consumes bounded translation requests, cancels the previous request when a newer one arrives, and forwards each request's events to the supplied bounded channel.
 
 ```rust
-tokio::spawn(glossshift::llm::run_worker(requests, events));
+fn spawn_worker(
+    requests: async_channel::Receiver<glossshift::llm::TranslationRequest>,
+    events: async_channel::Sender<glossshift::llm::TranslationEvent>,
+) {
+    tokio::spawn(glossshift::llm::run_worker(requests, events));
+}
 ```
 
 ### `cli::Cli` and `cli::ColorChoice`
@@ -186,6 +221,8 @@ tokio::spawn(glossshift::llm::run_worker(requests, events));
 `Cli` is the Clap parser for the `gshift` binary: it contains the Markdown `file`, required `lang`, `force`, `stdout`, and `color` options. `ColorChoice` is `Auto`, `Always`, or `Never`; `ColorChoice::enabled` resolves whether ANSI output is enabled for the current stdout terminal.
 
 ```rust
+use std::io::IsTerminal as _;
+
 let color = glossshift::cli::ColorChoice::Auto.enabled(std::io::stdout().is_terminal());
 ```
 
@@ -194,8 +231,11 @@ let color = glossshift::cli::ColorChoice::Auto.enabled(std::io::stdout().is_term
 Trims and lowercases a target language code and rejects empty values, leading or trailing hyphens, and non-ASCII alphanumeric or hyphen characters.
 
 ```rust
-let language = glossshift::cli::normalize_language(" JA ")?;
-assert_eq!(language, "ja");
+fn normalize() -> anyhow::Result<String> {
+    let language = glossshift::cli::normalize_language(" JA ")?;
+    assert_eq!(language, "ja");
+    Ok(language)
+}
 ```
 
 ### `cli::target_path`
@@ -203,8 +243,14 @@ assert_eq!(language, "ja");
 Resolves a translated sibling path, preserving `.mbt.md` as a compound extension and replacing an existing `.ja` or `.en` segment.
 
 ```rust
-let output = glossshift::cli::target_path(std::path::Path::new("guide.en.mbt.md"), "ja")?;
-assert_eq!(output, std::path::Path::new("guide.ja.mbt.md"));
+fn output_path() -> anyhow::Result<std::path::PathBuf> {
+    let output = glossshift::cli::target_path(
+        std::path::Path::new("guide.en.mbt.md"),
+        "ja",
+    )?;
+    assert_eq!(output, std::path::Path::new("guide.ja.mbt.md"));
+    Ok(output)
+}
 ```
 
 ### `cli::highlight_markdown`
@@ -212,7 +258,9 @@ assert_eq!(output, std::path::Path::new("guide.ja.mbt.md"));
 Converts Markdown highlight events into ANSI-styled text using Tree-sitter queries without changing the underlying source characters.
 
 ```rust
-let ansi = glossshift::cli::highlight_markdown("# Heading\n")?;
+fn highlight() -> anyhow::Result<String> {
+    glossshift::cli::highlight_markdown("# Heading\n")
+}
 ```
 
 ## Development
@@ -221,6 +269,6 @@ For repository structure, development commands, architecture, and the complete C
 
 ## License
 
-MIT
+The package metadata declares MIT, but this repository does not currently include a `LICENSE` file.
 
 _This README was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [README template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/readme/template.md)._

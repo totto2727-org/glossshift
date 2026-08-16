@@ -26,7 +26,7 @@ package.nix            Nix Rust package definition
 - Run commands from the repository root.
 - Support macOS only until the project explicitly expands its platform scope.
 - Use the named Just recipes below instead of ad-hoc shell workflows; use Cargo directly only when a recipe cannot express the needed target.
-- Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `gshift`.
+- Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `mdt`.
 - Do not create a separate `CLAUDE.md`; keep `AGENTS.md` as the canonical agent document.
 - Never commit real credentials, log API keys, weaken a failing test or lint, change remotes, push branches, or create pull requests from this repository unless explicitly requested.
 
@@ -44,8 +44,8 @@ package.nix            Nix Rust package definition
 - `just dev` — Run the desktop binary directly with Cargo.
 - `just run` — Build, ad-hoc sign, verify, and open `target/GlossShift.app`.
 - `just package-app` — Build and verify the local application bundle without opening it.
-- `just cli README.md --lang ja --force` — Regenerate the Japanese README source output.
-- `just cli AGENTS.md --lang ja --force` — Regenerate the Japanese AGENTS source output.
+- `mdt --lang ja --force README.md` — Regenerate the Japanese README source output.
+- `mdt --lang ja --force AGENTS.md` — Regenerate the Japanese AGENTS source output.
 
 ### CLI reference
 
@@ -60,8 +60,8 @@ With `--stdout --color auto`, redirected stdout remains byte-plain and each prov
 Examples:
 
 ```bash
-just cli docs/guide.md --lang ja
-just cli docs/guide.mbt.md --lang ja --force
+just cli README.md --lang ja --force
+just cli AGENTS.md --lang ja --force
 just cli README.md --lang ja --stdout
 just cli README.md --lang ja --stdout --color always
 ```
@@ -94,7 +94,8 @@ Both binaries are included in the Rust and Nix package outputs. The default flak
 
 - **Rust and Cargo**: Compile, test, format, and lint the 2024-edition package with `unsafe_code` forbidden and strict Clippy lints.
 - **Just**: Provides the repository's named development, validation, CLI, and macOS packaging workflows.
-- **Nix flakes**: Provide Darwin package outputs, the reusable overlay, and a development shell.
+- **Nix flakes**: Provide Darwin package outputs, the reusable overlay, and a development shell with the Rust toolchain and Just; run `nix develop` before the named recipes when those tools are not installed locally.
+- **mdt**: Generates the Japanese source-document translations with the configured OpenCode or Codex adapter.
 - **GPUI**: Supplies the native-title-bar, resizable desktop popup and application-thread UI model.
 - **Rig**: Supplies OpenAI Chat Completions streaming, including custom compatible base URLs.
 - **global-hotkey and macOS Accessibility crates**: Provide global shortcut registration and safe selection capture boundaries.
@@ -106,7 +107,7 @@ Both binaries are included in the Rust and Nix package outputs. The default flak
 - Use bounded channels across callback, UI, CLI, and network boundaries, and attach a request ID to every streaming event.
 - Cancel the active stream before starting a newer translation and do not allow stale events to overwrite current UI state.
 - Keep ANSI escapes out of generated files and redirected stdout in automatic color mode.
-- Regenerate and commit `README.ja.md` and `AGENTS.ja.md` beside their English sources after either source document changes.
+- Regenerate and commit `README.ja.md` and `AGENTS.ja.md` with `mdt --lang ja --force README.md` and `mdt --lang ja --force AGENTS.md` beside their English sources after either source document changes.
 - Preserve the relative links in both source documents and the exact share-artifact provenance footer at the end of each English source.
 
 _This AGENTS.md was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [AGENTS template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/agents/template.md)._
