@@ -110,4 +110,4 @@ GPUI アプリケーションスレッドは、ポップアップエンティテ
 - いずれかのソースドキュメントを変更した後は、`mdt --lang ja --force README.md` と `mdt --lang ja --force AGENTS.md` を使用して、英語ソースの横に `README.ja.md` と `AGENTS.ja.md` を再生成してコミットする。
 - 両方のソースドキュメント内の相対リンクと、各英語ソース末尾にある正確な share-artifact provenance フッターを保持する。
 
-_この AGENTS.md は [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) と [AGENTS template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/agents/template.md) から生成されました。_
+_This AGENTS.md was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [AGENTS template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/agents/template.md)._
