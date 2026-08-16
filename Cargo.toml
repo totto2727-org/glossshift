@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 description = "A macOS GPUI popup and CLI for streaming translations through OpenAI-compatible APIs"
 license = "MIT"
-repository = "https://github.com/totto2727/glossshift"
-homepage = "https://github.com/totto2727/glossshift"
+repository = "https://github.com/totto2727-org/glossshift"
+homepage = "https://github.com/totto2727-org/glossshift"
 
 [dependencies]
 accessibility = "0.2.0"
