@@ -2,13 +2,16 @@ use std::{
     fs::{self, OpenOptions},
     io::{IsTerminal as _, Write as _},
     os::unix::fs::OpenOptionsExt as _,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use anyhow::{Context as _, bail};
 use clap::Parser as _;
 use glossshift::{
-    cli::{Cli, ensure_safe_output_paths, highlight_markdown, normalize_language, target_path},
+    cli::{
+        Cli, OutputIdentityGuard, ensure_safe_output_paths, highlight_markdown, normalize_language,
+        target_path,
+    },
     config,
     llm::{RequestId, TranslationEvent, TranslationRequest},
 };
@@ -37,6 +40,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         cli.files.iter().map(PathBuf::as_path),
         output_paths.iter().flatten().map(PathBuf::as_path),
     )?;
+    let mut output_guard = OutputIdentityGuard::new(cli.files.iter().map(PathBuf::as_path))?;
     for path in output_paths.iter().flatten() {
         if path.exists() && !cli.force {
             bail!(
@@ -106,22 +110,42 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             continue;
         }
 
-        let output_path = output_path.context("output path is unavailable")?;
-        let mut options = OpenOptions::new();
-        options.write(true).custom_flags(libc::O_NOFOLLOW);
-        if cli.force {
-            options.create(true).truncate(true);
-        } else {
-            options.create_new(true);
-        }
-        let mut output = options
-            .open(&output_path)
-            .with_context(|| format!("failed to create {}", output_path.display()))?;
-        output
-            .write_all(translated.as_bytes())
-            .with_context(|| format!("failed to write {}", output_path.display()))?;
-        eprintln!("Written to {}", output_path.display());
+        write_translation(
+            &output_path.context("output path is unavailable")?,
+            &translated,
+            cli.force,
+            &mut output_guard,
+        )?;
     }
 
+    Ok(())
+}
+
+fn write_translation(
+    path: &Path,
+    translated: &str,
+    force: bool,
+    output_guard: &mut OutputIdentityGuard,
+) -> anyhow::Result<()> {
+    let mut options = OpenOptions::new();
+    options.write(true).custom_flags(libc::O_NOFOLLOW);
+    if force {
+        options.create(true);
+    } else {
+        options.create_new(true);
+    }
+    let mut output = options
+        .open(path)
+        .with_context(|| format!("failed to create {}", path.display()))?;
+    if force {
+        output_guard.validate_and_remember(&output, path)?;
+        output
+            .set_len(0)
+            .with_context(|| format!("failed to truncate {}", path.display()))?;
+    }
+    output
+        .write_all(translated.as_bytes())
+        .with_context(|| format!("failed to write {}", path.display()))?;
+    eprintln!("Written to {}", path.display());
     Ok(())
 }
