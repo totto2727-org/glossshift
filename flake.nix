@@ -1,7 +1,7 @@
 {
   description = "A macOS GPUI popup and CLI for streaming translations through Rig";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
+  inputs.nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1";
 
   outputs =
     { self, nixpkgs, ... }:
