@@ -19,7 +19,7 @@ The popup hides instead of terminating when closed, and its standard shortcuts a
 Translate one Markdown file with the shared provider configuration:
 
 ```bash
-just cli README.md --lang ja
+just cli README.md --lang ja --force
 ```
 
 The CLI writes a language-suffixed sibling file by default or writes the translation to stdout with `--stdout`; the complete flag, path, and color reference is in [AGENTS.md](./AGENTS.md#cli-reference).
@@ -48,7 +48,7 @@ The CLI writes a language-suffixed sibling file by default or writes the transla
 1. Clone the repository and enter it.
 
 ```bash
-git clone https://github.com/totto2727/glossshift.git
+git clone https://github.com/totto2727-org/glossshift.git
 cd glossshift
 ```
 

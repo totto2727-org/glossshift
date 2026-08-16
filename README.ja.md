@@ -19,7 +19,7 @@ just run
 共有プロバイダー設定で Markdown ファイルを 1 つ翻訳します:
 
 ```bash
-just cli README.md --lang ja
+just cli README.md --lang ja --force
 ```
 
 CLI はデフォルトで言語サフィックス付きの兄弟ファイルを書き込むか、`--stdout` で翻訳を標準出力に書き込みます。完全なフラグ、パス、カラーリファレンスは [AGENTS.md](./AGENTS.md#cli-reference) にあります。
@@ -48,7 +48,7 @@ CLI はデフォルトで言語サフィックス付きの兄弟ファイルを�
 1. リポジトリをクローンして移動します。
 
 ```bash
-git clone https://github.com/totto2727/glossshift.git
+git clone https://github.com/totto2727-org/glossshift.git
 cd glossshift
 ```
 

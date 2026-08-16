@@ -26,7 +26,7 @@ package.nix           Nix Rustパッケージ定義
 - リポジトリルートからコマンドを実行してください。
 - プロジェクトが明示的にプラットフォーム範囲を拡大するまで、macOSのみをサポートします。
 - 以下に示す名前付きのJustレシピをアドホックなシェルワークフローの代わりに使用してください。レシピが目的のターゲットを表現できない場合にのみ、Cargoを直接使用してください。
-- ソースコード、設定例、コミットメッセージ、ソースドキュメントは英語で記述してください。`README.md` と `AGENTS.md` が正規の文書であり、その日本語翻訳は `mdt` で生成されます。
+- ソースコード、設定例、コミットメッセージ、ソースドキュメントは英語で記述してください。`README.md` と `AGENTS.md` が正規の文書であり、その日本語翻訳は `gshift` で生成されます。
 - 別の `CLAUDE.md` を作成せず、`AGENTS.md` を正規のエージェント文書として維持してください。
 - 明示的に要求されない限り、本物の認証情報をコミットせず、APIキーをログに記録せず、失敗しているテストやlintを弱めず、リモートを変更せず、ブランチをプッシュせず、このリポジトリからプルリクエストを作成しないでください。
 
@@ -44,9 +44,8 @@ package.nix           Nix Rustパッケージ定義
 - `just dev` — Cargoでデスクトップバイナリを直接実行します。
 - `just run` — `target/GlossShift.app` をビルド、アドホック署名、検証、起動します。
 - `just package-app` — アプリケーションバンドルを開かずにビルドおよび検証します。
-- `just cli README.md --lang ja` — 指定された引数でCargoを通じて `gshift` を実行します。
-- `mdt --lang ja --force README.md` — 日本語READMEソース出力を再生成します。
-- `mdt --lang ja --force AGENTS.md` — 日本語AGENTSソース出力を再生成します。
+- `just cli README.md --lang ja --force` — 日本語READMEソース出力を再生成します。
+- `just cli AGENTS.md --lang ja --force` — 日本語AGENTSソース出力を再生成します。
 
 ### CLIリファレンス
 

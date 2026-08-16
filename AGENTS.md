@@ -26,7 +26,7 @@ package.nix            Nix Rust package definition
 - Run commands from the repository root.
 - Support macOS only until the project explicitly expands its platform scope.
 - Use the named Just recipes below instead of ad-hoc shell workflows; use Cargo directly only when a recipe cannot express the needed target.
-- Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `mdt`.
+- Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `gshift`.
 - Do not create a separate `CLAUDE.md`; keep `AGENTS.md` as the canonical agent document.
 - Never commit real credentials, log API keys, weaken a failing test or lint, change remotes, push branches, or create pull requests from this repository unless explicitly requested.
 
@@ -44,9 +44,8 @@ package.nix            Nix Rust package definition
 - `just dev` — Run the desktop binary directly with Cargo.
 - `just run` — Build, ad-hoc sign, verify, and open `target/GlossShift.app`.
 - `just package-app` — Build and verify the local application bundle without opening it.
-- `just cli README.md --lang ja` — Run `gshift` through Cargo with the supplied arguments.
-- `mdt --lang ja --force README.md` — Regenerate the Japanese README source output.
-- `mdt --lang ja --force AGENTS.md` — Regenerate the Japanese AGENTS source output.
+- `just cli README.md --lang ja --force` — Regenerate the Japanese README source output.
+- `just cli AGENTS.md --lang ja --force` — Regenerate the Japanese AGENTS source output.
 
 ### CLI reference
 
