@@ -151,7 +151,10 @@ fn load() -> anyhow::Result<glossshift::config::LoadedConfig> {
 Builds the shared translation-only prompt while preserving meaning, tone, paragraphs, and formatting.
 
 ```rust
-let prompt = glossshift::prompt::translation_prompt("auto", "Japanese", "# Heading\n");
+fn main() {
+    let prompt = glossshift::prompt::translation_prompt("auto", "Japanese", "# Heading\n");
+    println!("{prompt}");
+}
 ```
 
 ### `llm::RequestId` and `llm::TranslationRequest`
@@ -223,7 +226,10 @@ fn spawn_worker(
 ```rust
 use std::io::IsTerminal as _;
 
-let color = glossshift::cli::ColorChoice::Auto.enabled(std::io::stdout().is_terminal());
+fn main() {
+    let color = glossshift::cli::ColorChoice::Auto.enabled(std::io::stdout().is_terminal());
+    println!("color enabled: {color}");
+}
 ```
 
 ### `cli::normalize_language`
@@ -262,6 +268,14 @@ fn highlight() -> anyhow::Result<String> {
     glossshift::cli::highlight_markdown("# Heading\n")
 }
 ```
+
+### `selection::selected_text`
+
+This desktop-binary helper checks Accessibility permission, reads the focused element's selected text, and falls back to a simulated `Cmd+C` plus pasteboard polling when needed. Its signature is `pub fn selected_text() -> anyhow::Result<String>`; it is private to the desktop binary rather than an external library entry point.
+
+### `ui::PopupView`
+
+This desktop-binary view owns popup state and exposes `new`, `trigger_translation`, `handle_event`, `copy_source`, and `copy_translation` to wire capture, streaming events, and pane copy actions. These are desktop-binary signatures rather than external library entry points.
 
 ## Development
 
