@@ -56,7 +56,13 @@ impl Fixture {
         path
     }
 
-    fn run(&mut self, inputs: &[&Path], stdout: bool, translations: &[&str]) -> Output {
+    fn run(
+        &mut self,
+        inputs: &[&Path],
+        stdout: bool,
+        force: bool,
+        translations: &[&str],
+    ) -> Output {
         let listener = self
             .listener
             .take()
@@ -70,6 +76,9 @@ impl Fixture {
         command.args(["--lang", "ja"]);
         if stdout {
             command.args(["--stdout", "--color", "never"]);
+        }
+        if force {
+            command.arg("--force");
         }
         let output = command
             .output()
@@ -139,6 +148,7 @@ fn writes_multiple_translations_to_stdout_in_input_order() {
     let output = fixture.run(
         &[first.as_path(), second.as_path()],
         true,
+        false,
         &["FIRST-TRANSLATED", "SECOND-TRANSLATED"],
     );
 
@@ -163,6 +173,7 @@ fn writes_a_sibling_output_for_each_input() {
     let output = fixture.run(
         &[first.as_path(), second.as_path()],
         false,
+        false,
         &["FIRST-TRANSLATED", "SECOND-TRANSLATED"],
     );
 
@@ -173,6 +184,41 @@ fn writes_a_sibling_output_for_each_input() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(output.stdout.is_empty());
+    assert_eq!(
+        fs::read_to_string(fixture.root.join("first.ja.md"))
+            .unwrap_or_else(|error| panic!("failed to read first output: {error}")),
+        "FIRST-TRANSLATED"
+    );
+    assert_eq!(
+        fs::read_to_string(fixture.root.join("second.ja.md"))
+            .unwrap_or_else(|error| panic!("failed to read second output: {error}")),
+        "SECOND-TRANSLATED"
+    );
+}
+
+#[test]
+fn overwrites_each_existing_sibling_output_with_force() {
+    // Given
+    let mut fixture = Fixture::new("force-sibling-outputs");
+    let first = fixture.input("first.md", "# FIRST\n");
+    let second = fixture.input("second.md", "# SECOND\n");
+    fixture.input("first.ja.md", "FIRST-OLD");
+    fixture.input("second.ja.md", "SECOND-OLD");
+
+    // When
+    let output = fixture.run(
+        &[first.as_path(), second.as_path()],
+        false,
+        true,
+        &["FIRST-TRANSLATED", "SECOND-TRANSLATED"],
+    );
+
+    // Then
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert_eq!(
         fs::read_to_string(fixture.root.join("first.ja.md"))
             .unwrap_or_else(|error| panic!("failed to read first output: {error}")),

@@ -3,6 +3,7 @@ use std::{
     os::unix::fs::symlink,
     path::{Path, PathBuf},
     process,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -11,6 +12,8 @@ use clap::Parser as _;
 use super::cli::{
     Cli, OutputIdentityGuard, ensure_safe_output_paths, highlight_markdown, target_path,
 };
+
+static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn accepts_multiple_files_in_input_order() {
@@ -146,7 +149,11 @@ fn rejects_a_dangling_output_symlink() {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|error| panic!("system clock is before the Unix epoch: {error}"))
         .as_nanos();
-    let directory = std::env::temp_dir().join(format!("glossshift-{}-{nonce}", process::id()));
+    let directory = std::env::temp_dir().join(format!(
+        "glossshift-{}-{nonce}-{}",
+        process::id(),
+        NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::create_dir(&directory)
         .unwrap_or_else(|error| panic!("failed to create test directory: {error}"));
     let input = directory.join("guide.md");
@@ -170,7 +177,11 @@ fn rejects_an_output_hard_linked_to_an_input() {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|error| panic!("system clock is before the Unix epoch: {error}"))
         .as_nanos();
-    let directory = std::env::temp_dir().join(format!("glossshift-{}-{nonce}", process::id()));
+    let directory = std::env::temp_dir().join(format!(
+        "glossshift-{}-{nonce}-{}",
+        process::id(),
+        NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::create_dir(&directory)
         .unwrap_or_else(|error| panic!("failed to create test directory: {error}"));
     let input = directory.join("guide.md");
@@ -196,7 +207,11 @@ fn rejects_a_hard_link_substituted_after_preflight() {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|error| panic!("system clock is before the Unix epoch: {error}"))
         .as_nanos();
-    let directory = std::env::temp_dir().join(format!("glossshift-{}-{nonce}", process::id()));
+    let directory = std::env::temp_dir().join(format!(
+        "glossshift-{}-{nonce}-{}",
+        process::id(),
+        NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::create_dir(&directory)
         .unwrap_or_else(|error| panic!("failed to create test directory: {error}"));
     let input = directory.join("guide.md");
