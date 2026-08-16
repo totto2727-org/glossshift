@@ -2,6 +2,7 @@ use std::{
     collections::HashSet,
     fs,
     io::ErrorKind,
+    os::unix::fs::MetadataExt as _,
     path::{Path, PathBuf},
 };
 
@@ -10,6 +11,12 @@ use clap::{Parser, ValueEnum};
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 const COMPOUND_EXTENSION: &str = ".mbt.md";
+#[derive(Eq, Hash, PartialEq)]
+enum PathIdentity {
+    Existing { device: u64, inode: u64 },
+    Missing(PathBuf),
+}
+
 const HIGHLIGHT_NAMES: [&str; 8] = [
     "none",
     "punctuation.delimiter",
@@ -149,9 +156,12 @@ fn reject_symbolic_link(path: &Path) -> anyhow::Result<()> {
     }
 }
 
-fn resolve_path_identity(path: &Path) -> anyhow::Result<PathBuf> {
-    let resolved = match fs::canonicalize(path) {
-        Ok(resolved) => resolved,
+fn resolve_path_identity(path: &Path) -> anyhow::Result<PathIdentity> {
+    match fs::metadata(path) {
+        Ok(metadata) => Ok(PathIdentity::Existing {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        }),
         Err(error) if error.kind() == ErrorKind::NotFound => {
             let parent = path
                 .parent()
@@ -160,16 +170,17 @@ fn resolve_path_identity(path: &Path) -> anyhow::Result<PathBuf> {
             let file_name = path
                 .file_name()
                 .with_context(|| format!("path '{}' has no file name", path.display()))?;
-            fs::canonicalize(parent)
+            let resolved = fs::canonicalize(parent)
                 .with_context(|| format!("failed to resolve directory '{}'", parent.display()))?
-                .join(file_name)
+                .join(file_name);
+            Ok(PathIdentity::Missing(PathBuf::from(
+                resolved.to_string_lossy().to_lowercase(),
+            )))
         }
         Err(error) => {
-            return Err(error)
-                .with_context(|| format!("failed to resolve path '{}'", path.display()));
+            Err(error).with_context(|| format!("failed to resolve path '{}'", path.display()))
         }
-    };
-    Ok(PathBuf::from(resolved.to_string_lossy().to_lowercase()))
+    }
 }
 
 /// Convert Markdown highlight events to ANSI-styled source text.

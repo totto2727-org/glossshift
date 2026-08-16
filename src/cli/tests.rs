@@ -162,6 +162,32 @@ fn rejects_a_dangling_output_symlink() {
 }
 
 #[test]
+fn rejects_an_output_hard_linked_to_an_input() {
+    // Given
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("system clock is before the Unix epoch: {error}"))
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!("glossshift-{}-{nonce}", process::id()));
+    fs::create_dir(&directory)
+        .unwrap_or_else(|error| panic!("failed to create test directory: {error}"));
+    let input = directory.join("guide.md");
+    let output = directory.join("guide.ja.md");
+    fs::write(&input, "# ORIGINAL\n")
+        .unwrap_or_else(|error| panic!("failed to write test input: {error}"));
+    fs::hard_link(&input, &output)
+        .unwrap_or_else(|error| panic!("failed to create output hard link: {error}"));
+
+    // When
+    let result = ensure_safe_output_paths([input.as_path()], [output.as_path()]);
+    fs::remove_dir_all(&directory)
+        .unwrap_or_else(|error| panic!("failed to remove test directory: {error}"));
+
+    // Then
+    assert!(result.is_err());
+}
+
+#[test]
 fn highlights_markdown_without_changing_source_text() {
     // Given
     let source = "# Heading\n\n- item\n";
