@@ -8,7 +8,9 @@ use std::{
 
 use clap::Parser as _;
 
-use super::{Cli, OutputIdentityGuard, ensure_safe_output_paths, highlight_markdown, target_path};
+use super::cli::{
+    Cli, OutputIdentityGuard, ensure_safe_output_paths, highlight_markdown, target_path,
+};
 
 #[test]
 fn accepts_multiple_files_in_input_order() {

@@ -285,6 +285,3 @@ const fn ansi_style(highlight: usize) -> &'static str {
         _ => "",
     }
 }
-
-#[cfg(test)]
-mod tests;
