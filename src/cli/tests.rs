@@ -1,4 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    os::unix::fs::symlink,
+    path::{Path, PathBuf},
+    process,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use clap::Parser as _;
 
@@ -126,6 +132,30 @@ fn rejects_output_paths_that_differ_only_by_case() {
         inputs.iter().map(PathBuf::as_path),
         outputs.iter().map(PathBuf::as_path),
     );
+
+    // Then
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_a_dangling_output_symlink() {
+    // Given
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("system clock is before the Unix epoch: {error}"))
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!("glossshift-{}-{nonce}", process::id()));
+    fs::create_dir(&directory)
+        .unwrap_or_else(|error| panic!("failed to create test directory: {error}"));
+    let input = directory.join("guide.md");
+    let output = directory.join("guide.ja.md");
+    symlink(directory.join("missing.md"), &output)
+        .unwrap_or_else(|error| panic!("failed to create output symlink: {error}"));
+
+    // When
+    let result = ensure_safe_output_paths([input.as_path()], [output.as_path()]);
+    fs::remove_dir_all(&directory)
+        .unwrap_or_else(|error| panic!("failed to remove test directory: {error}"));
 
     // Then
     assert!(result.is_err());

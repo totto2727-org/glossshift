@@ -122,6 +122,7 @@ pub fn ensure_safe_output_paths<'a>(
         .collect::<anyhow::Result<HashSet<_>>>()?;
     let mut resolved_outputs = HashSet::new();
     for path in outputs {
+        reject_symbolic_link(path)?;
         let resolved = resolve_path_identity(path)?;
         if resolved_inputs.contains(&resolved) {
             bail!("output file '{}' is also an input file", path.display());
@@ -134,6 +135,18 @@ pub fn ensure_safe_output_paths<'a>(
         }
     }
     Ok(())
+}
+
+fn reject_symbolic_link(path: &Path) -> anyhow::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            bail!("output path '{}' is a symbolic link", path.display());
+        }
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error)
+            .with_context(|| format!("failed to inspect output path '{}'", path.display())),
+    }
 }
 
 fn resolve_path_identity(path: &Path) -> anyhow::Result<PathBuf> {

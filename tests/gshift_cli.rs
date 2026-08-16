@@ -2,6 +2,7 @@ use std::{
     fs,
     io::{Read, Write as _},
     net::TcpListener,
+    os::unix::fs::symlink,
     path::{Path, PathBuf},
     process::{self, Command, Output},
     sync::atomic::{AtomicU64, Ordering},
@@ -237,4 +238,35 @@ fn rejects_case_insensitive_output_collisions() {
     );
     assert!(!fixture.root.join("guide.ja.md").exists());
     assert!(!fixture.root.join("GUIDE.ja.md").exists());
+}
+
+#[test]
+fn rejects_a_dangling_output_symlink_before_translation() {
+    // Given
+    let fixture = Fixture::new("dangling-output-symlink");
+    let input = fixture.input("guide.md", "# FIRST\n");
+    let output_path = fixture.root.join("guide.ja.md");
+    symlink(fixture.root.join("missing.md"), &output_path)
+        .unwrap_or_else(|error| panic!("failed to create output symlink: {error}"));
+
+    // When
+    let output = fixture
+        .command(&[input.as_path()])
+        .args(["--lang", "ja", "--force"])
+        .output()
+        .unwrap_or_else(|error| panic!("failed to run gshift: {error}"));
+
+    // Then
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("is a symbolic link"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        fs::symlink_metadata(output_path)
+            .unwrap_or_else(|error| panic!("failed to inspect output symlink: {error}"))
+            .file_type()
+            .is_symlink()
+    );
 }

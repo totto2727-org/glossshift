@@ -3748,6 +3748,7 @@ dependencies = [
  "futures",
  "global-hotkey",
  "gpui",
+ "libc",
  "macos-accessibility-client",
  "objc2-app-kit",
  "objc2-foundation",

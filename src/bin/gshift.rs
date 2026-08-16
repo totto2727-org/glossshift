@@ -1,6 +1,7 @@
 use std::{
     fs::{self, OpenOptions},
     io::{IsTerminal as _, Write as _},
+    os::unix::fs::OpenOptionsExt as _,
     path::PathBuf,
 };
 
@@ -107,7 +108,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
 
         let output_path = output_path.context("output path is unavailable")?;
         let mut options = OpenOptions::new();
-        options.write(true);
+        options.write(true).custom_flags(libc::O_NOFOLLOW);
         if cli.force {
             options.create(true).truncate(true);
         } else {
