@@ -1,111 +1,72 @@
 # GlossShift
 
-GlossShift は、GPUI デスクトップインターフェースとコマンドラインインターフェースを備えた macOS 専用の翻訳アプリケーションです。両方のインターフェースは同じ XDG 設定と認証情報を読み込み、同じ翻訳プロンプトを構築し、OpenAI Chat Completions API を実装する任意のサーバーから Rig を介してテキストをストリーミングします。
+GlossShift は、設定、プロンプト、認証情報、OpenAI 互換のストリーミングを共有する GPUI デスクトップポップアップとコマンドラインインターフェースを備えた、macOS 専用の翻訳アプリケーションです。
 
-## 現在のスコープ
+## 使い方
 
-- macOS のみ。
-- ネイティブなタイトルバーと自由にリサイズ可能なポップアップを備え、初期サイズと最小サイズを設定できます。
-- ポップアップを閉じるとアプリを終了せずに非表示になります。次に設定されたショートカットで再表示され、翻訳が開始されます。
-- それぞれにターゲット言語が割り当てられた、設定可能なグローバルショートカット。
-- macOS Accessibility API による選択範囲の取得。フォーカスされた要素が選択テキストをエクスポートしない場合は、シミュレートされた `Cmd+C` を送信します。
-- 任意の OpenAI 互換 Chat Completions エンドポイントによるストリーミング翻訳。
-- デスクトップアプリケーションのアクティブなプロバイダーを使用して 1 つ以上の Markdown ファイルを翻訳する `mdt` スタイルの CLI。
-- パイプライン向けのプレーンなストリーミング stdout と、ターミナル向けの Tree-sitter ベースの ANSI Markdown ハイライト。
-- ソーステキストと翻訳のためのペイン全体のコピーコントロール。
-- `~/.config/glossshift` 配下のプレーンテキストの TOML 設定。
-- ローカルモデルや llama の統合はありません。
-
-## 要件
-
-- macOS。
-- Cargo を備えた Rust 1.85 以降。現在このリポジトリは Rust 1.95 でビルドされています。
-- ビルドされたアプリケーションまたは起動に使用するターミナルによる、直接の選択範囲取得と自動 `Cmd+C` のための Accessibility 権限。
-- OpenAI 互換 Chat Completions サーバーが公開する API キーとモデル。
-
-GPUI は `runtime_shaders` フィーチャー付きでビルドされるため、Xcode Command Line Tools で十分であり、フル Xcode インストールのスタンドアロン Metal コンパイラは不要です。
-
-## 実行
+安定した macOS アプリケーション ID でデスクトップポップアップを起動します。
 
 ```bash
 just run
 ```
 
-安定した macOS アプリケーション ID を得るには、代わりにローカルの `.app` バンドルをビルドして開いてください:
+アプリケーションバンドルを使用しない開発では `just dev` を使用してください。macOS はバンドル識別子（`com.totto2727.glossshift`）を識別できるため、アクセシビリティ権限を付与する際はビルド済みアプリケーションが推奨されます。
+
+別のアプリケーションでテキストを選択し、設定済みのグローバルショートカットを押してキャプチャと翻訳を実行します。デフォルトのショートカットは日本語用の `Ctrl+Super+KeyJ` で、`Super` は `global-hotkey` 構文における macOS の Command 修飾キーを意味します。
+
+ポップアップは閉じても終了せず非表示になり、標準ショートカットは `Cmd+Q`（終了）、`Cmd+W`（非表示）、`Cmd+C`（翻訳をコピー）、`Cmd+Shift+C`（原文をコピー）です。
+
+共有プロバイダー設定で 1 つ以上の Markdown ファイルを翻訳します。
 
 ```bash
-just package-app
-open "target/GlossShift.app"
+just cli README.md AGENTS.md --lang ja --force
 ```
 
-生成されたバンドルは `target` 配下に置かれ、コミットされません。`just package-app` は、最終的なバンドル内容をコピーした後、ローカルのアドホック署名を適用して検証します。macOS がバンドル識別子でアプリケーションを識別できるため、これは Accessibility 権限を付与するための推奨形式です。
+CLI はファイルを入力順に処理します。デフォルトでは入力ごとに言語サフィックス付きの兄弟ファイルを書き出し、`--stdout` では区切りを挿入せず、その順序で翻訳を連結します。完全なフラグ、パス、カラーのリファレンスは [AGENTS.md](./AGENTS.md#cli-reference) を参照してください。
 
-最初の起動時に次のファイルが作成されます:
+## 主な機能
 
-- `~/.config/glossshift/config.toml`
-- `~/.config/glossshift/credentials.toml`（モード `0600`）
+- ネイティブタイトルバーを持つ GPUI ポップアップ。アプリケーションを終了せずにリサイズや非表示が可能です。
+- ショートカットごとに個別のターゲット言語を設定できるグローバルショートカット。
+- macOS アクセシビリティによる選択範囲のキャプチャ。フォーカスされた要素が選択テキストを公開しない場合は、シミュレートされた `Cmd+C` にフォールバックします。
+- OpenAI Chat Completions API を実装するあらゆるサーバー（カスタム base URL やプロバイダーリクエストパラメータを含む）によるストリーミング翻訳。
+- デスクトップアプリケーションと `gshift` CLI の共有 XDG 設定と認証情報。
+- パイプライン用のプレーンなストリーミング標準出力と、ターミナル用のオプションの Tree-sitter Markdown ANSI ハイライト。
+- 原文と翻訳テキストの全画面コピーコントロール。
+- ローカル推論ランタイムや llama 統合はありません。
 
-`credentials.toml` の `replace-me` を置き換え、`config.toml` でプロバイダーとショートカットを調整し、アプリケーションを再起動してください。システム設定で Accessibility 権限を付与し、別のアプリケーションでテキストを選択して、目的のターゲット言語のショートカットを押します。アプリケーションはまず Accessibility で選択範囲を読み取り、その要素が選択テキストをエクスポートしない場合はソースアプリケーションに `Cmd+C` を自動送信します。生成されるデフォルトは Control+Meta+J（設定構文では `Ctrl+Super+KeyJ`）で日本語に翻訳します。macOS では `global-hotkey` は Meta/Command 修飾子を `Super` と呼びます。
+## 前提条件
 
-アプリケーションのバンドル識別子は `com.totto2727.glossshift` です。グローバルな選択範囲取得を使用する前に、このバンドルに Accessibility 権限を付与してください。
+- **macOS**: GlossShift は現在 macOS のみをサポートしています。
+- **Rust と Cargo**: Rust 1.85 以降が必要です。
+- **Just**: ドキュメント化された `just` レシピが、開発、パッケージング、CLI のワークフローを提供します。
+- **Nix（任意）**: `nix develop` が Rust ツールチェーンと Just を再現可能な Darwin 開発シェルで提供します。これらのツールが未インストールの場合に使用してください。
+- **アクセシビリティ権限**: 選択範囲をキャプチャし、フォールバックの `Cmd+C` を送信するアプリケーションバンドルまたはターミナルに権限を付与してください。
+- **OpenAI 互換の認証情報**: Chat Completions を実装するサーバーを通じて API キーとモデルを提供してください。
+- **Xcode Command Line Tools**: GPUI の `runtime_shaders` 機能は、完全な Xcode インストールに含まれるスタンドアロンの Metal コンパイラを必要としません。
 
-`SOURCE` または `TRANSLATION` の横にある `COPY` コントロールを使用すると、そのペインの全文をシステムクリップボードにコピーできます。GPUI 0.2.2 はすぐに使える選択可能な複数行テキスト要素を提供しないため、マウスによる部分選択は現在のシンプルなポップアップのスコープ外です。
+## セットアップ
 
-赤い閉じるボタンはウィンドウの状態を終了せずにポップアップを非表示にします。設定された翻訳ショートカットを押すと、同じポップアップが前面に戻り、新しい翻訳が開始されます。
-
-ウィンドウのキーボードショートカットは標準の macOS の慣例に従います:
-
-- `Cmd+Q` はアプリケーションを終了します。
-- `Cmd+W` はアプリケーションとグローバル翻訳ショートカットをアクティブにしたまま、ポップアップを非表示にします。
-- `Cmd+C` は完全な翻訳テキストをコピーします。
-- `Cmd+Shift+C` は完全なソーステキストをコピーします。
-
-## CLI
-
-`gshift` バイナリは `~/.config/glossshift/config.toml` と `credentials.toml` を再利用します。個別のプロバイダー、モデル、プロンプト、トークン設定はありません。ターゲット言語は `--lang` から取得され、`active_provider`、`source_language`、タイムアウト値、プロバイダー固有のリクエストパラメータは共有アプリケーション設定から取得されます。
+1. リポジトリをクローンしてディレクトリに入ります。
 
 ```bash
-just cli README.md --lang ja
-just cli README.md AGENTS.md --lang ja
+git clone https://github.com/totto2727-org/glossshift.git
+cd glossshift
 ```
 
-CLI は 1 つ以上の Markdown ファイルを受け入れます。デフォルトでは、入力ごとに兄弟ファイルを書き込み、`--force` がない限り既存の出力の上書きを拒否します。MoonBit Markdown 複合拡張子や、既存の `ja` または `en` 言語セグメントの置換を含む `mdt` パス規約に従います。
-
-| 入力 | `--lang ja` の出力 |
-| --- | --- |
-| `guide.md` | `guide.ja.md` |
-| `guide.mbt.md` | `guide.ja.mbt.md` |
-| `guide.en.md` | `guide.ja.md` |
-| `guide.en.mbt.md` | `guide.ja.mbt.md` |
-
-パイプラインやターミナル表示には `--stdout` を使用します:
+2. 署名付きローカルアプリケーションバンドルをビルドして開きます。
 
 ```bash
-just cli README.md --lang ja --stdout
-just cli README.md AGENTS.md --lang ja --stdout --color never
-just cli README.md --lang ja --stdout --color always
+just run
 ```
 
-`--stdout` はファイルを順番に翻訳し、入力順序を維持しながら、区切りなしで各翻訳本文を出力します。`--color auto` がデフォルトです。リダイレクトされた stdout はバイト単位でプレーンのままで、各プロバイダーのデルタを即座にストリーミングします。ターミナル stdout は各レスポンスが完了するまでバッファリングされ、`tree-sitter-highlight` と `tree-sitter-md` Markdown クエリによる ANSI スタイルでレンダリングされます。`--color never` はターミナル出力をプレーンかつ完全にストリーミングされた状態に保ち、`--color always` は stdout がリダイレクトされている場合でも ANSI 出力を有効にします。ファイル出力に ANSI エスケープシーケンスが含まれることはありません。
+3. 初回起動時に `~/.config/glossshift/credentials.toml` を編集して `replace-me` をプロバイダーの API キーに置き換え、必要に応じて `~/.config/glossshift/config.toml` を調整します。
 
-flake は両方のエントリポイントと再利用可能なオーバーレイを公開します。基盤となるパッケージには両方のバイナリが含まれます。各 flake パッケージは `nix run` 用に適切な `meta.mainProgram` を選択します。
+4. システム設定 > プライバシーとセキュリティ > アクセシビリティで `GlossShift.app` にアクセシビリティ権限を付与し、別のアプリケーションでテキストを選択して設定済みのショートカットを使用します。
 
-```bash
-nix run .#gshift -- README.md --lang ja --stdout
-nix run .#glossshift
-```
+アプリケーションはデフォルトのプロバイダー、日本語ショートカット、ウィンドウ寸法で `config.toml` を作成し、モード `0600` で `credentials.toml` を作成します。プロバイダーと認証情報は名前でリンクされるため、認証情報は通常の設定から分離されたままになります。
 
-下流の flake は `glossshift.overlays.default` を追加し、`pkgs.glossshift` または `pkgs.gshift` を使用できます。
-
-分離されたローカルテストの場合は、起動前に標準の `XDG_CONFIG_HOME` を設定します。アプリケーションは `glossshift` ディレクトリを自動的に追加します:
-
-```bash
-XDG_CONFIG_HOME=/tmp/glossshift-test just run
-```
-
-## 設定
-
-[`examples/config.toml`](examples/config.toml) と [`examples/credentials.toml`](examples/credentials.toml) を参照してください。プロバイダーと認証情報は名前でリンクされるため、トークンは通常の設定から分離されたままです。
+設定ルートはデフォルトで `~/.config/glossshift` になり、`XDG_CONFIG_HOME` を尊重します。隔離されたローカル実行には `just dev` の前に `XDG_CONFIG_HOME=/tmp/glossshift-test` を設定してください。Rig は Chat Completions ルートを追加するため、プロバイダーの base URL には通常 `/v1` である API プレフィックスを含める必要があります。
 
 ```toml
 active_provider = "default"
@@ -123,137 +84,223 @@ source_language = "auto"
 [[shortcuts]]
 keys = "Ctrl+Super+KeyJ"
 target_language = "Japanese"
-
-[[shortcuts]]
-keys = "Ctrl+Super+KeyE"
-target_language = "English"
 ```
 
-ターゲット言語ごとに 1 つの `[[shortcuts]]` テーブルを追加します。各エントリには一意の `keys` 値と空でない `target_language` が必要です。重複したホットキーは、別の言語を暗黙的に置き換える代わりに起動時に失敗します。プロバイダーの base URL にはプロバイダーの API プレフィックス（通常は `/v1`）を含める必要があります。Rig が Chat Completions ルートを追加します。ショートカット名は `global-hotkey` パーサーに従います。修飾子はキーの前に置く必要があります。例: `Ctrl+Super+KeyJ`。
+完全なスターターファイルについては [`examples/config.toml`](examples/config.toml) と [`examples/credentials.toml`](examples/credentials.toml) を参照してください。ターゲット言語ごとに 1 つの `[[shortcuts]]` テーブルを追加してください。すべてのショートカットキーは一意で、すべてのターゲット言語は空でない必要があります。
 
-プロバイダー固有の Chat Completions フィールドは TOML テーブルとして追加でき、Rig を通じて変更されずに転送されます。OpenAI の `none` effort をサポートする推論モデルの場合は、次のレイテンシ優先の設定を使用します:
+## API
 
-```toml
-[providers.default.request_parameters]
-reasoning_effort = "none"
+GlossShift には管理された API レジストリがないため、公開 Rust API は以下にインラインで文書化されています。ライブラリを `glossshift` としてインポートしてください。
+
+### `config::DEFAULT_CONFIG`
+
+`config::load_or_initialize` が使用するデフォルトの `config.toml` テンプレートを提供します。
+
+```rust
+fn default_config() -> anyhow::Result<glossshift::config::AppConfig> {
+    glossshift::config::parse_config(glossshift::config::DEFAULT_CONFIG)
+}
 ```
 
-`reasoning_effort` を拒否するモデルや `none` をサポートしないモデルにはこれを設定しないでください。デフォルトの `gpt-4.1-mini` 設定はすでに非推論であり、したがってこのパラメータを省略します。設定を編集した後は、アクティブなプロバイダーを再起動する必要があります。
+### `config::AppConfig`、`config::ProviderConfig`、`config::TranslationConfig`、`config::ShortcutConfig`、`config::WindowConfig`、`config::LoadedConfig`
 
-## アーキテクチャ
+これらの公開データ型は、検証済みのアプリケーション設定、プロバイダーのエンドポイントとタイムアウト設定、ソース言語設定、ターゲット言語ショートカット、ポップアップ寸法、および読み込まれた API キーと設定ディレクトリを表します。`ProviderConfig::request_parameters` はオプションの JSON フィールドを変更せずに Rig へ渡します。
 
-再利用可能なライブラリは XDG 設定、プロンプト構築、プロバイダーストリーミングを担当します。デスクトップバイナリは GPUI、グローバルショートカット、macOS の選択範囲取得を追加します。CLI バイナリはファイル/stdout 処理とオプションの Markdown ハイライトを追加します。GPUI メインスレッドはウィンドウ、グローバルホットキーマネージャー、UI 状態、共有の 2 ワーカー Tokio ランタイムを所有します。Tokio に依存するライブラリは、追加のオーナースレッドを作成せずにそのランタイム上で非同期処理を実行します。有界チャネルは UI および CLI のコンシューマーをネットワーク処理から分離します。単調増加するリクエスト ID により、キャンセルされた、または遅延したデスクトップストリームが新しい翻訳を上書きするのを防ぎます。
-
-```mermaid
-flowchart LR
-    A["Language-specific global shortcut"] --> B["Bounded channel: target language"]
-    B --> C["GPUI main thread"]
-    C --> D["macOS Accessibility API"]
-    D --> E{"Selected text available?"}
-    E -->|"Yes"| H["Captured source text"]
-    E -->|"No"| F["Post Cmd+C with Core Graphics"]
-    F --> G["Wait for NSPasteboard change"]
-    G --> H
-    H --> I["Bounded request channel"]
-    I --> J["Shared Tokio runtime"]
-    J --> K["Rig CompletionsClient"]
-    K --> L["OpenAI-compatible /chat/completions stream"]
-    L --> M["Request-scoped deltas"]
-    M --> N["Bounded UI event channel"]
-    N --> C
-    O["CLI file + --lang"] --> P["Shared XDG config and prompt"]
-    P --> J
-    M --> Q{"CLI output mode"}
-    Q -->|"File"| R["Sibling .lang.md or .lang.mbt.md"]
-    Q -->|"Plain stdout"| S["Stream deltas directly"]
-    Q -->|"TTY color"| T["tree-sitter-md + ANSI"]
+```rust
+fn active_provider(
+    config: &glossshift::config::AppConfig,
+) -> anyhow::Result<&glossshift::config::ProviderConfig> {
+    config.provider()
+}
 ```
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Hotkey as global-hotkey
-    participant UI as GPUI main thread
-    participant AX as Accessibility API
-    participant Source as Source application
-    participant Clipboard as NSPasteboard
-    participant Worker as Tokio worker
-    participant LLM as OpenAI-compatible API
-    User->>Hotkey: Press configured shortcut
-    Hotkey->>UI: Shortcut event(target_language)
-    UI->>AX: Read focused element and selected text
-    alt AXSelectedText is available
-        AX-->>UI: Selected text
-    else Focused element does not export selected text
-        UI->>Clipboard: Record changeCount
-        UI->>Source: Post Cmd+C
-        Source->>Clipboard: Copy selected text
-        Clipboard-->>UI: Changed plain text
-    end
-    UI->>Worker: TranslationRequest(request_id, target_language)
-    Worker->>Worker: Cancel the previous request
-    Worker->>LLM: Start streaming Chat Completions request
-    loop Each text delta
-        LLM-->>Worker: Text delta
-        Worker-->>UI: Delta(request_id)
-        UI-->>User: Incrementally render translation
-    end
-    LLM-->>Worker: End of stream
-    Worker-->>UI: Finished(request_id)
+### `config::AppConfig::provider`
+
+`active_provider` で選択されたプロバイダーを返し、その名前が設定されていない場合はエラーを返します。
+
+```rust
+fn active_provider(
+    app_config: &glossshift::config::AppConfig,
+) -> anyhow::Result<&glossshift::config::ProviderConfig> {
+    app_config.provider()
+}
 ```
 
-## エラー動作
+### `config::parse_config`
 
-- 新しいショートカットは以前のストリームをキャンセルします。
-- 古いリクエスト ID からのイベントは無視されます。
-- 最初のチャンクとその後のアイドル期間には、個別に設定可能なタイムアウトが使用されます。
-- Accessibility 権限の欠如、選択テキストの欠如、無効な設定、プロバイダーの障害は、ポップアップに表示されるか、起動時に報告されます。
-- 権限が利用可能な状態で Accessibility の選択範囲取得が失敗した場合、アプリケーションは `Cmd+C` を送信し、ポップアップを表示する前に新しい空でないプレーンテキストのペーストボード値を最大 300 ミリ秒待機します。
-- 自動取得も失敗した場合、ポップアップは古いクリップボード値を翻訳する代わりに取得エラーを報告します。
-- トークンが `Debug` 出力に含まれることはありませんが、現在の認証情報ストアは依然としてプレーンテキストです。Keychain 統合は意図的に先延ばしにされています。
+TOML を解析し、アクティブプロバイダー、ポップアップ寸法、ショートカットリスト、ターゲット言語、重複したホットキーを検証します。
+
+```rust
+fn parse(source: &str) -> anyhow::Result<glossshift::config::AppConfig> {
+    glossshift::config::parse_config(source)
+}
+```
+
+### `config::load_or_initialize`
+
+XDG 設定ディレクトリを解決し、欠落している設定と認証情報テンプレートを作成し、認証情報モード `0600` を強制し、アクティブな API キーとともに `LoadedConfig` を返します。
+
+```rust
+fn load() -> anyhow::Result<glossshift::config::LoadedConfig> {
+    glossshift::config::load_or_initialize()
+}
+```
+
+### `prompt::translation_prompt`
+
+意味、トーン、段落、フォーマットを保持しながら、共有の翻訳専用プロンプトを構築します。
+
+```rust
+fn main() {
+    let prompt = glossshift::prompt::translation_prompt("auto", "Japanese", "# Heading\n");
+    println!("{prompt}");
+}
+```
+
+### `llm::RequestId` と `llm::TranslationRequest`
+
+`RequestId` は 1 つのストリームを識別し、コンシューマーが古いイベントを無視できるようにします。`TranslationRequest` はその ID、`ProviderConfig`、API キー、ソース言語とターゲット言語、およびソーステキストを保持します。
+
+```rust
+fn request(
+    provider: glossshift::config::ProviderConfig,
+    api_key: String,
+    text: String,
+) -> glossshift::llm::TranslationRequest {
+    glossshift::llm::TranslationRequest {
+        id: glossshift::llm::RequestId(1),
+        provider,
+        api_key,
+        source_language: "auto".into(),
+        target_language: "Japanese".into(),
+        text,
+    }
+}
+```
+
+### `llm::TranslationEvent` と `TranslationEvent::request_id`
+
+`TranslationEvent` はリクエストの `Started`、ストリーミングされた `Delta`、`Finished`、または `Failed` を報告し、`request_id()` はイベントに関連付けられた `RequestId` を返します。
+
+```rust
+fn is_current(event: &glossshift::llm::TranslationEvent) -> bool {
+    event.request_id() == glossshift::llm::RequestId(1)
+}
+```
+
+### `llm::translate`
+
+1 つの `TranslationRequest` を Rig を通じて `async_channel::Sender<TranslationEvent>` へストリーミングし、`CancellationToken` を監視します。プロバイダー、タイムアウト、またはクローズされたチャネルの失敗時にはエラーを返します。
+
+```rust
+async fn translate_request(
+    request: glossshift::llm::TranslationRequest,
+    events: async_channel::Sender<glossshift::llm::TranslationEvent>,
+) -> anyhow::Result<()> {
+    glossshift::llm::translate(
+        request,
+        events,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await
+}
+```
+
+### `llm::run_worker`
+
+制限付きの翻訳リクエストを消費し、新しいリクエストが到着したときに前のリクエストをキャンセルし、各リクエストのイベントを指定された制限付きチャネルへ転送します。
+
+```rust
+fn spawn_worker(
+    requests: async_channel::Receiver<glossshift::llm::TranslationRequest>,
+    events: async_channel::Sender<glossshift::llm::TranslationEvent>,
+) {
+    tokio::spawn(glossshift::llm::run_worker(requests, events));
+}
+```
+
+### `cli::Cli` と `cli::ColorChoice`
+
+`Cli` は `gshift` バイナリ用の Clap パーサーで、入力順の 1 つ以上の Markdown `files` と、必須の `lang`、`force`、`stdout`、`color` オプションを含みます。`ColorChoice` は `Auto`、`Always`、`Never` のいずれかで、`ColorChoice::enabled` は現在の stdout ターミナルで ANSI 出力が有効かどうかを解決します。
+
+```rust
+use std::io::IsTerminal as _;
+
+fn main() {
+    let color = glossshift::cli::ColorChoice::Auto.enabled(std::io::stdout().is_terminal());
+    println!("color enabled: {color}");
+}
+```
+
+### `cli::normalize_language`
+
+ターゲット言語コードをトリムして小文字化し、空の値、先頭または末尾のハイフン、非 ASCII の英数字またはハイフン文字を拒否します。
+
+```rust
+fn normalize() -> anyhow::Result<String> {
+    let language = glossshift::cli::normalize_language(" JA ")?;
+    assert_eq!(language, "ja");
+    Ok(language)
+}
+```
+
+### `cli::target_path`
+
+翻訳された同名ファイルのパスを解決し、`.mbt.md` を複合拡張子として保持し、既存の `.ja` または `.en` セグメントを置き換えます。
+
+```rust
+fn output_path() -> anyhow::Result<std::path::PathBuf> {
+    let output = glossshift::cli::target_path(
+        std::path::Path::new("guide.en.mbt.md"),
+        "ja",
+    )?;
+    assert_eq!(output, std::path::Path::new("guide.ja.mbt.md"));
+    Ok(output)
+}
+```
+
+### `cli::ensure_safe_output_paths`
+
+翻訳開始前にバッチ全体を検証し、既存のハードリンクエイリアス、大文字小文字のみが異なるパスの衝突、シンボリックリンク出力を含め、入力または別の出力と衝突する出力パスを拒否します。
+
+```rust
+fn validate_batch() -> anyhow::Result<()> {
+    let inputs = [
+        std::path::Path::new("README.md"),
+        std::path::Path::new("AGENTS.md"),
+    ];
+    let outputs = [
+        std::path::Path::new("README.ja.md"),
+        std::path::Path::new("AGENTS.ja.md"),
+    ];
+    glossshift::cli::ensure_safe_output_paths(inputs, outputs)
+}
+```
+
+### `cli::highlight_markdown`
+
+Tree-sitter クエリを使用して Markdown ハイライトイベントを ANSI スタイルのテキストに変換します。基になるソース文字は変更されません。
+
+```rust
+fn highlight() -> anyhow::Result<String> {
+    glossshift::cli::highlight_markdown("# Heading\n")
+}
+```
+
+### `selection::selected_text`
+
+このデスクトップバイナリのヘルパーは、アクセシビリティ権限をチェックし、フォーカスされた要素の選択テキストを読み取り、必要な場合はシミュレートされた `Cmd+C` とペーストボードのポーリングにフォールバックします。シグネチャは `pub fn selected_text() -> anyhow::Result<String>` で、外部ライブラリのエントリポイントではなくデスクトップバイナリのプライベート関数です。
+
+### `ui::PopupView`
+
+このデスクトップバイナリのビューはポップアップ状態を所有し、`new`、`trigger_translation`、`handle_event`、`copy_source`、`copy_translation` を公開して、キャプチャ、ストリーミングイベント、ペインのコピーアクションを配線します。これらは外部ライブラリのエントリポイントではなく、デスクトップバイナリのシグネチャです。
 
 ## 開発
 
-```bash
-just fix
-just check
-just ci
-just package-app
-just cli README.md --lang ja
-```
-
-`just fix` は `fix-*` レシピを集約し、`just check` は `check-*` レシピを集約し、`just ci` はチェック、テスト、ビルドを実行します。リポジトリの自動化はルートの `Justfile` に属します。ワークフローがレシピとして合理的に表現できない場合を除き、スタンドアロンのシェルスクリプトを導入する代わりに Just レシピを追加してください。
-
-ソースファイルは小さく保たれ、責任ごとに分離されています: 設定、Accessibility の選択範囲取得、プロンプト構築、ストリーミングワーカー、GPUI ビュー、アプリケーションの配線。
-
-## ドキュメント翻訳
-
-`README.md` と `AGENTS.md` はソースドキュメントです。ローカルの `mdt` コマンドで日本語翻訳を再生成します:
-
-```bash
-mdt --lang ja --force README.md
-mdt --lang ja --force AGENTS.md
-```
-
-生成された `README.ja.md` と `AGENTS.ja.md` をソースの横にコミットしてください。
-
-## 公式リファレンス
-
-- [GPUI crate documentation](https://docs.rs/gpui/0.2.2/gpui/)
-- [GPUI source in Zed](https://github.com/zed-industries/zed/tree/main/crates/gpui)
-- [Rig installation](https://www.rig.rs/docs/installation)
-- [Rig streaming](https://www.rig.rs/docs/concepts/streaming)
-- [Rig OpenAI provider](https://www.rig.rs/docs/integrations/model_providers/openai)
-- [`global-hotkey` crate documentation](https://docs.rs/global-hotkey/0.8.0/global_hotkey/)
-- [`accessibility` crate documentation](https://docs.rs/accessibility/0.2.0/accessibility/)
-- [`macos-accessibility-client` crate documentation](https://docs.rs/macos-accessibility-client/0.0.2/macos_accessibility_client/)
-- [`core-graphics` crate documentation](https://docs.rs/core-graphics/0.24.0/core_graphics/)
-- [`objc2-app-kit` pasteboard documentation](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/struct.NSPasteboard.html)
-- [`xdg` crate documentation](https://docs.rs/xdg/3.0.0/xdg/)
-- [`tree-sitter-highlight` crate documentation](https://docs.rs/tree-sitter-highlight/latest/tree_sitter_highlight/)
-- [`tree-sitter-md` crate documentation](https://docs.rs/tree-sitter-md/latest/tree_sitter_md/)
-- [Apple Accessibility trust API](https://developer.apple.com/documentation/applicationservices/1459186-axisprocesstrustedwithoptions)
+リポジトリ構造、開発コマンド、アーキテクチャ、完全な CLI リファレンスについては [AGENTS.md](./AGENTS.md) を参照してください。
 
 ## ライセンス
 
-MIT
+パッケージメタデータは MIT を宣言していますが、このリポジトリには現在 `LICENSE` ファイルは含まれていません。
+
+_This README was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [README template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/readme/template.md)._
