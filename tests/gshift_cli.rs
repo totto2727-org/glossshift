@@ -65,13 +65,7 @@ impl Fixture {
             .map(ToString::to_string)
             .collect::<Vec<_>>();
         let server = thread::spawn(move || serve(&listener, &translations));
-        let mut command = Command::new(env!("CARGO_BIN_EXE_gshift"));
-        command
-            .current_dir(&self.root)
-            .env("XDG_CONFIG_HOME", self.root.join("config"));
-        for input in inputs {
-            command.arg(input);
-        }
+        let mut command = self.command(inputs);
         command.args(["--lang", "ja"]);
         if stdout {
             command.args(["--stdout", "--color", "never"]);
@@ -83,6 +77,17 @@ impl Fixture {
             .join()
             .unwrap_or_else(|error| panic!("mock provider failed: {error:?}"));
         output
+    }
+
+    fn command(&self, inputs: &[&Path]) -> Command {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_gshift"));
+        command
+            .current_dir(&self.root)
+            .env("XDG_CONFIG_HOME", self.root.join("config"));
+        for input in inputs {
+            command.arg(input);
+        }
+        command
     }
 }
 
@@ -177,4 +182,34 @@ fn writes_a_sibling_output_for_each_input() {
             .unwrap_or_else(|error| panic!("failed to read second output: {error}")),
         "SECOND-TRANSLATED"
     );
+}
+
+#[test]
+fn rejects_an_output_that_would_overwrite_a_later_input() {
+    // Given
+    let fixture = Fixture::new("input-output-collision");
+    let first = fixture.input("guide.md", "# FIRST\n");
+    let second_source = "# SECOND\n";
+    let second = fixture.input("guide.fr.md", second_source);
+
+    // When
+    let output = fixture
+        .command(&[first.as_path(), second.as_path()])
+        .args(["--lang", "fr", "--force"])
+        .output()
+        .unwrap_or_else(|error| panic!("failed to run gshift: {error}"));
+
+    // Then
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("is also an input file"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(second)
+            .unwrap_or_else(|error| panic!("failed to read preserved input: {error}")),
+        second_source
+    );
+    assert!(!fixture.root.join("guide.fr.fr.md").exists());
 }

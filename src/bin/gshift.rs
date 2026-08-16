@@ -7,7 +7,7 @@ use std::{
 use anyhow::{Context as _, bail};
 use clap::Parser as _;
 use glossshift::{
-    cli::{Cli, ensure_distinct_output_paths, highlight_markdown, normalize_language, target_path},
+    cli::{Cli, ensure_safe_output_paths, highlight_markdown, normalize_language, target_path},
     config,
     llm::{RequestId, TranslationEvent, TranslationRequest},
 };
@@ -32,7 +32,10 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 .transpose()
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
-    ensure_distinct_output_paths(output_paths.iter().flatten().map(PathBuf::as_path))?;
+    ensure_safe_output_paths(
+        cli.files.iter().map(PathBuf::as_path),
+        output_paths.iter().flatten().map(PathBuf::as_path),
+    )?;
     for path in output_paths.iter().flatten() {
         if path.exists() && !cli.force {
             bail!(
@@ -49,10 +52,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         );
     }
     let provider = loaded.app.provider()?.clone();
-    let source_language = loaded.app.translation.source_language;
     let color = cli.color.enabled(std::io::stdout().is_terminal());
     let mut stdout = std::io::stdout().lock();
-
     for (id, (file, output_path)) in (1_u64..).zip(cli.files.iter().zip(output_paths)) {
         let source = fs::read_to_string(file)
             .with_context(|| format!("failed to read {}", file.display()))?;
@@ -60,7 +61,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             id: RequestId(id),
             provider: provider.clone(),
             api_key: loaded.api_key.clone(),
-            source_language: source_language.clone(),
+            source_language: loaded.app.translation.source_language.clone(),
             target_language: language.clone(),
             text: source,
         };

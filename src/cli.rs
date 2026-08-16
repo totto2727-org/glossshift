@@ -108,38 +108,25 @@ pub fn target_path(input: &Path, language: &str) -> anyhow::Result<PathBuf> {
     Ok(input.with_file_name(format!("{stem}.{language}{extension}")))
 }
 
-/// Reject output paths that identify the same file.
+/// Reject output paths that identify another output or an input file.
 ///
 /// # Errors
-/// Returns an error when an output path cannot be resolved or multiple paths resolve to one file.
-pub fn ensure_distinct_output_paths<'a>(
-    paths: impl IntoIterator<Item = &'a Path>,
+/// Returns an error when a path cannot be resolved or an output is not distinct from every other path.
+pub fn ensure_safe_output_paths<'a>(
+    inputs: impl IntoIterator<Item = &'a Path>,
+    outputs: impl IntoIterator<Item = &'a Path>,
 ) -> anyhow::Result<()> {
-    let mut resolved_paths = HashSet::new();
-    for path in paths {
-        let resolved = match fs::canonicalize(path) {
-            Ok(resolved) => resolved,
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                let parent = path
-                    .parent()
-                    .filter(|parent| !parent.as_os_str().is_empty())
-                    .unwrap_or_else(|| Path::new("."));
-                let file_name = path.file_name().with_context(|| {
-                    format!("output path '{}' has no file name", path.display())
-                })?;
-                fs::canonicalize(parent)
-                    .with_context(|| {
-                        format!("failed to resolve output directory '{}'", parent.display())
-                    })?
-                    .join(file_name)
-            }
-            Err(error) => {
-                return Err(error).with_context(|| {
-                    format!("failed to resolve output path '{}'", path.display())
-                });
-            }
-        };
-        if !resolved_paths.insert(resolved) {
+    let resolved_inputs = inputs
+        .into_iter()
+        .map(resolve_path_identity)
+        .collect::<anyhow::Result<HashSet<_>>>()?;
+    let mut resolved_outputs = HashSet::new();
+    for path in outputs {
+        let resolved = resolve_path_identity(path)?;
+        if resolved_inputs.contains(&resolved) {
+            bail!("output file '{}' is also an input file", path.display());
+        }
+        if !resolved_outputs.insert(resolved) {
             bail!(
                 "multiple inputs resolve to the same output file '{}'",
                 path.display()
@@ -147,6 +134,27 @@ pub fn ensure_distinct_output_paths<'a>(
         }
     }
     Ok(())
+}
+
+fn resolve_path_identity(path: &Path) -> anyhow::Result<PathBuf> {
+    match fs::canonicalize(path) {
+        Ok(resolved) => Ok(resolved),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            let parent = path
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new("."));
+            let file_name = path
+                .file_name()
+                .with_context(|| format!("path '{}' has no file name", path.display()))?;
+            Ok(fs::canonicalize(parent)
+                .with_context(|| format!("failed to resolve directory '{}'", parent.display()))?
+                .join(file_name))
+        }
+        Err(error) => {
+            Err(error).with_context(|| format!("failed to resolve path '{}'", path.display()))
+        }
+    }
 }
 
 /// Convert Markdown highlight events to ANSI-styled source text.
@@ -218,7 +226,7 @@ mod tests {
 
     use clap::Parser as _;
 
-    use super::{Cli, ensure_distinct_output_paths, highlight_markdown, target_path};
+    use super::{Cli, ensure_safe_output_paths, highlight_markdown, target_path};
 
     #[test]
     fn accepts_multiple_files_in_input_order() {
@@ -285,15 +293,41 @@ mod tests {
     #[test]
     fn rejects_inputs_that_resolve_to_the_same_output_path() {
         // Given
+        let inputs = [PathBuf::from("guide.md"), PathBuf::from("./guide.en.md")];
         let outputs = [
-            target_path(Path::new("guide.md"), "ja")
+            target_path(&inputs[0], "ja")
                 .unwrap_or_else(|error| panic!("failed to resolve first output path: {error}")),
-            target_path(Path::new("./guide.en.md"), "ja")
+            target_path(&inputs[1], "ja")
                 .unwrap_or_else(|error| panic!("failed to resolve second output path: {error}")),
         ];
 
         // When
-        let result = ensure_distinct_output_paths(outputs.iter().map(PathBuf::as_path));
+        let result = ensure_safe_output_paths(
+            inputs.iter().map(PathBuf::as_path),
+            outputs.iter().map(PathBuf::as_path),
+        );
+
+        // Then
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_an_output_path_that_is_also_an_input_path() {
+        // Given
+        let inputs = [PathBuf::from("guide.md"), PathBuf::from("./guide.fr.md")];
+        let outputs = inputs
+            .iter()
+            .map(|input| {
+                target_path(input, "fr")
+                    .unwrap_or_else(|error| panic!("failed to resolve output path: {error}"))
+            })
+            .collect::<Vec<_>>();
+
+        // When
+        let result = ensure_safe_output_paths(
+            inputs.iter().map(PathBuf::as_path),
+            outputs.iter().map(PathBuf::as_path),
+        );
 
         // Then
         assert!(result.is_err());
