@@ -10,7 +10,7 @@ GlossShift は、GPUI デスクトップインターフェースとコマンド�
 - それぞれにターゲット言語が割り当てられた、設定可能なグローバルショートカット。
 - macOS Accessibility API による選択範囲の取得。フォーカスされた要素が選択テキストをエクスポートしない場合は、シミュレートされた `Cmd+C` を送信します。
 - 任意の OpenAI 互換 Chat Completions エンドポイントによるストリーミング翻訳。
-- デスクトップアプリケーションのアクティブなプロバイダーを使用して 1 つの Markdown ファイルを翻訳する `mdt` スタイルの CLI。
+- デスクトップアプリケーションのアクティブなプロバイダーを使用して 1 つ以上の Markdown ファイルを翻訳する `mdt` スタイルの CLI。
 - パイプライン向けのプレーンなストリーミング stdout と、ターミナル向けの Tree-sitter ベースの ANSI Markdown ハイライト。
 - ソーステキストと翻訳のためのペイン全体のコピーコントロール。
 - `~/.config/glossshift` 配下のプレーンテキストの TOML 設定。
@@ -66,9 +66,10 @@ open "target/GlossShift.app"
 
 ```bash
 just cli README.md --lang ja
+just cli README.md AGENTS.md --lang ja
 ```
 
-デフォルトでは、CLI は兄弟ファイルを書き込み、`--force` がない限り既存の出力への上書きを拒否します。MoonBit Markdown の複合拡張子や既存の `ja` または `en` 言語セグメントの置き換えを含む、`mdt` のパス規約に従います。
+CLI は 1 つ以上の Markdown ファイルを受け入れます。デフォルトでは、入力ごとに兄弟ファイルを書き込み、`--force` がない限り既存の出力の上書きを拒否します。MoonBit Markdown 複合拡張子や、既存の `ja` または `en` 言語セグメントの置換を含む `mdt` パス規約に従います。
 
 | 入力 | `--lang ja` の出力 |
 | --- | --- |
@@ -81,10 +82,11 @@ just cli README.md --lang ja
 
 ```bash
 just cli README.md --lang ja --stdout
+just cli README.md AGENTS.md --lang ja --stdout --color never
 just cli README.md --lang ja --stdout --color always
 ```
 
-`--color auto` がデフォルトです。リダイレクトされた stdout はバイト単位でプレーンのまま、プロバイダーの各デルタを即座にストリーミングします。ターミナルの stdout はレスポンスが完了するまでバッファリングされ、その後 `tree-sitter-highlight` と `tree-sitter-md` Markdown クエリの ANSI スタイルでレンダリングされます。`--color never` はターミナル出力をプレーンなまま完全にストリーミングします。`--color always` は stdout がリダイレクトされていても ANSI 出力を有効にします。ファイル出力に ANSI エスケープシーケンスは含まれません。
+`--stdout` はファイルを順番に翻訳し、入力順序を維持しながら、区切りなしで各翻訳本文を出力します。`--color auto` がデフォルトです。リダイレクトされた stdout はバイト単位でプレーンのままで、各プロバイダーのデルタを即座にストリーミングします。ターミナル stdout は各レスポンスが完了するまでバッファリングされ、`tree-sitter-highlight` と `tree-sitter-md` Markdown クエリによる ANSI スタイルでレンダリングされます。`--color never` はターミナル出力をプレーンかつ完全にストリーミングされた状態に保ち、`--color always` は stdout がリダイレクトされている場合でも ANSI 出力を有効にします。ファイル出力に ANSI エスケープシーケンスが含まれることはありません。
 
 flake は両方のエントリポイントと再利用可能なオーバーレイを公開します。基盤となるパッケージには両方のバイナリが含まれます。各 flake パッケージは `nix run` 用に適切な `meta.mainProgram` を選択します。
 

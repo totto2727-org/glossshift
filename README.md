@@ -10,7 +10,7 @@ GlossShift is a macOS-only translation application with GPUI desktop and command
 - Configurable global shortcuts, each assigned to a target language.
 - Selection capture through the macOS Accessibility API, followed by a simulated `Cmd+C` when the focused element does not export selected text.
 - Streaming translation through an arbitrary OpenAI-compatible Chat Completions endpoint.
-- An `mdt`-style CLI that translates one Markdown file with the desktop application's active provider.
+- An `mdt`-style CLI that translates one or more Markdown files with the desktop application's active provider.
 - Plain streamed stdout for pipelines and Tree-sitter-based ANSI Markdown highlighting for terminals.
 - Whole-pane copy controls for the source text and translation.
 - Plain-text TOML configuration under `~/.config/glossshift`.
@@ -66,9 +66,10 @@ The `gshift` binary reuses `~/.config/glossshift/config.toml` and `credentials.t
 
 ```bash
 just cli README.md --lang ja
+just cli README.md AGENTS.md --lang ja
 ```
 
-By default, the CLI writes a sibling file and refuses to overwrite an existing output unless `--force` is present. It follows the `mdt` path convention, including MoonBit Markdown compound extensions and replacement of existing `ja` or `en` language segments.
+The CLI accepts one or more Markdown files. By default, it writes a sibling file for each input and refuses to overwrite an existing output unless `--force` is present. It follows the `mdt` path convention, including MoonBit Markdown compound extensions and replacement of existing `ja` or `en` language segments.
 
 | Input | `--lang ja` output |
 | --- | --- |
@@ -81,10 +82,11 @@ Use `--stdout` for pipelines or terminal display:
 
 ```bash
 just cli README.md --lang ja --stdout
+just cli README.md AGENTS.md --lang ja --stdout --color never
 just cli README.md --lang ja --stdout --color always
 ```
 
-`--color auto` is the default. Redirected stdout stays byte-plain and streams each provider delta immediately. Terminal stdout is buffered until the response completes, then rendered with ANSI styles from `tree-sitter-highlight` and the `tree-sitter-md` Markdown queries. `--color never` keeps terminal output plain and fully streamed; `--color always` enables ANSI output even when stdout is redirected. File output never contains ANSI escape sequences.
+`--stdout` translates files sequentially and emits each translated body without separators, preserving input order. `--color auto` is the default. Redirected stdout stays byte-plain and streams each provider delta immediately. Terminal stdout is buffered until each response completes, then rendered with ANSI styles from `tree-sitter-highlight` and the `tree-sitter-md` Markdown queries. `--color never` keeps terminal output plain and fully streamed; `--color always` enables ANSI output even when stdout is redirected. File output never contains ANSI escape sequences.
 
 The flake exposes both entry points and a reusable overlay. The underlying package contains both binaries; each flake package selects the appropriate `meta.mainProgram` for `nix run`.
 

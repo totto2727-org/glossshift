@@ -20,11 +20,12 @@ const HIGHLIGHT_NAMES: [&str; 8] = [
 #[command(
     name = "gshift",
     version,
-    about = "Translate a Markdown file with GlossShift's configured provider"
+    about = "Translate Markdown files with GlossShift's configured provider"
 )]
 pub struct Cli {
-    /// Markdown file to translate.
-    pub file: PathBuf,
+    /// Markdown files to translate in input order.
+    #[arg(required = true, num_args = 1..)]
+    pub files: Vec<PathBuf>,
 
     /// Target language code, such as ja or en.
     #[arg(short, long)]
@@ -167,9 +168,34 @@ const fn ansi_style(highlight: usize) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
-    use super::{highlight_markdown, target_path};
+    use clap::Parser as _;
+
+    use super::{Cli, highlight_markdown, target_path};
+
+    #[test]
+    fn accepts_multiple_files_in_input_order() {
+        // Given / When
+        let cli = Cli::try_parse_from([
+            "gshift",
+            "docs/first.md",
+            "docs/second.md",
+            "--lang",
+            "ja",
+            "--stdout",
+        ])
+        .unwrap_or_else(|error| panic!("failed to parse multiple files: {error}"));
+
+        // Then
+        assert_eq!(
+            cli.files,
+            [
+                PathBuf::from("docs/first.md"),
+                PathBuf::from("docs/second.md")
+            ]
+        );
+    }
 
     #[test]
     fn inserts_language_before_markdown_extension() {
