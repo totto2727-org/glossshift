@@ -66,4 +66,3 @@ Use `just ci` to run the full local validation gate. Use the smallest relevant `
 - Keep production source files below 250 lines when practical.
 - Add tests for configuration validation, prompt contracts, cancellation, or stale-event behavior when those boundaries change.
 - Do not log or render API keys.
-- Do not change Git remotes, push branches, or create pull requests unless the user explicitly requests GitHub work.
