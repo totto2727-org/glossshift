@@ -1,6 +1,6 @@
 [package]
 name = "glossshift"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "A macOS GPUI popup and CLI for streaming translations through OpenAI-compatible APIs"
 license = "MIT"
@@ -17,6 +17,7 @@ core-graphics = "0.24.0"
 futures = "0.3"
 global-hotkey = { version = "0.8.0", features = ["serde"] }
 gpui = { version = "0.2.2", features = ["runtime_shaders"] }
+libc = "0.2"
 macos-accessibility-client = "0.0.2"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSPasteboard"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSString"] }

@@ -3737,7 +3737,7 @@ dependencies = [
 
 [[package]]
 name = "glossshift"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "accessibility",
  "anyhow",
@@ -3748,6 +3748,7 @@ dependencies = [
  "futures",
  "global-hotkey",
  "gpui",
+ "libc",
  "macos-accessibility-client",
  "objc2-app-kit",
  "objc2-foundation",

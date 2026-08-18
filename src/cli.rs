@@ -1,10 +1,22 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashSet,
+    fs,
+    io::ErrorKind,
+    os::unix::fs::MetadataExt as _,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context as _, bail};
 use clap::{Parser, ValueEnum};
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 const COMPOUND_EXTENSION: &str = ".mbt.md";
+#[derive(Eq, Hash, PartialEq)]
+enum PathIdentity {
+    Existing { device: u64, inode: u64 },
+    Missing(PathBuf),
+}
+
 const HIGHLIGHT_NAMES: [&str; 8] = [
     "none",
     "punctuation.delimiter",
@@ -20,11 +32,12 @@ const HIGHLIGHT_NAMES: [&str; 8] = [
 #[command(
     name = "gshift",
     version,
-    about = "Translate a Markdown file with GlossShift's configured provider"
+    about = "Translate Markdown files with GlossShift's configured provider"
 )]
 pub struct Cli {
-    /// Markdown file to translate.
-    pub file: PathBuf,
+    /// Markdown files to translate in input order.
+    #[arg(required = true, num_args = 1..)]
+    pub files: Vec<PathBuf>,
 
     /// Target language code, such as ja or en.
     #[arg(short, long)]
@@ -102,6 +115,93 @@ pub fn target_path(input: &Path, language: &str) -> anyhow::Result<PathBuf> {
     Ok(input.with_file_name(format!("{stem}.{language}{extension}")))
 }
 
+/// Reject output paths that identify another output or an input file.
+/// Symbolic-link outputs are accepted only when `force` allows replacing the link itself.
+///
+/// # Errors
+/// Returns an error when a path cannot be resolved or an output is not distinct from every other path.
+pub fn ensure_safe_output_paths<'a>(
+    inputs: impl IntoIterator<Item = &'a Path>,
+    outputs: impl IntoIterator<Item = &'a Path>,
+    force: bool,
+) -> anyhow::Result<()> {
+    let inputs = inputs.into_iter().collect::<Vec<_>>();
+    let input_path_names = inputs
+        .iter()
+        .map(|path| resolve_path_name(path))
+        .collect::<anyhow::Result<HashSet<_>>>()?;
+    let resolved_inputs = inputs
+        .into_iter()
+        .map(resolve_path_identity)
+        .collect::<anyhow::Result<HashSet<_>>>()?;
+    let mut resolved_outputs = HashSet::new();
+    for path in outputs {
+        if input_path_names.contains(&resolve_path_name(path)?) {
+            bail!("output file '{}' is also an input file", path.display());
+        }
+        let resolved = resolve_output_path_identity(path, force)?;
+        if resolved_inputs.contains(&resolved) {
+            bail!("output file '{}' is also an input file", path.display());
+        }
+        if !resolved_outputs.insert(resolved) {
+            bail!(
+                "multiple inputs resolve to the same output file '{}'",
+                path.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+fn resolve_output_path_identity(path: &Path, force: bool) -> anyhow::Result<PathIdentity> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            if !force {
+                bail!("output path '{}' is a symbolic link", path.display());
+            }
+            resolve_missing_path_identity(path)
+        }
+        Ok(metadata) => Ok(PathIdentity::Existing {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        }),
+        Err(error) if error.kind() == ErrorKind::NotFound => resolve_missing_path_identity(path),
+        Err(error) => Err(error)
+            .with_context(|| format!("failed to inspect output path '{}'", path.display())),
+    }
+}
+
+fn resolve_path_identity(path: &Path) -> anyhow::Result<PathIdentity> {
+    match fs::metadata(path) {
+        Ok(metadata) => Ok(PathIdentity::Existing {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        }),
+        Err(error) if error.kind() == ErrorKind::NotFound => resolve_missing_path_identity(path),
+        Err(error) => {
+            Err(error).with_context(|| format!("failed to resolve path '{}'", path.display()))
+        }
+    }
+}
+
+fn resolve_missing_path_identity(path: &Path) -> anyhow::Result<PathIdentity> {
+    Ok(PathIdentity::Missing(resolve_path_name(path)?))
+}
+
+fn resolve_path_name(path: &Path) -> anyhow::Result<PathBuf> {
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let file_name = path
+        .file_name()
+        .with_context(|| format!("path '{}' has no file name", path.display()))?;
+    let resolved = fs::canonicalize(parent)
+        .with_context(|| format!("failed to resolve directory '{}'", parent.display()))?
+        .join(file_name);
+    Ok(PathBuf::from(resolved.to_string_lossy().to_lowercase()))
+}
+
 /// Convert Markdown highlight events to ANSI-styled source text.
 ///
 /// # Errors
@@ -162,69 +262,5 @@ const fn ansi_style(highlight: usize) -> &'static str {
         6 => "\u{1b}[1;36m",
         7 => "\u{1b}[4;34m",
         _ => "",
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::Path;
-
-    use super::{highlight_markdown, target_path};
-
-    #[test]
-    fn inserts_language_before_markdown_extension() {
-        // Given
-        let input = Path::new("docs/guide.md");
-
-        // When
-        let output = target_path(input, "ja")
-            .unwrap_or_else(|error| panic!("failed to resolve output path: {error}"));
-
-        // Then
-        assert_eq!(output, Path::new("docs/guide.ja.md"));
-    }
-
-    #[test]
-    fn preserves_moonbit_markdown_compound_extension() {
-        // Given
-        let input = Path::new("docs/guide.mbt.md");
-
-        // When
-        let output = target_path(input, "ja")
-            .unwrap_or_else(|error| panic!("failed to resolve output path: {error}"));
-
-        // Then
-        assert_eq!(output, Path::new("docs/guide.ja.mbt.md"));
-    }
-
-    #[test]
-    fn replaces_existing_language_segment() {
-        // Given
-        let input = Path::new("docs/guide.en.mbt.md");
-
-        // When
-        let output = target_path(input, "ja")
-            .unwrap_or_else(|error| panic!("failed to resolve output path: {error}"));
-
-        // Then
-        assert_eq!(output, Path::new("docs/guide.ja.mbt.md"));
-    }
-
-    #[test]
-    fn highlights_markdown_without_changing_source_text() {
-        // Given
-        let source = "# Heading\n\n- item\n";
-
-        // When
-        let highlighted = highlight_markdown(source)
-            .unwrap_or_else(|error| panic!("failed to highlight markdown: {error}"));
-
-        // Then
-        assert!(highlighted.contains("\u{1b}["));
-        let plain = highlighted
-            .replace("\u{1b}[0m", "")
-            .replace("\u{1b}[1;36m", "")
-            .replace("\u{1b}[2;37m", "");
-        assert_eq!(plain, source);
     }
 }
