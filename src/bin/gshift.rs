@@ -1,6 +1,6 @@
 use std::{
     fs::{self, OpenOptions},
-    io::{IsTerminal as _, Write as _},
+    io::{ErrorKind, IsTerminal as _, Write as _},
     os::unix::fs::OpenOptionsExt as _,
     path::{Path, PathBuf},
 };
@@ -36,6 +36,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     ensure_safe_output_paths(
         cli.files.iter().map(PathBuf::as_path),
         output_paths.iter().flatten().map(PathBuf::as_path),
+        cli.force,
     )?;
     for path in output_paths.iter().flatten() {
         if path.exists() && !cli.force {
@@ -117,6 +118,21 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
 }
 
 fn write_translation(path: &Path, translated: &str, force: bool) -> anyhow::Result<()> {
+    if force {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                fs::remove_file(path).with_context(|| {
+                    format!("failed to remove output symbolic link {}", path.display())
+                })?;
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("failed to inspect output path {}", path.display()));
+            }
+        }
+    }
     let mut options = OpenOptions::new();
     options.write(true).custom_flags(libc::O_NOFOLLOW);
     if force {

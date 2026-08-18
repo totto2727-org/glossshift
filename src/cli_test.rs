@@ -90,6 +90,7 @@ fn rejects_inputs_that_resolve_to_the_same_output_path() {
     let result = ensure_safe_output_paths(
         inputs.iter().map(PathBuf::as_path),
         outputs.iter().map(PathBuf::as_path),
+        false,
     );
 
     // Then
@@ -112,7 +113,53 @@ fn rejects_an_output_path_that_is_also_an_input_path() {
     let result = ensure_safe_output_paths(
         inputs.iter().map(PathBuf::as_path),
         outputs.iter().map(PathBuf::as_path),
+        false,
     );
+
+    // Then
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_a_forced_symlink_output_path_that_is_also_an_input_path() {
+    // Given
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("system clock is before the Unix epoch: {error}"))
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "glossshift-{}-{nonce}-{}",
+        process::id(),
+        NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir(&directory)
+        .unwrap_or_else(|error| panic!("failed to create test directory: {error}"));
+    let first = directory.join("guide.md");
+    let second = directory.join("guide.fr.md");
+    let target = directory.join("target.md");
+    fs::write(&first, "# FIRST\n")
+        .unwrap_or_else(|error| panic!("failed to write first input: {error}"));
+    fs::write(&target, "# TARGET\n")
+        .unwrap_or_else(|error| panic!("failed to write symlink target: {error}"));
+    symlink(&target, &second)
+        .unwrap_or_else(|error| panic!("failed to create input symlink: {error}"));
+    let inputs = [first, second];
+    let outputs = inputs
+        .iter()
+        .map(|input| {
+            target_path(input, "fr")
+                .unwrap_or_else(|error| panic!("failed to resolve output path: {error}"))
+        })
+        .collect::<Vec<_>>();
+
+    // When
+    let result = ensure_safe_output_paths(
+        inputs.iter().map(PathBuf::as_path),
+        outputs.iter().map(PathBuf::as_path),
+        true,
+    );
+    fs::remove_dir_all(&directory)
+        .unwrap_or_else(|error| panic!("failed to remove test directory: {error}"));
 
     // Then
     assert!(result.is_err());
@@ -134,6 +181,7 @@ fn rejects_output_paths_that_differ_only_by_case() {
     let result = ensure_safe_output_paths(
         inputs.iter().map(PathBuf::as_path),
         outputs.iter().map(PathBuf::as_path),
+        false,
     );
 
     // Then
@@ -160,12 +208,40 @@ fn rejects_a_dangling_output_symlink() {
         .unwrap_or_else(|error| panic!("failed to create output symlink: {error}"));
 
     // When
-    let result = ensure_safe_output_paths([input.as_path()], [output.as_path()]);
+    let result = ensure_safe_output_paths([input.as_path()], [output.as_path()], false);
     fs::remove_dir_all(&directory)
         .unwrap_or_else(|error| panic!("failed to remove test directory: {error}"));
 
     // Then
     assert!(result.is_err());
+}
+
+#[test]
+fn accepts_a_dangling_output_symlink_with_force() {
+    // Given
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|error| panic!("system clock is before the Unix epoch: {error}"))
+        .as_nanos();
+    let directory = std::env::temp_dir().join(format!(
+        "glossshift-{}-{nonce}-{}",
+        process::id(),
+        NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir(&directory)
+        .unwrap_or_else(|error| panic!("failed to create test directory: {error}"));
+    let input = directory.join("guide.md");
+    let output = directory.join("guide.ja.md");
+    symlink(directory.join("missing.md"), &output)
+        .unwrap_or_else(|error| panic!("failed to create output symlink: {error}"));
+
+    // When
+    let result = ensure_safe_output_paths([input.as_path()], [output.as_path()], true);
+    fs::remove_dir_all(&directory)
+        .unwrap_or_else(|error| panic!("failed to remove test directory: {error}"));
+
+    // Then
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -190,7 +266,7 @@ fn rejects_an_output_hard_linked_to_an_input() {
         .unwrap_or_else(|error| panic!("failed to create output hard link: {error}"));
 
     // When
-    let result = ensure_safe_output_paths([input.as_path()], [output.as_path()]);
+    let result = ensure_safe_output_paths([input.as_path()], [output.as_path()], false);
     fs::remove_dir_all(&directory)
         .unwrap_or_else(|error| panic!("failed to remove test directory: {error}"));
 

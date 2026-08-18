@@ -261,7 +261,7 @@ fn output_path() -> anyhow::Result<std::path::PathBuf> {
 
 ### `cli::ensure_safe_output_paths`
 
-Validates the complete batch before translation starts, rejecting output paths that collide with an input or another output, including existing hard-link aliases, case-only path collisions, and symlink outputs.
+Validates the complete batch before translation starts, rejecting output paths that collide with an input or another output, including existing hard-link aliases and case-only path collisions. Symbolic-link outputs are rejected unless `force` permits replacing the link itself.
 
 ```rust
 fn validate_batch() -> anyhow::Result<()> {
@@ -273,7 +273,7 @@ fn validate_batch() -> anyhow::Result<()> {
         std::path::Path::new("README.ja.md"),
         std::path::Path::new("AGENTS.ja.md"),
     ];
-    glossshift::cli::ensure_safe_output_paths(inputs, outputs)
+    glossshift::cli::ensure_safe_output_paths(inputs, outputs, false)
 }
 ```
 

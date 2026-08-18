@@ -261,7 +261,7 @@ fn output_path() -> anyhow::Result<std::path::PathBuf> {
 
 ### `cli::ensure_safe_output_paths`
 
-翻訳開始前にバッチ全体を検証し、既存のハードリンクエイリアス、大文字小文字のみが異なるパスの衝突、シンボリックリンク出力を含め、入力または別の出力と衝突する出力パスを拒否します。
+翻訳開始前にバッチ全体を検証し、既存のハードリンクエイリアスや大文字小文字のみが異なるパスの衝突を含め、入力または別の出力と衝突する出力パスを拒否します。シンボリックリンク出力は、`force` がリンク自体の置き換えを許可する場合に限り受け付けます。
 
 ```rust
 fn validate_batch() -> anyhow::Result<()> {
@@ -273,7 +273,7 @@ fn validate_batch() -> anyhow::Result<()> {
         std::path::Path::new("README.ja.md"),
         std::path::Path::new("AGENTS.ja.md"),
     ];
-    glossshift::cli::ensure_safe_output_paths(inputs, outputs)
+    glossshift::cli::ensure_safe_output_paths(inputs, outputs, false)
 }
 ```
 

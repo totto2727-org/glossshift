@@ -116,21 +116,30 @@ pub fn target_path(input: &Path, language: &str) -> anyhow::Result<PathBuf> {
 }
 
 /// Reject output paths that identify another output or an input file.
+/// Symbolic-link outputs are accepted only when `force` allows replacing the link itself.
 ///
 /// # Errors
 /// Returns an error when a path cannot be resolved or an output is not distinct from every other path.
 pub fn ensure_safe_output_paths<'a>(
     inputs: impl IntoIterator<Item = &'a Path>,
     outputs: impl IntoIterator<Item = &'a Path>,
+    force: bool,
 ) -> anyhow::Result<()> {
+    let inputs = inputs.into_iter().collect::<Vec<_>>();
+    let input_path_names = inputs
+        .iter()
+        .map(|path| resolve_path_name(path))
+        .collect::<anyhow::Result<HashSet<_>>>()?;
     let resolved_inputs = inputs
         .into_iter()
         .map(resolve_path_identity)
         .collect::<anyhow::Result<HashSet<_>>>()?;
     let mut resolved_outputs = HashSet::new();
     for path in outputs {
-        reject_symbolic_link(path)?;
-        let resolved = resolve_path_identity(path)?;
+        if input_path_names.contains(&resolve_path_name(path)?) {
+            bail!("output file '{}' is also an input file", path.display());
+        }
+        let resolved = resolve_output_path_identity(path, force)?;
         if resolved_inputs.contains(&resolved) {
             bail!("output file '{}' is also an input file", path.display());
         }
@@ -144,13 +153,19 @@ pub fn ensure_safe_output_paths<'a>(
     Ok(())
 }
 
-fn reject_symbolic_link(path: &Path) -> anyhow::Result<()> {
+fn resolve_output_path_identity(path: &Path, force: bool) -> anyhow::Result<PathIdentity> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() => {
-            bail!("output path '{}' is a symbolic link", path.display());
+            if !force {
+                bail!("output path '{}' is a symbolic link", path.display());
+            }
+            resolve_missing_path_identity(path)
         }
-        Ok(_) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Ok(metadata) => Ok(PathIdentity::Existing {
+            device: metadata.dev(),
+            inode: metadata.ino(),
+        }),
+        Err(error) if error.kind() == ErrorKind::NotFound => resolve_missing_path_identity(path),
         Err(error) => Err(error)
             .with_context(|| format!("failed to inspect output path '{}'", path.display())),
     }
@@ -162,25 +177,29 @@ fn resolve_path_identity(path: &Path) -> anyhow::Result<PathIdentity> {
             device: metadata.dev(),
             inode: metadata.ino(),
         }),
-        Err(error) if error.kind() == ErrorKind::NotFound => {
-            let parent = path
-                .parent()
-                .filter(|parent| !parent.as_os_str().is_empty())
-                .unwrap_or_else(|| Path::new("."));
-            let file_name = path
-                .file_name()
-                .with_context(|| format!("path '{}' has no file name", path.display()))?;
-            let resolved = fs::canonicalize(parent)
-                .with_context(|| format!("failed to resolve directory '{}'", parent.display()))?
-                .join(file_name);
-            Ok(PathIdentity::Missing(PathBuf::from(
-                resolved.to_string_lossy().to_lowercase(),
-            )))
-        }
+        Err(error) if error.kind() == ErrorKind::NotFound => resolve_missing_path_identity(path),
         Err(error) => {
             Err(error).with_context(|| format!("failed to resolve path '{}'", path.display()))
         }
     }
+}
+
+fn resolve_missing_path_identity(path: &Path) -> anyhow::Result<PathIdentity> {
+    Ok(PathIdentity::Missing(resolve_path_name(path)?))
+}
+
+fn resolve_path_name(path: &Path) -> anyhow::Result<PathBuf> {
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let file_name = path
+        .file_name()
+        .with_context(|| format!("path '{}' has no file name", path.display()))?;
+    let resolved = fs::canonicalize(parent)
+        .with_context(|| format!("failed to resolve directory '{}'", parent.display()))?
+        .join(file_name);
+    Ok(PathBuf::from(resolved.to_string_lossy().to_lowercase()))
 }
 
 /// Convert Markdown highlight events to ANSI-styled source text.

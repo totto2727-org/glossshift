@@ -262,6 +262,49 @@ fn rejects_an_output_that_would_overwrite_a_later_input() {
 }
 
 #[test]
+fn rejects_a_forced_output_symlink_that_is_a_later_input() {
+    // Given
+    let fixture = Fixture::new("symlink-input-output-collision");
+    let first = fixture.input("guide.md", "# FIRST\n");
+    let target_source = "# TARGET\n";
+    let target = fixture.input("target.md", target_source);
+    let second = fixture.root.join("guide.fr.md");
+    symlink(&target, &second)
+        .unwrap_or_else(|error| panic!("failed to create later input symlink: {error}"));
+    fs::write(
+        fixture.root.join("config/glossshift/credentials.toml"),
+        "[credentials.default]\napi_key = \"replace-me\"\n",
+    )
+    .unwrap_or_else(|error| panic!("failed to invalidate test credentials: {error}"));
+
+    // When
+    let output = fixture
+        .command(&[first.as_path(), second.as_path()])
+        .args(["--lang", "fr", "--force"])
+        .output()
+        .unwrap_or_else(|error| panic!("failed to run gshift: {error}"));
+
+    // Then
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("is also an input file"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        fs::symlink_metadata(second)
+            .unwrap_or_else(|error| panic!("failed to inspect preserved input symlink: {error}"))
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        fs::read_to_string(target)
+            .unwrap_or_else(|error| panic!("failed to read preserved target: {error}")),
+        target_source
+    );
+}
+
+#[test]
 fn rejects_case_insensitive_output_collisions() {
     // Given
     let fixture = Fixture::new("case-insensitive-collision");
@@ -287,7 +330,7 @@ fn rejects_case_insensitive_output_collisions() {
 }
 
 #[test]
-fn rejects_a_dangling_output_symlink_before_translation() {
+fn rejects_a_dangling_output_symlink_without_force() {
     // Given
     let fixture = Fixture::new("dangling-output-symlink");
     let input = fixture.input("guide.md", "# FIRST\n");
@@ -298,7 +341,7 @@ fn rejects_a_dangling_output_symlink_before_translation() {
     // When
     let output = fixture
         .command(&[input.as_path()])
-        .args(["--lang", "ja", "--force"])
+        .args(["--lang", "ja"])
         .output()
         .unwrap_or_else(|error| panic!("failed to run gshift: {error}"));
 
@@ -314,5 +357,42 @@ fn rejects_a_dangling_output_symlink_before_translation() {
             .unwrap_or_else(|error| panic!("failed to inspect output symlink: {error}"))
             .file_type()
             .is_symlink()
+    );
+}
+
+#[test]
+fn replaces_an_output_symlink_without_modifying_its_target_with_force() {
+    // Given
+    let mut fixture = Fixture::new("force-output-symlink");
+    let input = fixture.input("guide.md", "# FIRST\n");
+    let target = fixture.input("target.md", "TARGET-ORIGINAL");
+    let output_path = fixture.root.join("guide.ja.md");
+    symlink(&target, &output_path)
+        .unwrap_or_else(|error| panic!("failed to create output symlink: {error}"));
+
+    // When
+    let output = fixture.run(&[input.as_path()], false, true, &["FIRST-TRANSLATED"]);
+
+    // Then
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !fs::symlink_metadata(&output_path)
+            .unwrap_or_else(|error| panic!("failed to inspect replaced output: {error}"))
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(
+        fs::read_to_string(output_path)
+            .unwrap_or_else(|error| panic!("failed to read replaced output: {error}")),
+        "FIRST-TRANSLATED"
+    );
+    assert_eq!(
+        fs::read_to_string(target)
+            .unwrap_or_else(|error| panic!("failed to read symlink target: {error}")),
+        "TARGET-ORIGINAL"
     );
 }
