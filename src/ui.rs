@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_channel::Sender;
 use gpui::{
-    ClipboardItem, Context, IntoElement, Render, SharedString, Window, actions, div, prelude::*,
-    rgb,
+    Animation, AnimationExt, ClipboardItem, Context, ElementId, IntoElement, Render, SharedString,
+    Window, actions, div, prelude::*, rgb,
 };
 
 use glossshift::{
@@ -164,6 +164,37 @@ impl PopupView {
         self.copy_pane(Pane::Translation, cx);
     }
 
+    fn streaming_indicator() -> impl IntoElement {
+        // Offset each dot's phase so the three pulse in sequence.
+        let phases = [0.0, 1.0 / 3.0, 2.0 / 3.0];
+        let mut rendered = Vec::new();
+        for (index, phase_offset) in phases.into_iter().enumerate() {
+            rendered.push(
+                div()
+                    .size_2()
+                    .rounded_full()
+                    .bg(rgb(0x0094_a3b8))
+                    .with_animation(
+                        ElementId::named_usize("streaming-dot", index),
+                        Animation::new(Duration::from_millis(900)).repeat(),
+                        move |element, delta| {
+                            let phase = (delta + phase_offset) % 1.0;
+                            element.opacity(0.3 + 0.7 * phase)
+                        },
+                    ),
+            );
+        }
+        div()
+            .id("streaming-indicator")
+            .flex()
+            .items_center()
+            .gap_3()
+            .text_sm()
+            .text_color(rgb(0x00cb_d5e1))
+            .child("Translating…")
+            .children(rendered)
+    }
+
     fn pane_header(pane: Pane, cx: &mut Context<Self>) -> impl IntoElement {
         let (label, id) = match pane {
             Pane::Source => ("SOURCE", "copy-source"),
@@ -263,7 +294,13 @@ impl Render for PopupView {
                             .border_color(rgb(0x0037_4151))
                             .bg(rgb(0x000f_172a))
                             .text_base()
-                            .child(self.output.clone()),
+                            .child(
+                                if self.phase == Phase::Streaming && self.output.is_empty() {
+                                    Self::streaming_indicator().into_any_element()
+                                } else {
+                                    self.output.clone().into_any_element()
+                                },
+                            ),
                     ),
             )
     }
