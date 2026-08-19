@@ -2,7 +2,8 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 bundle := "target/GlossShift.app"
 
-default: ci
+default:
+    @just --list
 
 # Run the application directly with Cargo.
 dev:
