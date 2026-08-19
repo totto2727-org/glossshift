@@ -146,14 +146,15 @@ fn load() -> anyhow::Result<glossshift::config::LoadedConfig> {
 }
 ```
 
-### `prompt::translation_prompt`
+### `prompt::translation_system_prompt` and `prompt::translation_user_prompt`
 
-Builds the shared translation-only prompt while preserving meaning, tone, paragraphs, and formatting.
+Builds the translation contract as a system message and passes the input document as the only user content. The document is treated as inert content translated one-to-one without changing its structure; a source of `auto` directs the model to detect the language.
 
 ```rust
 fn main() {
-    let prompt = glossshift::prompt::translation_prompt("auto", "Japanese", "# Heading\n");
-    println!("{prompt}");
+    let system = glossshift::prompt::translation_system_prompt("auto", "Japanese");
+    let user = glossshift::prompt::translation_user_prompt("# Heading\n");
+    println!("{system}\n\n{user}");
 }
 ```
 
