@@ -11,7 +11,10 @@ use rig::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{config::ProviderConfig, prompt::translation_prompt};
+use crate::{
+    config::ProviderConfig,
+    prompt::{translation_system_prompt, translation_user_prompt},
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RequestId(pub u64);
@@ -90,20 +93,18 @@ pub async fn translate(
         .base_url(&request.provider.base_url)
         .build()
         .context("failed to build the OpenAI-compatible client")?;
+    let system_prompt =
+        translation_system_prompt(&request.source_language, &request.target_language);
     let agent_builder = client
         .agent(&request.provider.model)
-        .preamble("You are a precise translation engine.");
+        .preamble(&system_prompt);
     let agent = match request.provider.request_parameters.clone() {
         Some(parameters) => agent_builder
             .additional_params(serde_json::Value::Object(parameters))
             .build(),
         None => agent_builder.build(),
     };
-    let prompt = translation_prompt(
-        &request.source_language,
-        &request.target_language,
-        &request.text,
-    );
+    let prompt = translation_user_prompt(&request.text);
     let stream = agent.stream_prompt(prompt).await;
     pin_mut!(stream);
 
