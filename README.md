@@ -29,6 +29,7 @@ On its first invocation, `gshift` creates `config.toml` and `credentials.toml` u
 - Shared XDG configuration and credentials for the desktop application and `gshift` CLI.
 - Ordered multi-file Markdown translation with sibling-file or standard-output modes.
 - Plain streamed output for pipelines and optional Tree-sitter Markdown ANSI highlighting for terminals.
+- A separated system prompt and user document so source content remains inert and its structure is translated one-to-one instead of changing the translation contract.
 - Request replacement in the desktop popup so a newer shortcut cancels and supersedes an older translation.
 
 ## Prerequisites
