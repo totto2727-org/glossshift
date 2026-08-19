@@ -4,6 +4,10 @@ GlossShift is a macOS translation application with a GPUI desktop popup and a `g
 
 ## Usage
 
+Open the packaged desktop app, select text in any macOS application, and press a configured shortcut. The popup places the captured text in **SOURCE**, streams the result into **TRANSLATION**, and lets you copy either pane.
+
+![GlossShift desktop popup showing the Accessibility permission status, empty source and translation panes, and copy controls](./docs/assets/glossshift-desktop.png)
+
 Translate one or more Markdown files with the packaged CLI:
 
 ```bash
@@ -16,7 +20,7 @@ Write translations to standard output without ANSI styling:
 nix run 'github:totto2727-org/glossshift#gshift' -- document.md --lang ja --stdout --color never
 ```
 
-The CLI processes files in input order and writes one language-suffixed sibling file per input by default. The desktop popup translates text selected in another application with a configured global shortcut.
+On its first invocation, `gshift` creates `config.toml` and `credentials.toml` under the GlossShift XDG configuration directory and exits until the placeholder API key is replaced. After configuration, the first command writes `document.ja.md` and `notes.ja.mbt.md` and reports their paths to standard error; the second command emits the plain translated body to standard output without creating a file. Multiple inputs are always processed in command-line order.
 
 ## Key features
 
