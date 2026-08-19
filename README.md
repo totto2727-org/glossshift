@@ -4,20 +4,26 @@ GlossShift is a macOS translation application with a GPUI desktop popup and a `g
 
 ## Usage
 
-Open the packaged desktop app, select text in any macOS application, and press a configured shortcut. The popup places the captured text in **SOURCE**, streams the result into **TRANSLATION**, and lets you copy either pane.
+Open the installed desktop application:
+
+```bash
+open ~/.nix-profile/Applications/GlossShift.app
+```
+
+Select text in any macOS application and press a configured shortcut. The popup places the captured text in **SOURCE**, streams the result into **TRANSLATION**, and lets you copy either pane.
 
 ![GlossShift desktop popup showing the Accessibility permission status, empty source and translation panes, and copy controls](./docs/assets/glossshift-desktop.png)
 
 Translate one or more Markdown files with the packaged CLI:
 
 ```bash
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md notes.mbt.md --lang ja
+gshift document.md notes.mbt.md --lang ja
 ```
 
 Write translations to standard output without ANSI styling:
 
 ```bash
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md --lang ja --stdout --color never
+gshift document.md --lang ja --stdout --color never
 ```
 
 On its first invocation, `gshift` creates `config.toml` and `credentials.toml` under the GlossShift XDG configuration directory and exits until the placeholder API key is replaced. After configuration, the first command writes `document.ja.md` and `notes.ja.mbt.md` and reports their paths to standard error; the second command emits the plain translated body to standard output without creating a file. Multiple inputs are always processed in command-line order.
@@ -41,22 +47,22 @@ On its first invocation, `gshift` creates `config.toml` and `credentials.toml` u
 
 ## Setup
 
-1. Run the CLI against an existing Markdown file. Nix fetches and builds the `gshift` package on first use.
+Install the GlossShift flake package into the default Nix profile. The package provides `GlossShift.app` and the `gshift` command.
 
 ```bash
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md --lang ja
+nix profile add 'github:totto2727-org/glossshift#glossshift'
 ```
 
-On the first run, GlossShift creates `~/.config/glossshift/config.toml` and `~/.config/glossshift/credentials.toml`, then exits until the placeholder API key is replaced. If `XDG_CONFIG_HOME` is set, the files are created under `$XDG_CONFIG_HOME/glossshift` instead. GlossShift always resets `credentials.toml` permissions to `0600`.
+## Configuration
 
-2. Set the API key for the default named credential in `credentials.toml`.
+On first use, GlossShift creates `~/.config/glossshift/config.toml` and `~/.config/glossshift/credentials.toml`. If `XDG_CONFIG_HOME` is set, it uses `$XDG_CONFIG_HOME/glossshift` instead. Replace the placeholder API key in `credentials.toml`; GlossShift always resets this file to mode `0600`.
 
 ```toml
 [credentials.default]
 api_key = "your-api-key"
 ```
 
-3. Adjust the active provider, model, and shortcuts in `config.toml` when the defaults do not match the provider.
+Adjust the active provider, model, and shortcuts in `config.toml` when the defaults do not match the provider.
 
 ```toml
 active_provider = "default"
@@ -78,14 +84,11 @@ target_language = "Japanese"
 
 The provider base URL must include its API prefix, commonly `/v1`, because GlossShift appends the Chat Completions route. Provider names and credential names must match, shortcut keys must be unique, and every target language must be non-empty.
 
-4. Run the CLI command again after saving the credentials and configuration.
+After saving both files, rerun the command shown in Usage.
 
-5. To use the desktop popup, build the packaged app output and open its stable application bundle, then grant Accessibility permission in System Settings > Privacy & Security > Accessibility.
+## Permissions
 
-```bash
-nix build --out-link GlossShift-result 'github:totto2727-org/glossshift#glossshift'
-open GlossShift-result/Applications/GlossShift.app
-```
+Grant the installed `GlossShift.app` access in System Settings > Privacy & Security > Accessibility. This permission lets the global shortcut capture selected text and use the simulated `Cmd+C` fallback when an application does not expose its selection directly.
 
 ## API
 
@@ -115,10 +118,10 @@ Configuration, input, provider, timeout, and output failures are written to stan
 
 ```bash
 # Replace existing Japanese sibling outputs.
-nix run 'github:totto2727-org/glossshift#gshift' -- first.md second.md --lang ja --force
+gshift first.md second.md --lang ja --force
 
 # Stream plain English output for a pipeline.
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md --lang en --stdout --color never
+gshift document.md --lang en --stdout --color never
 ```
 
 ## Development

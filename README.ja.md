@@ -4,20 +4,26 @@ GlossShift は、OpenAI 互換プロバイダー、プロンプト、認証情�
 
 ## 使い方
 
-パッケージ化されたデスクトップアプリを開き、任意の macOS アプリケーションでテキストを選択して、設定済みのショートカットを押します。ポップアップは取得したテキストを **SOURCE** に表示し、結果を **TRANSLATION** へストリーミングし、どちらのペインもコピーできます。
+インストール済みのデスクトップアプリを開きます。
+
+```bash
+open ~/.nix-profile/Applications/GlossShift.app
+```
+
+任意の macOS アプリケーションでテキストを選択して、設定済みのショートカットを押します。ポップアップは取得したテキストを **SOURCE** に表示し、結果を **TRANSLATION** へストリーミングし、どちらのペインもコピーできます。
 
 ![アクセシビリティ権限の状態、空の原文・翻訳ペイン、コピー操作を表示するGlossShiftデスクトップポップアップ](./docs/assets/glossshift-desktop.png)
 
 パッケージ化された CLI で 1 つ以上の Markdown ファイルを翻訳します。
 
 ```bash
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md notes.mbt.md --lang ja
+gshift document.md notes.mbt.md --lang ja
 ```
 
 ANSI スタイルを付けずに翻訳を標準出力へ書き込みます。
 
 ```bash
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md --lang ja --stdout --color never
+gshift document.md --lang ja --stdout --color never
 ```
 
 `gshift` は初回実行時に GlossShift の XDG 設定ディレクトリへ `config.toml` と `credentials.toml` を作成し、プレースホルダーの API キーが置換されるまで終了します。設定後、最初のコマンドは `document.ja.md` と `notes.ja.mbt.md` を書き込み、そのパスを標準エラー出力へ表示します。2 番目のコマンドはファイルを作成せず、プレーンな翻訳本文を標準出力へ出力します。複数の入力は常にコマンドラインの指定順に処理されます。
@@ -41,22 +47,22 @@ nix run 'github:totto2727-org/glossshift#gshift' -- document.md --lang ja --stdo
 
 ## セットアップ
 
-1. 既存の Markdown ファイルに対して CLI を実行します。初回は Nix が `gshift` パッケージを取得してビルドします。
+GlossShift の flake パッケージをデフォルトの Nix プロファイルへインストールします。このパッケージには `GlossShift.app` と `gshift` コマンドが含まれます。
 
 ```bash
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md --lang ja
+nix profile add 'github:totto2727-org/glossshift#glossshift'
 ```
 
-初回実行時、GlossShift は `~/.config/glossshift/config.toml` と `~/.config/glossshift/credentials.toml` を作成し、プレースホルダーの API キーが置換されるまで終了します。`XDG_CONFIG_HOME` が設定されている場合、ファイルは `$XDG_CONFIG_HOME/glossshift` 以下に作成されます。GlossShift は常に `credentials.toml` の権限を `0600` に戻します。
+## 設定
 
-2. `credentials.toml` でデフォルトの名前付き認証情報に API キーを設定します。
+GlossShift は初回利用時に `~/.config/glossshift/config.toml` と `~/.config/glossshift/credentials.toml` を作成します。`XDG_CONFIG_HOME` が設定されている場合は `$XDG_CONFIG_HOME/glossshift` を使用します。`credentials.toml` のプレースホルダー API キーを置換してください。GlossShift は常にこのファイルのモードを `0600` に戻します。
 
 ```toml
 [credentials.default]
 api_key = "your-api-key"
 ```
 
-3. デフォルトが利用するプロバイダーと一致しない場合は、`config.toml` のアクティブプロバイダー、モデル、ショートカットを調整します。
+デフォルトが利用するプロバイダーと一致しない場合は、`config.toml` のアクティブプロバイダー、モデル、ショートカットを調整します。
 
 ```toml
 active_provider = "default"
@@ -78,14 +84,11 @@ target_language = "Japanese"
 
 GlossShift が Chat Completions のルートを追加するため、プロバイダーのベース URL には通常 `/v1` である API プレフィックスを含める必要があります。プロバイダー名と認証情報名は一致し、ショートカットキーは一意で、すべてのターゲット言語は空でない必要があります。
 
-4. 認証情報と設定を保存した後、CLI コマンドを再実行します。
+両方のファイルを保存した後、「使い方」に示したコマンドを再実行します。
 
-5. デスクトップポップアップを使用するには、パッケージ化されたアプリ出力をビルドして安定したアプリケーションバンドルを開き、システム設定 > プライバシーとセキュリティ > アクセシビリティで権限を付与します。
+## 権限
 
-```bash
-nix build --out-link GlossShift-result 'github:totto2727-org/glossshift#glossshift'
-open GlossShift-result/Applications/GlossShift.app
-```
+システム設定 > プライバシーとセキュリティ > アクセシビリティで、インストール済みの `GlossShift.app` にアクセスを許可します。この権限により、グローバルショートカットで選択テキストを取得し、アプリケーションが選択範囲を直接公開しない場合に `Cmd+C` シミュレーションへフォールバックできます。
 
 ## API
 
@@ -115,10 +118,10 @@ gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]
 
 ```bash
 # 既存の日本語同階層出力を置換します。
-nix run 'github:totto2727-org/glossshift#gshift' -- first.md second.md --lang ja --force
+gshift first.md second.md --lang ja --force
 
 # パイプ向けにプレーンな英語出力をストリーミングします。
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md --lang en --stdout --color never
+gshift document.md --lang en --stdout --color never
 ```
 
 ## 開発
