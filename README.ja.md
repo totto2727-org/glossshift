@@ -59,7 +59,25 @@ gshift document.md --lang ja --stdout --color never
 
 ## セットアップ
 
-GlossShift の flake パッケージをデフォルトの Nix プロファイルへインストールします。このパッケージには `GlossShift.app` と `gshift` コマンドが含まれます。GlossShiftはnpmパッケージを公開していないため、`npx`と`npm install --global`は利用できません。
+GlossShiftは`GlossShift.app`と`gshift`コマンドを含むflakeパッケージとして配布しています。npmパッケージは公開していないため、`npx`と`npm install --global`は利用できません。
+
+### 永続インストールなしで実行する
+
+ソースflakeからデスクトップアプリケーションを直接起動します。
+
+```bash
+nix run 'github:totto2727-org/glossshift#glossshift'
+```
+
+プロファイルまたは`PATH`へ追加せずにCLIを取得してヘルプを確認します。
+
+```bash
+nix run 'github:totto2727-org/glossshift#gshift' -- --help
+```
+
+翻訳時の操作と出力の動作は[使い方](#使い方)を参照してください。
+
+### 永続的にインストールする
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'

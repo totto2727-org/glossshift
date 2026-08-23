@@ -59,7 +59,25 @@ On its first invocation, `gshift` creates `config.toml` and `credentials.toml` u
 
 ## Setup
 
-Install the GlossShift flake package into the default Nix profile. The package provides `GlossShift.app` and the `gshift` command. GlossShift does not publish an npm package, so `npx` and `npm install --global` are not available.
+GlossShift is distributed as a flake package that provides `GlossShift.app` and the `gshift` command. It does not publish an npm package, so `npx` and `npm install --global` are not available.
+
+### Run without permanent installation
+
+Start the desktop application directly from the source flake:
+
+```bash
+nix run 'github:totto2727-org/glossshift#glossshift'
+```
+
+Acquire and inspect the CLI without adding it to a profile or `PATH`:
+
+```bash
+nix run 'github:totto2727-org/glossshift#gshift' -- --help
+```
+
+For translation interaction and output behavior, see [Usage](#usage).
+
+### Install permanently
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
