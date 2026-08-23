@@ -4,6 +4,12 @@ GlossShift is a macOS translation application with a GPUI desktop popup and a `g
 
 ## Usage
 
+Start the desktop application once without installing it:
+
+```bash
+nix run 'github:totto2727-org/glossshift#glossshift'
+```
+
 Open the installed desktop application:
 
 ```bash
@@ -14,7 +20,13 @@ Select text in any macOS application and press a configured shortcut. The popup 
 
 ![GlossShift desktop popup showing the Accessibility permission status, empty source and translation panes, and copy controls](./docs/assets/glossshift-desktop.png)
 
-Translate one or more Markdown files with the packaged CLI:
+Translate one or more Markdown files once without installing the CLI:
+
+```bash
+nix run 'github:totto2727-org/glossshift#gshift' -- document.md notes.mbt.md --lang ja
+```
+
+After installation, the same packaged CLI is available as `gshift`:
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -40,17 +52,39 @@ On its first invocation, `gshift` creates `config.toml` and `credentials.toml` u
 
 ## Prerequisites
 
-- **macOS**: GlossShift supports Apple Silicon and Intel macOS through the Darwin flake outputs.
+- **Apple Silicon macOS**: The current pinned Nixpkgs input evaluates the `aarch64-darwin` flake outputs. The declared Intel output is not currently a usable consumer route under that pin.
 - **Nix with flakes enabled**: The repository currently distributes source-backed `glossshift` and `gshift` flake packages and does not publish release artifacts.
 - **OpenAI-compatible provider credentials**: Supply an API key, model, and base URL for a server implementing Chat Completions.
 - **Accessibility permission for the desktop app**: Grant access when using global selection capture and its simulated `Cmd+C` fallback.
 
 ## Setup
 
-Install the GlossShift flake package into the default Nix profile. The package provides `GlossShift.app` and the `gshift` command.
+Install the GlossShift flake package into the default Nix profile. The package provides `GlossShift.app` and the `gshift` command. GlossShift does not publish an npm package, so `npx` and `npm install --global` are not available.
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
+```
+
+To make the package part of an Apple Silicon consumer Nix configuration, add it to `flake.nix`. This example creates a reusable package containing both the application bundle and `gshift`.
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    glossshift.url = "github:totto2727-org/glossshift";
+  };
+
+  outputs = { nixpkgs, glossshift, ... }:
+    let
+      system = "aarch64-darwin";
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      packages.${system}.default = pkgs.buildEnv {
+        name = "translation-tools";
+        paths = [ glossshift.packages.${system}.glossshift ];
+      };
+    };
+}
 ```
 
 ## Configuration

@@ -4,6 +4,12 @@ GlossShift は、OpenAI 互換プロバイダー、プロンプト、認証情�
 
 ## 使い方
 
+インストールせずにデスクトップアプリケーションを一度起動します。
+
+```bash
+nix run 'github:totto2727-org/glossshift#glossshift'
+```
+
 インストール済みのデスクトップアプリを開きます。
 
 ```bash
@@ -14,7 +20,13 @@ open ~/.nix-profile/Applications/GlossShift.app
 
 ![アクセシビリティ権限の状態、空の原文・翻訳ペイン、コピー操作を表示するGlossShiftデスクトップポップアップ](./docs/assets/glossshift-desktop.png)
 
-パッケージ化された CLI で 1 つ以上の Markdown ファイルを翻訳します。
+インストールせずにパッケージ化されたCLIで1つ以上のMarkdownファイルを一度翻訳します。
+
+```bash
+nix run 'github:totto2727-org/glossshift#gshift' -- document.md notes.mbt.md --lang ja
+```
+
+インストール後は、同じパッケージ化されたCLIを`gshift`として利用できます。
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -40,17 +52,39 @@ gshift document.md --lang ja --stdout --color never
 
 ## 前提条件
 
-- **macOS**: GlossShift は Darwin flake 出力を通じて Apple Silicon と Intel の macOS をサポートします。
+- **Apple Silicon搭載macOS**: 現在pin留めされているNixpkgs入力では、`aarch64-darwin`のflake出力を評価できます。宣言済みのIntel向け出力は、このpinでは現在利用者向け経路として使えません。
 - **flakes を有効にした Nix**: 現在はソースからビルドする `glossshift` と `gshift` の flake パッケージを配布しており、リリース成果物は公開していません。
 - **OpenAI 互換プロバイダーの認証情報**: Chat Completions を実装するサーバーの API キー、モデル、ベース URL を用意してください。
 - **デスクトップアプリのアクセシビリティ権限**: グローバルな選択テキスト取得と、そのフォールバックである `Cmd+C` シミュレーションを使用するときに付与してください。
 
 ## セットアップ
 
-GlossShift の flake パッケージをデフォルトの Nix プロファイルへインストールします。このパッケージには `GlossShift.app` と `gshift` コマンドが含まれます。
+GlossShift の flake パッケージをデフォルトの Nix プロファイルへインストールします。このパッケージには `GlossShift.app` と `gshift` コマンドが含まれます。GlossShiftはnpmパッケージを公開していないため、`npx`と`npm install --global`は利用できません。
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
+```
+
+Apple Silicon向けconsumerのNix設定へパッケージを組み込む場合は、`flake.nix`へ追加してください。この例はアプリケーションバンドルと`gshift`の両方を含む再利用可能なパッケージを作成します。
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    glossshift.url = "github:totto2727-org/glossshift";
+  };
+
+  outputs = { nixpkgs, glossshift, ... }:
+    let
+      system = "aarch64-darwin";
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      packages.${system}.default = pkgs.buildEnv {
+        name = "translation-tools";
+        paths = [ glossshift.packages.${system}.glossshift ];
+      };
+    };
+}
 ```
 
 ## 設定
