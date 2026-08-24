@@ -4,13 +4,9 @@ GlossShift は、OpenAI 互換プロバイダー、プロンプト、認証情�
 
 ## 使い方
 
-インストールせずにデスクトップアプリケーションを一度起動します。
-
 ```bash
 nix run 'github:totto2727-org/glossshift#glossshift'
 ```
-
-インストール済みのデスクトップアプリを開きます。
 
 ```bash
 open ~/.nix-profile/Applications/GlossShift.app
@@ -20,13 +16,9 @@ open ~/.nix-profile/Applications/GlossShift.app
 
 ![アクセシビリティ権限の状態、空の原文・翻訳ペイン、コピー操作を表示するGlossShiftデスクトップポップアップ](./docs/assets/glossshift-desktop.png)
 
-インストールせずにパッケージ化されたCLIで1つ以上のMarkdownファイルを一度翻訳します。
-
 ```bash
 nix run 'github:totto2727-org/glossshift#gshift' -- document.md notes.mbt.md --lang ja
 ```
-
-インストール後は、同じパッケージ化されたCLIを`gshift`として利用できます。
 
 ```bash
 gshift document.md notes.mbt.md --lang ja

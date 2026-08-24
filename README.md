@@ -4,13 +4,9 @@ GlossShift is a macOS translation application with a GPUI desktop popup and a `g
 
 ## Usage
 
-Start the desktop application once without installing it:
-
 ```bash
 nix run 'github:totto2727-org/glossshift#glossshift'
 ```
-
-Open the installed desktop application:
 
 ```bash
 open ~/.nix-profile/Applications/GlossShift.app
@@ -20,13 +16,9 @@ Select text in any macOS application and press a configured shortcut. The popup 
 
 ![GlossShift desktop popup showing the Accessibility permission status, empty source and translation panes, and copy controls](./docs/assets/glossshift-desktop.png)
 
-Translate one or more Markdown files once without installing the CLI:
-
 ```bash
 nix run 'github:totto2727-org/glossshift#gshift' -- document.md notes.mbt.md --lang ja
 ```
-
-After installation, the same packaged CLI is available as `gshift`:
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
