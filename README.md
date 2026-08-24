@@ -5,20 +5,12 @@ GlossShift is a macOS translation application with a GPUI desktop popup and a `g
 ## Usage
 
 ```bash
-nix run 'github:totto2727-org/glossshift#glossshift'
-```
-
-```bash
 open ~/.nix-profile/Applications/GlossShift.app
 ```
 
 Select text in any macOS application and press a configured shortcut. The popup places the captured text in **SOURCE**, streams the result into **TRANSLATION**, and lets you copy either pane.
 
 ![GlossShift desktop popup showing the Accessibility permission status, empty source and translation panes, and copy controls](./docs/assets/glossshift-desktop.png)
-
-```bash
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md notes.mbt.md --lang ja
-```
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -51,25 +43,21 @@ On its first invocation, `gshift` creates `config.toml` and `credentials.toml` u
 
 ## Setup
 
-### Run the desktop app
+### Run without installing
 
 ```bash
 nix run 'github:totto2727-org/glossshift#glossshift'
-```
-
-### Run the CLI
-
-```bash
 nix run 'github:totto2727-org/glossshift#gshift' -- --help
 ```
 
-### Install to a Nix profile
+### Install
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
+nix profile add 'github:totto2727-org/glossshift#gshift'
 ```
 
-### Add to a consumer flake
+### Nix flake
 
 ```nix
 {

@@ -5,20 +5,12 @@ GlossShift は、OpenAI 互換プロバイダー、プロンプト、認証情�
 ## 使い方
 
 ```bash
-nix run 'github:totto2727-org/glossshift#glossshift'
-```
-
-```bash
 open ~/.nix-profile/Applications/GlossShift.app
 ```
 
 任意の macOS アプリケーションでテキストを選択して、設定済みのショートカットを押します。ポップアップは取得したテキストを **SOURCE** に表示し、結果を **TRANSLATION** へストリーミングし、どちらのペインもコピーできます。
 
 ![アクセシビリティ権限の状態、空の原文・翻訳ペイン、コピー操作を表示するGlossShiftデスクトップポップアップ](./docs/assets/glossshift-desktop.png)
-
-```bash
-nix run 'github:totto2727-org/glossshift#gshift' -- document.md notes.mbt.md --lang ja
-```
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -51,25 +43,21 @@ gshift document.md --lang ja --stdout --color never
 
 ## セットアップ
 
-### デスクトップアプリを実行する
+### Run without installing
 
 ```bash
 nix run 'github:totto2727-org/glossshift#glossshift'
-```
-
-### CLIを実行する
-
-```bash
 nix run 'github:totto2727-org/glossshift#gshift' -- --help
 ```
 
-### Nixプロファイルへインストールする
+### Install
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
+nix profile add 'github:totto2727-org/glossshift#gshift'
 ```
 
-### consumer flakeへ追加する
+### Nix flake
 
 ```nix
 {
