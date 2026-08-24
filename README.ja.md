@@ -53,37 +53,31 @@ gshift document.md --lang ja --stdout --color never
 ## 前提条件
 
 - **Apple Silicon搭載macOS**: 現在pin留めされているNixpkgs入力では、`aarch64-darwin`のflake出力を評価できます。宣言済みのIntel向け出力は、このpinでは現在利用者向け経路として使えません。
-- **flakes を有効にした Nix**: 現在はソースからビルドする `glossshift` と `gshift` の flake パッケージを配布しており、リリース成果物は公開していません。
+- **flakes を有効にした Nix**
 - **OpenAI 互換プロバイダーの認証情報**: Chat Completions を実装するサーバーの API キー、モデル、ベース URL を用意してください。
 - **デスクトップアプリのアクセシビリティ権限**: グローバルな選択テキスト取得と、そのフォールバックである `Cmd+C` シミュレーションを使用するときに付与してください。
 
 ## セットアップ
 
-GlossShiftは`GlossShift.app`と`gshift`コマンドを含むflakeパッケージとして配布しています。npmパッケージは公開していないため、`npx`と`npm install --global`は利用できません。
-
-### 永続インストールなしで実行する
-
-ソースflakeからデスクトップアプリケーションを直接起動します。
+### デスクトップアプリを実行する
 
 ```bash
 nix run 'github:totto2727-org/glossshift#glossshift'
 ```
 
-プロファイルまたは`PATH`へ追加せずにCLIを取得してヘルプを確認します。
+### CLIを実行する
 
 ```bash
 nix run 'github:totto2727-org/glossshift#gshift' -- --help
 ```
 
-翻訳時の操作と出力の動作は[使い方](#使い方)を参照してください。
-
-### 永続的にインストールする
+### Nixプロファイルへインストールする
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
 ```
 
-Apple Silicon向けconsumerのNix設定へパッケージを組み込む場合は、`flake.nix`へ追加してください。この例はアプリケーションバンドルと`gshift`の両方を含む再利用可能なパッケージを作成します。
+### consumer flakeへ追加する
 
 ```nix
 {
@@ -99,7 +93,10 @@ Apple Silicon向けconsumerのNix設定へパッケージを組み込む場合�
     in {
       packages.${system}.default = pkgs.buildEnv {
         name = "translation-tools";
-        paths = [ glossshift.packages.${system}.glossshift ];
+        paths = [
+          glossshift.packages.${system}.glossshift
+          glossshift.packages.${system}.gshift
+        ];
       };
     };
 }

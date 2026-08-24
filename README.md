@@ -53,37 +53,31 @@ On its first invocation, `gshift` creates `config.toml` and `credentials.toml` u
 ## Prerequisites
 
 - **Apple Silicon macOS**: The current pinned Nixpkgs input evaluates the `aarch64-darwin` flake outputs. The declared Intel output is not currently a usable consumer route under that pin.
-- **Nix with flakes enabled**: The repository currently distributes source-backed `glossshift` and `gshift` flake packages and does not publish release artifacts.
+- **Nix with flakes enabled**
 - **OpenAI-compatible provider credentials**: Supply an API key, model, and base URL for a server implementing Chat Completions.
 - **Accessibility permission for the desktop app**: Grant access when using global selection capture and its simulated `Cmd+C` fallback.
 
 ## Setup
 
-GlossShift is distributed as a flake package that provides `GlossShift.app` and the `gshift` command. It does not publish an npm package, so `npx` and `npm install --global` are not available.
-
-### Run without permanent installation
-
-Start the desktop application directly from the source flake:
+### Run the desktop app
 
 ```bash
 nix run 'github:totto2727-org/glossshift#glossshift'
 ```
 
-Acquire and inspect the CLI without adding it to a profile or `PATH`:
+### Run the CLI
 
 ```bash
 nix run 'github:totto2727-org/glossshift#gshift' -- --help
 ```
 
-For translation interaction and output behavior, see [Usage](#usage).
-
-### Install permanently
+### Install to a Nix profile
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
 ```
 
-To make the package part of an Apple Silicon consumer Nix configuration, add it to `flake.nix`. This example creates a reusable package containing both the application bundle and `gshift`.
+### Add to a consumer flake
 
 ```nix
 {
@@ -99,7 +93,10 @@ To make the package part of an Apple Silicon consumer Nix configuration, add it 
     in {
       packages.${system}.default = pkgs.buildEnv {
         name = "translation-tools";
-        paths = [ glossshift.packages.${system}.glossshift ];
+        paths = [
+          glossshift.packages.${system}.glossshift
+          glossshift.packages.${system}.gshift
+        ];
       };
     };
 }
