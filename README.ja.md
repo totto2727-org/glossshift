@@ -44,7 +44,7 @@ gshift document.md --lang ja --stdout --color never
 
 ## 前提条件
 
-- **Apple Silicon搭載macOS**: 現在pin留めされているNixpkgs入力では、`aarch64-darwin`のflake出力を評価できます。宣言済みのIntel向け出力は、このpinでは現在利用者向け経路として使えません。
+- **Apple Silicon搭載Macのみ**: Intel Macはサポートしていません。
 - **flakes を有効にした Nix**
 - **OpenAI 互換プロバイダーの認証情報**: Chat Completions を実装するサーバーの API キー、モデル、ベース URL を用意してください。
 - **デスクトップアプリのアクセシビリティ権限**: グローバルな選択テキスト取得と、そのフォールバックである `Cmd+C` シミュレーションを使用するときに付与してください。

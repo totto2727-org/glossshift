@@ -44,7 +44,7 @@ On its first invocation, `gshift` creates `config.toml` and `credentials.toml` u
 
 ## Prerequisites
 
-- **Apple Silicon macOS**: The current pinned Nixpkgs input evaluates the `aarch64-darwin` flake outputs. The declared Intel output is not currently a usable consumer route under that pin.
+- **Apple Silicon Mac only**: Intel Macs are not supported.
 - **Nix with flakes enabled**
 - **OpenAI-compatible provider credentials**: Supply an API key, model, and base URL for a server implementing Chat Completions.
 - **Accessibility permission for the desktop app**: Grant access when using global selection capture and its simulated `Cmd+C` fallback.
