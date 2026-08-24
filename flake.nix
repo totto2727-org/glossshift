@@ -8,7 +8,6 @@
     let
       supportedSystems = [
         "aarch64-darwin"
-        "x86_64-darwin"
       ];
       forEachSystem = nixpkgs.lib.genAttrs supportedSystems;
       overlay = final: _previous: {
