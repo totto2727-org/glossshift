@@ -14,25 +14,25 @@ cli *args:
     cargo run --bin gshift -- {{args}}
 
 # Apply all automatic fixes.
-fix: fix-format fix-lint
+fix: fix-rustfmt fix-clippy
 
 # Format Rust source files.
-fix-format:
+fix-rustfmt:
     cargo fmt --all
 
 # Apply automatic Clippy fixes.
-fix-lint:
+fix-clippy:
     cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features -- -D warnings
 
 # Run all static checks.
-check: check-format check-lint
+check: check-rustfmt check-clippy
 
 # Check Rust source formatting without changing files.
-check-format:
+check-rustfmt:
     cargo fmt --all --check
 
 # Run strict Clippy checks for every target and feature.
-check-lint:
+check-clippy:
     cargo clippy --all-targets --all-features -- -D warnings
 
 # Run unit tests.
