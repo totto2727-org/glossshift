@@ -4,8 +4,6 @@ GlossShift is a macOS translation application with a GPUI desktop popup and a `g
 
 ## Usage
 
-Open the installed desktop application:
-
 ```bash
 open ~/.nix-profile/Applications/GlossShift.app
 ```
@@ -13,8 +11,6 @@ open ~/.nix-profile/Applications/GlossShift.app
 Select text in any macOS application and press a configured shortcut. The popup places the captured text in **SOURCE**, streams the result into **TRANSLATION**, and lets you copy either pane.
 
 ![GlossShift desktop popup showing the Accessibility permission status, empty source and translation panes, and copy controls](./docs/assets/glossshift-desktop.png)
-
-Translate one or more Markdown files with the packaged CLI:
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -40,17 +36,50 @@ On its first invocation, `gshift` creates `config.toml` and `credentials.toml` u
 
 ## Prerequisites
 
-- **macOS**: GlossShift supports Apple Silicon and Intel macOS through the Darwin flake outputs.
-- **Nix with flakes enabled**: The repository currently distributes source-backed `glossshift` and `gshift` flake packages and does not publish release artifacts.
+- **Apple Silicon Mac only**: Intel Macs are not supported.
+- **Nix with flakes enabled**
 - **OpenAI-compatible provider credentials**: Supply an API key, model, and base URL for a server implementing Chat Completions.
 - **Accessibility permission for the desktop app**: Grant access when using global selection capture and its simulated `Cmd+C` fallback.
 
 ## Setup
 
-Install the GlossShift flake package into the default Nix profile. The package provides `GlossShift.app` and the `gshift` command.
+### Run without installing
+
+```bash
+nix run 'github:totto2727-org/glossshift#glossshift'
+nix run 'github:totto2727-org/glossshift#gshift' -- --help
+```
+
+### Install
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
+nix profile add 'github:totto2727-org/glossshift#gshift'
+```
+
+### Nix flake
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    glossshift.url = "github:totto2727-org/glossshift";
+  };
+
+  outputs = { nixpkgs, glossshift, ... }:
+    let
+      system = "aarch64-darwin";
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      packages.${system}.default = pkgs.buildEnv {
+        name = "translation-tools";
+        paths = [
+          glossshift.packages.${system}.glossshift
+          glossshift.packages.${system}.gshift
+        ];
+      };
+    };
+}
 ```
 
 ## Configuration

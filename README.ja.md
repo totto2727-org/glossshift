@@ -4,8 +4,6 @@ GlossShift は、OpenAI 互換プロバイダー、プロンプト、認証情�
 
 ## 使い方
 
-インストール済みのデスクトップアプリを開きます。
-
 ```bash
 open ~/.nix-profile/Applications/GlossShift.app
 ```
@@ -13,8 +11,6 @@ open ~/.nix-profile/Applications/GlossShift.app
 任意の macOS アプリケーションでテキストを選択して、設定済みのショートカットを押します。ポップアップは取得したテキストを **SOURCE** に表示し、結果を **TRANSLATION** へストリーミングし、どちらのペインもコピーできます。
 
 ![アクセシビリティ権限の状態、空の原文・翻訳ペイン、コピー操作を表示するGlossShiftデスクトップポップアップ](./docs/assets/glossshift-desktop.png)
-
-パッケージ化された CLI で 1 つ以上の Markdown ファイルを翻訳します。
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -40,17 +36,50 @@ gshift document.md --lang ja --stdout --color never
 
 ## 前提条件
 
-- **macOS**: GlossShift は Darwin flake 出力を通じて Apple Silicon と Intel の macOS をサポートします。
-- **flakes を有効にした Nix**: 現在はソースからビルドする `glossshift` と `gshift` の flake パッケージを配布しており、リリース成果物は公開していません。
+- **Apple Silicon搭載Macのみ**: Intel Macはサポートしていません。
+- **flakes を有効にした Nix**
 - **OpenAI 互換プロバイダーの認証情報**: Chat Completions を実装するサーバーの API キー、モデル、ベース URL を用意してください。
 - **デスクトップアプリのアクセシビリティ権限**: グローバルな選択テキスト取得と、そのフォールバックである `Cmd+C` シミュレーションを使用するときに付与してください。
 
 ## セットアップ
 
-GlossShift の flake パッケージをデフォルトの Nix プロファイルへインストールします。このパッケージには `GlossShift.app` と `gshift` コマンドが含まれます。
+### Run without installing
+
+```bash
+nix run 'github:totto2727-org/glossshift#glossshift'
+nix run 'github:totto2727-org/glossshift#gshift' -- --help
+```
+
+### Install
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
+nix profile add 'github:totto2727-org/glossshift#gshift'
+```
+
+### Nix flake
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    glossshift.url = "github:totto2727-org/glossshift";
+  };
+
+  outputs = { nixpkgs, glossshift, ... }:
+    let
+      system = "aarch64-darwin";
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      packages.${system}.default = pkgs.buildEnv {
+        name = "translation-tools";
+        paths = [
+          glossshift.packages.${system}.glossshift
+          glossshift.packages.${system}.gshift
+        ];
+      };
+    };
+}
 ```
 
 ## 設定
