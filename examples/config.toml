@@ -4,8 +4,8 @@ active_provider = "default"
 base_url = "https://api.openai.com/v1"
 model = "gpt-4.1-mini"
 credential = "default"
-first_chunk_timeout_seconds = 15
-stream_idle_timeout_seconds = 30
+first_chunk_timeout_seconds = 30
+stream_idle_timeout_seconds = 60
 
 [translation]
 source_language = "auto"
