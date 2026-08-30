@@ -70,7 +70,7 @@ just cli README.md --lang ja --stdout --color always
 
 The shared configuration root is resolved through `xdg::BaseDirectories`, defaults to `~/.config/glossshift`, and honors `XDG_CONFIG_HOME`. `config.toml` links `active_provider` to a named provider and each provider to a named credential in `credentials.toml`; credential permissions are always reset to `0600`. Treat shortcut strings, TOML content, Accessibility values, and HTTP responses as untrusted boundary input.
 
-The active provider requires a non-empty `base_url` and `model`; its timeout defaults are 15 seconds for the first chunk and 30 seconds for stream idle periods. Optional `[providers.<name>.request_parameters]` JSON fields are forwarded unchanged through Rig. Shortcuts require unique hotkeys and non-empty target languages, and window dimensions must be positive and at least their configured minimums.
+The active provider requires a non-empty `base_url` and `model`; its timeout defaults are 30 seconds for the first chunk and 60 seconds for stream idle periods. Optional `[providers.<name>.request_parameters]` JSON fields are forwarded unchanged through Rig. Shortcuts require unique hotkeys and non-empty target languages, and window dimensions must be positive and at least their configured minimums.
 
 ## Architecture
 

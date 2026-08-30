@@ -70,7 +70,7 @@ just cli README.md --lang ja --stdout --color always
 
 共有設定ルートは `xdg::BaseDirectories` を通じて解決され、デフォルトは `~/.config/glossshift` であり、`XDG_CONFIG_HOME` を尊重する。`config.toml` は `active_provider` を名前付きプロバイダーに、各プロバイダーを `credentials.toml` 内の名前付き認証情報にリンクする。認証情報の権限は常に `0600` にリセットされる。ショートカット文字列、TOML コンテンツ、Accessibility の値、HTTP レスポンスは、信頼できない境界入力として扱う。
 
-アクティブなプロバイダーには空でない `base_url` と `model` が必要である。タイムアウトのデフォルト値は、最初のチャンクが 15 秒、ストリームのアイドル期間が 30 秒である。オプションの `[providers.<name>.request_parameters]` JSON フィールドは、変更せずに Rig 経由で転送される。ショートカットには一意のホットキーと空でない対象言語が必要であり、ウィンドウの寸法は正の値で、設定された最小値以上でなければならない。
+アクティブなプロバイダーには空でない `base_url` と `model` が必要である。タイムアウトのデフォルト値は、最初のチャンクが 30 秒、ストリームのアイドル期間が 60 秒である。オプションの `[providers.<name>.request_parameters]` JSON フィールドは、変更せずに Rig 経由で転送される。ショートカットには一意のホットキーと空でない対象言語が必要であり、ウィンドウの寸法は正の値で、設定された最小値以上でなければならない。
 
 ## アーキテクチャ
 

@@ -16,8 +16,8 @@ pub const DEFAULT_CONFIG: &str = r#"active_provider = "default"
 base_url = "https://api.openai.com/v1"
 model = "gpt-4.1-mini"
 credential = "default"
-first_chunk_timeout_seconds = 15
-stream_idle_timeout_seconds = 30
+first_chunk_timeout_seconds = 30
+stream_idle_timeout_seconds = 60
 
 [translation]
 source_language = "auto"
@@ -199,11 +199,11 @@ fn create_if_missing(path: &Path, content: &str, mode: u32) -> anyhow::Result<bo
 }
 
 const fn default_first_chunk_timeout() -> u64 {
-    15
+    30
 }
 
 const fn default_stream_idle_timeout() -> u64 {
-    30
+    60
 }
 
 #[cfg(test)]
@@ -216,6 +216,8 @@ mod tests {
         let config = parse_config(DEFAULT_CONFIG).unwrap_or_else(|error| panic!("{error}"));
         let provider = config.provider().unwrap_or_else(|error| panic!("{error}"));
         assert_eq!(provider.model, "gpt-4.1-mini");
+        assert_eq!(provider.first_chunk_timeout_seconds, 30);
+        assert_eq!(provider.stream_idle_timeout_seconds, 60);
         assert_eq!(config.shortcuts.len(), 1);
         assert_eq!(config.shortcuts[0].target_language, "Japanese");
         assert_eq!(
