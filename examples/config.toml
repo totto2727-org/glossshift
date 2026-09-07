@@ -7,6 +7,14 @@ credential = "default"
 first_chunk_timeout_seconds = 30
 stream_idle_timeout_seconds = 60
 
+# Optional custom headers. For OpenCode Go, set base_url above to
+# https://opencode.ai/zen/go/v1 and choose a Chat Completions model.
+# ${session_id} expands to one UUID per translation, shared by all its requests.
+# Literal values are sent unchanged. No environment variables are expanded.
+# [providers.default.headers]
+# x-opencode-session = "${session_id}"
+# User-Agent = "glossshift/0.2.0"
+
 [translation]
 source_language = "auto"
 

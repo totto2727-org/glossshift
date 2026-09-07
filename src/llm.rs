@@ -1,8 +1,9 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use async_channel::{Receiver, Sender};
 use futures::{StreamExt as _, pin_mut};
+use http::{HeaderMap, HeaderValue, header::HeaderName};
 use rig::{
     agent::MultiTurnStreamItem,
     prelude::*,
@@ -10,6 +11,7 @@ use rig::{
     streaming::{StreamedAssistantContent, StreamingPrompt},
 };
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use crate::{
     config::ProviderConfig,
@@ -88,9 +90,13 @@ pub async fn translate(
         .await
         .context("UI event channel closed")?;
 
+    // One independent translation is one session. All requests made by its
+    // Rig client share the same expanded headers.
+    let session_id = Uuid::new_v4().to_string();
     let client = openai::CompletionsClient::builder()
         .api_key(&request.api_key)
         .base_url(&request.provider.base_url)
+        .http_headers(provider_headers(&request.provider.headers, &session_id)?)
         .build()
         .context("failed to build the OpenAI-compatible client")?;
     let system_prompt =
@@ -145,3 +151,24 @@ pub async fn translate(
         .context("UI event channel closed")?;
     Ok(())
 }
+
+fn provider_headers(
+    templates: &HashMap<String, String>,
+    session_id: &str,
+) -> anyhow::Result<HeaderMap> {
+    let mut headers = HeaderMap::new();
+    for (name, template) in templates {
+        let name =
+            HeaderName::from_bytes(name.as_bytes()).context("invalid provider header name")?;
+        let value = HeaderValue::from_str(&template.replace("${session_id}", session_id))
+            .context("invalid provider header value")?;
+        if headers.insert(name, value).is_some() {
+            anyhow::bail!("duplicate provider header name (case-insensitive)");
+        }
+    }
+    Ok(headers)
+}
+
+#[cfg(test)]
+#[path = "llm_test.rs"]
+mod tests;
