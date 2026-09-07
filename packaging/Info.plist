@@ -10,6 +10,8 @@
     <string>glossshift</string>
     <key>CFBundleIdentifier</key>
     <string>com.totto2727.glossshift</string>
+    <key>CFBundleIconFile</key>
+    <string>GlossShift.icns</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>

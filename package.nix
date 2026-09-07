@@ -15,8 +15,9 @@ rustPlatform.buildRustPackage {
     test -x "$out/bin/glossshift"
     test -x "$out/bin/gshift"
     app="$out/Applications/GlossShift.app/Contents"
-    mkdir -p "$app/MacOS"
+    mkdir -p "$app/MacOS" "$app/Resources"
     cp packaging/Info.plist "$app/Info.plist"
+    cp packaging/GlossShift.icns "$app/Resources/GlossShift.icns"
     ln -s "$out/bin/glossshift" "$app/MacOS/glossshift"
   '';
 
