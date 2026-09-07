@@ -4,6 +4,7 @@
 compile_error!("glossshift currently supports macOS only");
 
 mod selection;
+mod tray;
 mod ui;
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -75,6 +76,12 @@ fn run() -> anyhow::Result<()> {
     let api_key = loaded.api_key;
 
     Application::new().run(move |cx: &mut App| {
+        cx.defer(|cx| {
+            if let Err(error) = tray::install(cx) {
+                eprintln!("failed to create menu bar icon: {error:#}");
+                cx.quit();
+            }
+        });
         cx.bind_keys([
             KeyBinding::new("cmd-q", Quit, None),
             KeyBinding::new("cmd-w", CloseWindow, None),
