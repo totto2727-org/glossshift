@@ -52,6 +52,8 @@ pub struct ProviderConfig {
     pub model: String,
     pub credential: String,
     #[serde(default)]
+    pub headers: HashMap<String, String>,
+    #[serde(default)]
     pub request_parameters: Option<serde_json::Map<String, serde_json::Value>>,
     #[serde(default = "default_first_chunk_timeout")]
     pub first_chunk_timeout_seconds: u64,

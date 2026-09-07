@@ -3748,6 +3748,7 @@ dependencies = [
  "futures",
  "global-hotkey",
  "gpui",
+ "http",
  "libc",
  "macos-accessibility-client",
  "objc2-app-kit",
@@ -3761,6 +3762,7 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "tree-sitter-highlight",
  "tree-sitter-md",
+ "uuid",
  "xdg",
 ]
 
