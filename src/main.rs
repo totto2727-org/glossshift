@@ -3,6 +3,7 @@
 #[cfg(not(target_os = "macos"))]
 compile_error!("glossshift currently supports macOS only");
 
+mod autostart;
 mod selection;
 mod tray;
 mod ui;
@@ -11,6 +12,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_channel::Receiver;
+use clap::{Parser, Subcommand};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState, hotkey::HotKey};
 use gpui::{
     App, Application, Bounds, Global, KeyBinding, TitlebarOptions, WindowBounds, WindowKind,
@@ -27,6 +29,29 @@ use crate::ui::{CloseWindow, CopySource, CopyTranslation, PopupView, Quit};
 
 const SHORTCUT_RELEASE_SETTLE_DELAY: Duration = Duration::from_millis(100);
 
+#[derive(Parser)]
+#[command(
+    version,
+    about = "GlossShift menu bar translation application",
+    args_conflicts_with_subcommands = true
+)]
+struct Arguments {
+    /// Start with the popup hidden, without activating the application.
+    #[arg(long)]
+    background: bool,
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Configure automatic startup at the next macOS login.
+    Autostart {
+        #[command(subcommand)]
+        command: autostart::AutostartCommand,
+    },
+}
+
 struct AppResources {
     _hotkey_manager: GlobalHotKeyManager,
     _network_task: tokio::task::JoinHandle<()>,
@@ -35,13 +60,19 @@ struct AppResources {
 
 impl Global for AppResources {}
 
-fn main() {
-    if let Err(error) = run() {
+fn main() -> std::process::ExitCode {
+    if let Err(error) = run(Arguments::parse()) {
         eprintln!("glossshift failed to start: {error:#}");
+        return std::process::ExitCode::FAILURE;
     }
+    std::process::ExitCode::SUCCESS
 }
 
-fn run() -> anyhow::Result<()> {
+fn run(arguments: Arguments) -> anyhow::Result<()> {
+    if let Some(Command::Autostart { command }) = arguments.command {
+        return autostart::run(command);
+    }
+    let background = arguments.background;
     let loaded = config::load_or_initialize()?;
     let hotkeys = loaded
         .app
@@ -76,12 +107,11 @@ fn run() -> anyhow::Result<()> {
     let api_key = loaded.api_key;
 
     Application::new().run(move |cx: &mut App| {
-        cx.defer(|cx| {
-            if let Err(error) = tray::install(cx) {
-                eprintln!("failed to create menu bar icon: {error:#}");
-                cx.quit();
-            }
-        });
+        if let Err(error) = tray::install(cx) {
+            eprintln!("failed to create menu bar icon: {error:#}");
+            cx.quit();
+            return;
+        }
         cx.bind_keys([
             KeyBinding::new("cmd-q", Quit, None),
             KeyBinding::new("cmd-w", CloseWindow, None),
@@ -95,26 +125,8 @@ fn run() -> anyhow::Result<()> {
             _network_task: network_task,
             _tokio_runtime: tokio_runtime,
         });
-        let bounds = Bounds::centered(
-            None,
-            size(px(window_config.width), px(window_config.height)),
-            cx,
-        );
         let result = cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(TitlebarOptions {
-                    title: Some("GlossShift".into()),
-                    ..Default::default()
-                }),
-                kind: WindowKind::PopUp,
-                is_resizable: true,
-                window_min_size: Some(size(
-                    px(window_config.min_width),
-                    px(window_config.min_height),
-                )),
-                ..Default::default()
-            },
+            popup_options(&window_config, background, cx),
             |window, cx| {
                 window.on_window_should_close(cx, |_window, cx| {
                     cx.hide();
@@ -140,9 +152,28 @@ fn run() -> anyhow::Result<()> {
             cx.quit();
             return;
         }
-        cx.activate(true);
+        if !background {
+            cx.activate(true);
+        }
     });
     Ok(())
+}
+
+fn popup_options(config: &config::WindowConfig, background: bool, cx: &App) -> WindowOptions {
+    let bounds = Bounds::centered(None, size(px(config.width), px(config.height)), cx);
+    WindowOptions {
+        window_bounds: Some(WindowBounds::Windowed(bounds)),
+        titlebar: Some(TitlebarOptions {
+            title: Some("GlossShift".into()),
+            ..Default::default()
+        }),
+        kind: WindowKind::PopUp,
+        show: !background,
+        focus: !background,
+        is_resizable: true,
+        window_min_size: Some(size(px(config.min_width), px(config.min_height))),
+        ..Default::default()
+    }
 }
 
 fn spawn_shortcut_listener(
@@ -217,63 +248,5 @@ fn shortcut_target(event: GlobalHotKeyEvent, targets: &HashMap<u32, String>) -> 
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn routes_hotkeys_to_configured_target_languages() {
-        // Given
-        let source = format!(
-            "{}\n[[shortcuts]]\nkeys = \"Ctrl+Super+KeyE\"\ntarget_language = \"English\"\n",
-            config::DEFAULT_CONFIG
-        );
-        let app = config::parse_config(&source).unwrap_or_else(|error| panic!("{error}"));
-
-        // When
-        let targets = shortcut_targets(&app.shortcuts);
-
-        // Then
-        assert_eq!(
-            targets.get(&app.shortcuts[0].keys.id()).map(String::as_str),
-            Some("Japanese")
-        );
-        assert_eq!(
-            targets.get(&app.shortcuts[1].keys.id()).map(String::as_str),
-            Some("English")
-        );
-    }
-
-    #[test]
-    fn dispatches_hotkey_on_release_event() {
-        // Given
-        let source =
-            config::parse_config(config::DEFAULT_CONFIG).unwrap_or_else(|error| panic!("{error}"));
-        let targets = shortcut_targets(&source.shortcuts);
-        let id = source.shortcuts[0].keys.id();
-        let pressed = GlobalHotKeyEvent {
-            id,
-            state: HotKeyState::Pressed,
-        };
-        let released = GlobalHotKeyEvent {
-            id,
-            state: HotKeyState::Released,
-        };
-
-        // When
-        let target_while_pressed = shortcut_target(pressed, &targets);
-        let target_after_release = shortcut_target(released, &targets);
-
-        // Then
-        assert_eq!(target_while_pressed, None);
-        assert_eq!(target_after_release, Some("Japanese"));
-    }
-
-    #[test]
-    fn keeps_popup_alive_when_close_is_requested() {
-        // Given / When
-        let should_close = popup_should_close();
-
-        // Then
-        assert!(!should_close);
-    }
-}
+#[path = "main_test.rs"]
+mod tests;

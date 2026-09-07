@@ -29,6 +29,9 @@ async fn capture_translation(headers: &str) -> anyhow::Result<HashMap<String, St
                 Err(error) => return Err(error.into()),
             }
         };
+        // macOS can inherit the listener's nonblocking mode on accepted sockets.
+        // Only accept is polled. Reading the request must wait for its bytes.
+        stream.set_nonblocking(false)?;
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         stream.set_write_timeout(Some(Duration::from_secs(5)))?;
         let mut request = Vec::new();
