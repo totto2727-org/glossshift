@@ -47,13 +47,14 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         }
     }
     let loaded = config::load_or_initialize()?;
-    if loaded.api_key.trim().is_empty() || loaded.api_key == "replace-me" {
+    let provider = loaded.provider()?;
+    if provider.api_key().trim().is_empty() || provider.api_key() == "replace-me" {
         bail!(
             "set api_key in {} before translating",
-            loaded.directory.join("credentials.toml").display()
+            loaded.agents.paths().credentials_path().display()
         );
     }
-    let provider = loaded.app.provider()?.clone();
+    let agents = loaded.agents.clone();
     let color = cli.color.enabled(std::io::stdout().is_terminal());
     let mut stdout = std::io::stdout().lock();
     for (id, (file, output_path)) in (1_u64..).zip(cli.files.iter().zip(output_paths)) {
@@ -61,8 +62,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             .with_context(|| format!("failed to read {}", file.display()))?;
         let request = TranslationRequest {
             id: RequestId(id),
-            provider: provider.clone(),
-            api_key: loaded.api_key.clone(),
+            agents: agents.clone(),
             source_language: loaded.app.translation.source_language.clone(),
             target_language: language.clone(),
             text: source,

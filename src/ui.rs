@@ -6,6 +6,7 @@ use gpui::{
     Window, actions, div, prelude::*, rgb,
 };
 
+use agents_config::LoadedAgentsConfig;
 use glossshift::{
     config::AppConfig,
     llm::{RequestId, TranslationEvent, TranslationRequest},
@@ -34,7 +35,7 @@ enum Pane {
 
 pub struct PopupView {
     config: Arc<AppConfig>,
-    api_key: String,
+    agents: Arc<LoadedAgentsConfig>,
     requests: Sender<TranslationRequest>,
     next_request_id: u64,
     active_request: Option<RequestId>,
@@ -47,13 +48,13 @@ pub struct PopupView {
 impl PopupView {
     pub fn new(
         config: Arc<AppConfig>,
-        api_key: String,
+        agents: Arc<LoadedAgentsConfig>,
         requests: Sender<TranslationRequest>,
         initial_status: String,
     ) -> Self {
         Self {
             config,
-            api_key,
+            agents,
             requests,
             next_request_id: 1,
             active_request: None,
@@ -72,29 +73,29 @@ impl PopupView {
                 return;
             }
         };
-        let provider = match self.config.provider() {
-            Ok(provider) => provider.clone(),
+        let provider = match self.agents.active_provider() {
+            Ok(provider) => provider,
             Err(error) => {
-                self.fail(format!("{error:#}"), cx);
+                self.fail(error.to_string(), cx);
                 return;
             }
         };
-        if self.api_key.trim().is_empty() || self.api_key == "replace-me" {
+        if provider.api_key().trim().is_empty() || provider.api_key() == "replace-me" {
             self.fail(
-                "Set api_key in ~/.config/glossshift/credentials.toml, then restart the app."
-                    .into(),
+                format!(
+                    "Set api_key in {}, then restart the app.",
+                    self.agents.paths().credentials_path().display()
+                ),
                 cx,
             );
             return;
         }
-
         let id = RequestId(self.next_request_id);
         self.next_request_id = self.next_request_id.saturating_add(1);
         let status = format!("Translating to {target_language}");
         let request = TranslationRequest {
             id,
-            provider,
-            api_key: self.api_key.clone(),
+            agents: self.agents.clone(),
             source_language: self.config.translation.source_language.clone(),
             target_language,
             text: text.clone(),

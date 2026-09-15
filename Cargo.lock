@@ -43,6 +43,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "agents-config"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "rig",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+ "toml 0.9.12+spec-1.1.0",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3752,6 +3765,7 @@ name = "glossshift"
 version = "0.2.0"
 dependencies = [
  "accessibility",
+ "agents-config",
  "anyhow",
  "async-channel 2.5.0",
  "clap",
@@ -3760,7 +3774,6 @@ dependencies = [
  "futures",
  "global-hotkey",
  "gpui",
- "http",
  "libc",
  "macos-accessibility-client",
  "objc2-app-kit",

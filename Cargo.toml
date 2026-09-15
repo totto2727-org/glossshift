@@ -8,6 +8,7 @@ repository = "https://github.com/totto2727-org/glossshift"
 homepage = "https://github.com/totto2727-org/glossshift"
 
 [dependencies]
+agents-config = { path = "../../package/agents-config", features = ["rig"] }
 accessibility = "0.2.0"
 anyhow = "1.0"
 async-channel = "2.5"
@@ -17,7 +18,6 @@ core-graphics = "0.24.0"
 futures = "0.3"
 global-hotkey = { version = "0.8.0", features = ["serde"] }
 gpui = { version = "0.2.2", features = ["runtime_shaders"] }
-http = "1"
 libc = "0.2"
 macos-accessibility-client = "0.0.2"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSPasteboard"] }

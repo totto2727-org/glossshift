@@ -22,13 +22,13 @@ Write translations to standard output without ANSI styling:
 gshift document.md --lang ja --stdout --color never
 ```
 
-On its first invocation, `gshift` creates `config.toml` and `credentials.toml` under the GlossShift XDG configuration directory and exits until the placeholder API key is replaced. After configuration, the first command writes `document.ja.md` and `notes.ja.mbt.md` and reports their paths to standard error; the second command emits the plain translated body to standard output without creating a file. Multiple inputs are always processed in command-line order.
+On its first invocation, `gshift` creates its application settings under the GlossShift XDG configuration directory and shared provider settings under `~/.agents`, then exits until the placeholder API key is replaced. After configuration, the first command writes `document.ja.md` and `notes.ja.mbt.md` and reports their paths to standard error; the second command emits the plain translated body to standard output without creating a file. Multiple inputs are always processed in command-line order.
 
 ## Key features
 
 - Native macOS popup with global shortcuts, a resizable window, and copy controls for source and translated text.
 - Streaming translations through servers that implement the OpenAI Chat Completions API, including custom base URLs and request parameters.
-- Shared XDG configuration and credentials for the desktop application and `gshift` CLI.
+- Application-specific XDG settings plus shared `~/.agents` providers and credentials reusable by other applications through the independent `agents-config` crate.
 - Ordered multi-file Markdown translation with sibling-file or standard-output modes.
 - Plain streamed output for pipelines and optional Tree-sitter Markdown ANSI highlighting for terminals.
 - A separated system prompt and user document so source content remains inert and its structure is translated one-to-one instead of changing the translation contract.
@@ -84,36 +84,94 @@ nix profile add 'github:totto2727-org/glossshift#gshift'
 
 ## Configuration
 
-On first use, GlossShift creates `~/.config/glossshift/config.toml` and `~/.config/glossshift/credentials.toml`. If `XDG_CONFIG_HOME` is set, it uses `$XDG_CONFIG_HOME/glossshift` instead. Replace the placeholder API key in `credentials.toml`; GlossShift always resets this file to mode `0600`.
+GlossShift keeps translation, shortcut, and window settings in `~/.config/glossshift/config.toml`, or `$XDG_CONFIG_HOME/glossshift/config.toml` when `XDG_CONFIG_HOME` is set.
+Provider definitions live separately in `~/.agents/config.toml`, and named API keys live in `~/.agents/credentials.toml` with Unix permissions `0600`.
+The independent `agents-config` crate owns loading, validation, credential resolution, and conversion to Rig.
+Other applications can read these same files and choose any named provider without depending on GlossShift.
+
+Set `AGENTS_CONFIG` to an absolute configuration-file path to select a different shared configuration.
+Its `credentials.toml` is read from the same directory.
+The loader does not search the current directory or silently use a project's `.agents` directory, so launching the desktop and CLI from different directories does not change providers.
+
+### Shared providers
+
+For example, `~/.agents/config.toml` can retain both OpenAI and OpenCode Go:
 
 ```toml
-[credentials.default]
-api_key = "your-api-key"
-```
+active_provider = "opencode-go"
 
-Adjust the active provider, model, and shortcuts in `config.toml` when the defaults do not match the provider.
-
-```toml
-active_provider = "default"
-
-[providers.default]
+[providers.openai]
 base_url = "https://api.openai.com/v1"
 model = "gpt-4.1-mini"
-credential = "default"
+credential = "openai"
 first_chunk_timeout_seconds = 30
 stream_idle_timeout_seconds = 60
 
+[providers.opencode-go]
+base_url = "https://opencode.ai/zen/go/v1"
+model = "kimi-k2.5"
+credential = "opencode-go"
+first_chunk_timeout_seconds = 30
+stream_idle_timeout_seconds = 60
+
+[providers.opencode-go.headers]
+x-opencode-session = "${session_id}"
+User-Agent = "glossshift/0.2.0"
+
+# Optional provider-specific JSON-compatible request fields:
+# [providers.opencode-go.request_parameters]
+# reasoning_effort = "none"
+```
+
+Choose a Chat Completions model available to your provider account.
+The base URL must include its API prefix, such as `/v1` or `/zen/go/v1`.
+`active_provider` chooses the provider used by GlossShift, while each provider's `credential` references an entry in the credentials file.
+Provider and credential names do not have to be identical.
+Both timeout values default to 30 and 60 seconds respectively and must be positive.
+Additional request parameters are forwarded through Rig.
+`${session_id}` in header values expands to one UUID per translation, shared by all requests within that translation.
+Literal values and other placeholders remain unchanged.
+
+Create matching entries in `~/.agents/credentials.toml` and replace the placeholders:
+
+```toml
+[credentials.openai]
+api_key = "replace-me"
+
+[credentials.opencode-go]
+api_key = "replace-me"
+```
+
+Never commit this credentials file or real secret header values.
+
+### Application settings
+
+GlossShift's XDG `config.toml` contains only application settings:
+
+```toml
 [translation]
 source_language = "auto"
 
 [[shortcuts]]
 keys = "Ctrl+Super+KeyJ"
 target_language = "Japanese"
+
+[window]
+width = 560
+height = 360
+min_width = 320
+min_height = 180
 ```
 
-The provider base URL must include its API prefix, commonly `/v1`, because GlossShift appends the Chat Completions route. Provider names and credential names must match, shortcut keys must be unique, and every target language must be non-empty.
+Shortcut keys must be unique, and every target language must be non-empty.
+See `examples/config.toml`, `examples/agents-config.toml`, and `examples/credentials.toml` for starter files.
 
-After saving both files, rerun the command shown in Usage.
+### Existing installations
+
+When the selected shared configuration does not yet exist, GlossShift imports the legacy provider definitions and active provider from its XDG configuration and copies the legacy credentials if the shared credentials file is absent.
+Existing shared files are never overwritten, and the original legacy files are preserved.
+Once the shared configuration exists, provider settings in the old GlossShift configuration no longer select or modify the shared provider.
+Edit the shared files for future provider changes, then restart the desktop application or rerun the CLI.
 
 ## Permissions
 
