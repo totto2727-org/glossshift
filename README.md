@@ -28,7 +28,7 @@ On its first invocation, `gshift` creates its application settings under the Glo
 
 - Native macOS popup with global shortcuts, a resizable window, and copy controls for source and translated text.
 - Streaming translations through servers that implement the OpenAI Chat Completions API, including custom base URLs and request parameters.
-- Application-specific XDG settings plus shared `~/.agents` providers and credentials reusable by other applications through the independent `agents-config` crate.
+- Application-specific XDG settings plus shared `~/.agents` providers and credentials reusable by other applications through the independent `llm-profiles` crate.
 - Ordered multi-file Markdown translation with sibling-file or standard-output modes.
 - Plain streamed output for pipelines and optional Tree-sitter Markdown ANSI highlighting for terminals.
 - A separated system prompt and user document so source content remains inert and its structure is translated one-to-one instead of changing the translation contract.
@@ -86,7 +86,7 @@ nix profile add 'github:totto2727-org/glossshift#gshift'
 
 GlossShift keeps translation, shortcut, and window settings in `~/.config/glossshift/config.toml`, or `$XDG_CONFIG_HOME/glossshift/config.toml` when `XDG_CONFIG_HOME` is set.
 Provider definitions live separately in `~/.agents/config.toml`, and named API keys live in `~/.agents/credentials.toml` with Unix permissions `0600`.
-The independent `agents-config` crate owns loading, validation, credential resolution, and conversion to Rig.
+The independent `llm-profiles` crate owns loading, validation, credential resolution, and conversion to Rig.
 Other applications can read these same files and choose any named provider without depending on GlossShift.
 
 Set `AGENTS_CONFIG` to an absolute configuration-file path to select a different shared configuration.

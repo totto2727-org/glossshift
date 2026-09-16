@@ -72,7 +72,7 @@ fn migrates_legacy_settings_without_changing_legacy_files() -> anyhow::Result<()
         fs::read_to_string(&legacy_credentials_path)?,
         legacy_credentials
     );
-    assert!(agents_config::load_from_paths(paths).is_ok());
+    assert!(llm_profiles::load_from_paths(paths).is_ok());
     Ok(())
 }
 
@@ -140,7 +140,7 @@ fn failed_legacy_credential_validation_does_not_publish_shared_config() -> anyho
     )?;
 
     migrate_legacy_provider_config(&legacy_config_path, &legacy_credentials_path, &paths)?;
-    assert!(agents_config::load_from_paths(paths).is_ok());
+    assert!(llm_profiles::load_from_paths(paths).is_ok());
     Ok(())
 }
 
@@ -205,6 +205,6 @@ fn migration_retries_after_credentials_destination_creation_failure() -> anyhow:
     fs::create_dir(&blocked_parent)?;
 
     migrate_legacy_provider_config(&legacy_config_path, &legacy_credentials_path, &paths)?;
-    assert!(agents_config::load_from_paths(paths).is_ok());
+    assert!(llm_profiles::load_from_paths(paths).is_ok());
     Ok(())
 }

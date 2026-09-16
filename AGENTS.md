@@ -24,8 +24,8 @@ package.nix            Nix Rust package definition
 ### Execution rules
 
 - Run commands from the repository root.
-- This checkout uses the independent `agents-config` Cargo path dependency at `../../package/agents-config`; keep both repositories in the documented virtual-monorepo layout when running Cargo or Just.
-- The extraction is currently local-only. Standalone Nix packaging cannot include that sibling dependency through `lib.cleanSource ./.`; do not claim a successful Nix release from Cargo checks, and do not replace the developer's lockfile or commit absolute local source paths.
+- Cargo pins the independent [`llm-profiles`](https://github.com/totto2727-org/llm-profiles) library to Git revision `d3b3ede46fd823fe400aad85217537799b3ed40f` with its `rig` feature because the renamed library is not yet published to crates.io; no sibling checkout is required.
+- Standalone Nix packaging uses the same pinned Git dependency through `Cargo.lock` and its fixed output hash in `package.nix`; update both when changing the dependency revision, and do not claim a successful Nix build from Cargo checks alone.
 - Support macOS only until the project explicitly expands its platform scope.
 - Use the named Just recipes below instead of ad-hoc shell workflows; use Cargo directly only when a recipe cannot express the needed target.
 - Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `mdt`.
@@ -71,14 +71,14 @@ just cli README.md --lang ja --stdout --color always
 ### Configuration and credentials
 
 The application configuration root is resolved through `xdg::BaseDirectories`, defaults to `~/.config/glossshift`, and honors `XDG_CONFIG_HOME`.
-The independent `agents-config` crate in `../../package/agents-config` owns shared provider definitions in `~/.agents/config.toml`, named keys in `~/.agents/credentials.toml`, and their validation and permissions.
+The independent `llm-profiles` crate owns shared provider definitions in `~/.agents/config.toml`, named keys in `~/.agents/credentials.toml`, and their validation and permissions.
 `AGENTS_CONFIG` selects an absolute shared config path, with credentials beside it, rather than searching the current directory.
 Treat shortcut strings, TOML content, Accessibility values, and HTTP responses as untrusted boundary input.
 Tests must select temporary shared paths and must never load or migrate the developer's real home configuration.
 Legacy provider migration preserves the original GlossShift files and never overwrites shared files.
 
 The shared agent configuration retains multiple named OpenAI-compatible providers and a selected `active_provider`.
-Provider URLs, models, credentials, headers, and positive timeouts are validated by `agents-config`; first-chunk and stream-idle timeouts default to 30 and 60 seconds.
+Provider URLs, models, credentials, headers, and positive timeouts are validated by `llm-profiles`; first-chunk and stream-idle timeouts default to 30 and 60 seconds.
 Optional `[providers.<name>.request_parameters]` JSON fields are forwarded through its Rig adapter, and `${session_id}` header placeholders receive one UUID per translation.
 GlossShift validates unique hotkeys, non-empty target languages, and positive window dimensions at least as large as their minimums.
 
@@ -87,8 +87,8 @@ GlossShift validates unique hotkeys, non-empty target languages, and positive wi
 ### Shared library boundary
 
 The GlossShift library owns application configuration, prompt construction, and translation streaming so the desktop and CLI binaries use the same contract.
-`agents-config` owns library-neutral resolved providers, credential handling, and conversion to Rig through its optional `rig` feature, independently of GlossShift and GPUI.
-`config.rs` loads application settings and handles legacy migration, `prompt.rs` builds translation-only prompts, and `llm.rs` emits request-scoped `TranslationEvent` values using the crate's Rig adapter.
+`llm-profiles` owns library-neutral resolved providers, credential handling, and conversion to Rig through its optional `rig` feature, independently of GlossShift and GPUI.
+`config.rs` loads application settings and handles legacy migration, `prompt.rs` builds translation-only prompts, and `llm.rs` emits request-scoped `TranslationEvent` values using the crate's `rig_agent_builder(Some(&session_id))`, adding the translation preamble before building the agent.
 
 ### Desktop boundary
 

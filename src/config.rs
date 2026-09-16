@@ -7,9 +7,9 @@ use std::{
     sync::Arc,
 };
 
-use agents_config::{AgentConfigPaths, LoadedAgentsConfig, ResolvedProvider};
 use anyhow::{Context as _, bail};
 use global_hotkey::hotkey::HotKey;
+use llm_profiles::{AgentConfigPaths, LoadedAgentsConfig, ResolvedProvider};
 use serde::Deserialize;
 
 pub const DEFAULT_CONFIG: &str = r#"[translation]
@@ -71,7 +71,7 @@ impl LoadedConfig {
 
 /// Parse and validate GlossShift-specific configuration TOML.
 ///
-/// Provider definitions and credentials belong to `agents-config` and are ignored
+/// Provider definitions and credentials belong to `llm-profiles` and are ignored
 /// here to make a legacy configuration readable during migration.
 ///
 /// # Errors
@@ -124,7 +124,7 @@ pub fn load_or_initialize() -> anyhow::Result<LoadedConfig> {
     let app = parse_config(
         &fs::read_to_string(&config_path).context("failed to read GlossShift config.toml")?,
     )?;
-    let agents = agents_config::load_or_initialize(agents_paths)?;
+    let agents = llm_profiles::load_or_initialize(agents_paths)?;
     let created_agents = agents.created_files();
     Ok(LoadedConfig {
         app,
@@ -218,7 +218,7 @@ fn validate_legacy_migration(
     };
     let validation_paths = AgentConfigPaths::new(temporary.path().to_path_buf(), credentials_path)
         .context("failed to prepare temporary shared configuration paths")?;
-    agents_config::load_from_paths(validation_paths)
+    llm_profiles::load_from_paths(validation_paths)
         .context("legacy GlossShift provider settings cannot be migrated")?;
     Ok(())
 }

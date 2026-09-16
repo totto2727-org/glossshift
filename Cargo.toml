@@ -8,7 +8,7 @@ repository = "https://github.com/totto2727-org/glossshift"
 homepage = "https://github.com/totto2727-org/glossshift"
 
 [dependencies]
-agents-config = { path = "../../package/agents-config", features = ["rig"] }
+llm-profiles = { git = "https://github.com/totto2727-org/llm-profiles", rev = "d3b3ede46fd823fe400aad85217537799b3ed40f", features = ["rig"] }
 accessibility = "0.2.0"
 anyhow = "1.0"
 async-channel = "2.5"

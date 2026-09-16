@@ -9,8 +9,8 @@ use std::{
     time::Duration,
 };
 
-use agents_config::{AgentConfigPaths, load_from_paths};
 use glossshift::llm::{RequestId, TranslationEvent, TranslationRequest, translate};
+use llm_profiles::{AgentConfigPaths, load_from_paths};
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -70,10 +70,7 @@ async fn capture_translation_at(
         }
         let payload: serde_json::Value =
             serde_json::from_slice(&request[header_end + 4..header_end + 4 + length])?;
-        assert_eq!(payload["model"], "mock-model");
-        assert_eq!(payload["stream"], true);
-        assert_eq!(payload["reasoning_effort"], "none");
-        assert_eq!(payload["chat_template_kwargs"]["enable_thinking"], false);
+        assert_translation_payload(&payload);
         let body = "data: {\"id\":\"mock\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"mock\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"translated\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n";
         write!(
             stream,
@@ -121,6 +118,26 @@ async fn capture_translation_at(
         TranslationEvent::Finished { id: RequestId(1) }
     ));
     Ok(captured)
+}
+
+fn assert_translation_payload(payload: &serde_json::Value) {
+    assert_eq!(payload["model"], "mock-model");
+    assert_eq!(payload["stream"], true);
+    assert_eq!(payload["messages"][0]["role"], "system");
+    assert_eq!(
+        payload["messages"][0]["content"],
+        serde_json::json!([{
+            "type": "text",
+            "text": glossshift::prompt::translation_system_prompt("auto", "Japanese")
+        }])
+    );
+    assert_eq!(payload["messages"][1]["role"], "user");
+    assert_eq!(
+        payload["messages"][1]["content"],
+        glossshift::prompt::translation_user_prompt("hello")
+    );
+    assert_eq!(payload["reasoning_effort"], "none");
+    assert_eq!(payload["chat_template_kwargs"]["enable_thinking"], false);
 }
 
 fn write_provider_config(

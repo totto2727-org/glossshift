@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use agents_config::LoadedAgentsConfig;
 use anyhow::Context as _;
 use async_channel::{Receiver, Sender};
 use futures::{StreamExt as _, pin_mut};
+use llm_profiles::LoadedAgentsConfig;
 use rig::{
     agent::MultiTurnStreamItem,
     streaming::{StreamedAssistantContent, StreamingPrompt},
@@ -89,8 +89,10 @@ pub async fn translate(
     let session_id = Uuid::new_v4().to_string();
     let provider = request.agents.active_provider()?;
     let agent = provider
-        .rig_agent(&session_id, &system_prompt)
-        .context("failed to build the OpenAI-compatible client")?;
+        .rig_agent_builder(Some(&session_id))
+        .context("failed to build the OpenAI-compatible client")?
+        .preamble(&system_prompt)
+        .build();
     let stream = agent
         .stream_prompt(translation_user_prompt(&request.text))
         .await;

@@ -6,11 +6,11 @@ use gpui::{
     Window, actions, div, prelude::*, rgb,
 };
 
-use agents_config::LoadedAgentsConfig;
 use glossshift::{
     config::AppConfig,
     llm::{RequestId, TranslationEvent, TranslationRequest},
 };
+use llm_profiles::LoadedAgentsConfig;
 
 use crate::selection;
 
