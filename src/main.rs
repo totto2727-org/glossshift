@@ -103,8 +103,8 @@ fn run(arguments: Arguments) -> anyhow::Result<()> {
     let network_task = tokio_runtime.spawn(llm::run_worker(request_rx, event_tx));
     let window_config = loaded.app.window.clone();
     let initial_status = initial_status(&loaded);
+    let agents = loaded.agents.clone();
     let app_config = Arc::new(loaded.app);
-    let api_key = loaded.api_key;
 
     Application::new().run(move |cx: &mut App| {
         if let Err(error) = tray::install(cx) {
@@ -133,7 +133,7 @@ fn run(arguments: Arguments) -> anyhow::Result<()> {
                     popup_should_close()
                 });
                 let view =
-                    cx.new(|_| PopupView::new(app_config, api_key, request_tx, initial_status));
+                    cx.new(|_| PopupView::new(app_config, agents, request_tx, initial_status));
                 let copy_source_view = view.downgrade();
                 cx.on_action(move |_: &CopySource, cx| {
                     let _ = copy_source_view.update(cx, PopupView::copy_source);

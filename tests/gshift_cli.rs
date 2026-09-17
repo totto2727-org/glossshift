@@ -30,16 +30,31 @@ impl Fixture {
         let address = listener
             .local_addr()
             .unwrap_or_else(|error| panic!("failed to read mock provider address: {error}"));
-        let config_directory = root.join("config/glossshift");
-        fs::create_dir_all(&config_directory)
-            .unwrap_or_else(|error| panic!("failed to create test config directory: {error}"));
-        let config = glossshift::config::DEFAULT_CONFIG
-            .replace("https://api.openai.com/v1", &format!("http://{address}/v1"))
-            .replace("gpt-4.1-mini", "mock-model");
-        fs::write(config_directory.join("config.toml"), config)
-            .unwrap_or_else(|error| panic!("failed to write test config: {error}"));
+        let app_config_directory = root.join("config/glossshift");
+        let agents_directory = root.join("agents");
+        fs::create_dir_all(&app_config_directory)
+            .unwrap_or_else(|error| panic!("failed to create test app config directory: {error}"));
+        fs::create_dir_all(&agents_directory)
+            .unwrap_or_else(|error| panic!("failed to create test agents directory: {error}"));
         fs::write(
-            config_directory.join("credentials.toml"),
+            app_config_directory.join("config.toml"),
+            glossshift::config::DEFAULT_CONFIG,
+        )
+        .unwrap_or_else(|error| panic!("failed to write test app config: {error}"));
+        let agent_config = r#"active_provider = "default"
+
+[providers.default]
+base_url = "https://api.openai.com/v1"
+model = "mock-model"
+credential = "default"
+first_chunk_timeout_seconds = 30
+stream_idle_timeout_seconds = 60
+"#
+        .replace("https://api.openai.com/v1", &format!("http://{address}/v1"));
+        fs::write(agents_directory.join("config.toml"), agent_config)
+            .unwrap_or_else(|error| panic!("failed to write test agents config: {error}"));
+        fs::write(
+            agents_directory.join("credentials.toml"),
             "[credentials.default]\napi_key = \"test-key\"\n",
         )
         .unwrap_or_else(|error| panic!("failed to write test credentials: {error}"));
@@ -93,7 +108,9 @@ impl Fixture {
         let mut command = Command::new(env!("CARGO_BIN_EXE_gshift"));
         command
             .current_dir(&self.root)
-            .env("XDG_CONFIG_HOME", self.root.join("config"));
+            .env("HOME", &self.root)
+            .env("XDG_CONFIG_HOME", self.root.join("config"))
+            .env("AGENTS_CONFIG", self.root.join("agents/config.toml"));
         for input in inputs {
             command.arg(input);
         }

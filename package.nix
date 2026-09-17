@@ -9,7 +9,10 @@ rustPlatform.buildRustPackage {
   version = "0.2.0";
 
   src = lib.cleanSource ./.;
-  cargoLock.lockFile = ./Cargo.lock;
+  cargoLock = {
+    lockFile = ./Cargo.lock;
+    outputHashes."llm-profiles-0.1.0" = "1rarzkrppbka3k2ardmd64x61k36xhaggcxcnxhischbchaivxpx";
+  };
 
   postInstall = ''
     test -x "$out/bin/glossshift"

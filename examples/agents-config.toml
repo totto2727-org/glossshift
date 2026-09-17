@@ -1,0 +1,24 @@
+# Copy to ~/.agents/config.toml, or an absolute path selected by AGENTS_CONFIG.
+active_provider = "openai"
+
+[providers.openai]
+base_url = "https://api.openai.com/v1"
+model = "gpt-4.1-mini"
+credential = "openai"
+first_chunk_timeout_seconds = 30
+stream_idle_timeout_seconds = 60
+
+[providers.opencode-go]
+base_url = "https://opencode.ai/zen/go/v1"
+model = "kimi-k2.5"
+credential = "opencode-go"
+first_chunk_timeout_seconds = 30
+stream_idle_timeout_seconds = 60
+
+[providers.opencode-go.headers]
+x-opencode-session = "${session_id}"
+User-Agent = "glossshift/0.2.0"
+
+# Optional fields supported by the selected provider/model:
+# [providers.opencode-go.request_parameters]
+# reasoning_effort = "none"

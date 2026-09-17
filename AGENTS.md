@@ -4,7 +4,7 @@
 
 ```text
 src/lib.rs            Shared public library modules
-src/config.rs         XDG configuration and credential loading
+src/config.rs         XDG application settings and non-destructive legacy migration
 src/prompt.rs         Translation prompt construction
 src/llm.rs            Rig streaming worker and request events
 src/cli.rs            Public CLI path, language, and Markdown rendering helpers
@@ -24,6 +24,8 @@ package.nix            Nix Rust package definition
 ### Execution rules
 
 - Run commands from the repository root.
+- Cargo pins the independent [`llm-profiles`](https://github.com/totto2727-org/llm-profiles) library to Git revision `d3b3ede46fd823fe400aad85217537799b3ed40f` with its `rig` feature because the renamed library is not yet published to crates.io; no sibling checkout is required.
+- Standalone Nix packaging uses the same pinned Git dependency through `Cargo.lock` and its fixed output hash in `package.nix`; update both when changing the dependency revision, and do not claim a successful Nix build from Cargo checks alone.
 - Support macOS only until the project explicitly expands its platform scope.
 - Use the named Just recipes below instead of ad-hoc shell workflows; use Cargo directly only when a recipe cannot express the needed target.
 - Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `mdt`.
@@ -49,7 +51,7 @@ package.nix            Nix Rust package definition
 
 ### CLI reference
 
-Run the CLI from the repository root with `just cli FILES... --lang LANGUAGE [OPTIONS]`; the equivalent direct command is `cargo run --bin gshift -- FILES... --lang LANGUAGE [OPTIONS]`. The `gshift` binary always reuses the desktop application's XDG configuration, active provider, source language, timeout values, and named credential; it has no separate model, prompt, or token settings.
+Run the CLI from the repository root with `just cli FILES... --lang LANGUAGE [OPTIONS]`; the equivalent direct command is `cargo run --bin gshift -- FILES... --lang LANGUAGE [OPTIONS]`. The `gshift` binary always reuses the desktop application's XDG application settings, shared agent provider, source language, timeout values, and named credential; it has no separate model, prompt, or token settings.
 
 The positional `FILES...` accepts one or more Markdown files with `.md` or `.mbt.md` suffixes and preserves their input order. `--lang`/`-l` is required and accepts a non-empty ASCII language code containing only letters, digits, and internal hyphens; it is trimmed and lowercased before use. `--force`/`-f` permits replacing existing sibling outputs and conflicts with `--stdout`. `--stdout` writes translations to standard output instead of files. `--color auto|always|never` controls ANSI Markdown highlighting, requires `--stdout`, and defaults to `auto`.
 
@@ -68,15 +70,25 @@ just cli README.md --lang ja --stdout --color always
 
 ### Configuration and credentials
 
-The shared configuration root is resolved through `xdg::BaseDirectories`, defaults to `~/.config/glossshift`, and honors `XDG_CONFIG_HOME`. `config.toml` links `active_provider` to a named provider and each provider to a named credential in `credentials.toml`; credential permissions are always reset to `0600`. Treat shortcut strings, TOML content, Accessibility values, and HTTP responses as untrusted boundary input.
+The application configuration root is resolved through `xdg::BaseDirectories`, defaults to `~/.config/glossshift`, and honors `XDG_CONFIG_HOME`.
+The independent `llm-profiles` crate owns shared provider definitions in `~/.agents/config.toml`, named keys in `~/.agents/credentials.toml`, and their validation and permissions.
+`AGENTS_CONFIG` selects an absolute shared config path, with credentials beside it, rather than searching the current directory.
+Treat shortcut strings, TOML content, Accessibility values, and HTTP responses as untrusted boundary input.
+Tests must select temporary shared paths and must never load or migrate the developer's real home configuration.
+Legacy provider migration preserves the original GlossShift files and never overwrites shared files.
 
-The active provider requires a non-empty `base_url` and `model`; its timeout defaults are 30 seconds for the first chunk and 60 seconds for stream idle periods. Optional `[providers.<name>.request_parameters]` JSON fields are forwarded unchanged through Rig. Shortcuts require unique hotkeys and non-empty target languages, and window dimensions must be positive and at least their configured minimums.
+The shared agent configuration retains multiple named OpenAI-compatible providers and a selected `active_provider`.
+Provider URLs, models, credentials, headers, and positive timeouts are validated by `llm-profiles`; first-chunk and stream-idle timeouts default to 30 and 60 seconds.
+Optional `[providers.<name>.request_parameters]` JSON fields are forwarded through its Rig adapter, and `${session_id}` header placeholders receive one UUID per translation.
+GlossShift validates unique hotkeys, non-empty target languages, and positive window dimensions at least as large as their minimums.
 
 ## Architecture
 
 ### Shared library boundary
 
-The reusable library owns XDG configuration, prompt construction, and provider streaming so the desktop and CLI binaries use the same provider contract. `config.rs` keeps tokens separate from ordinary TOML, `prompt.rs` builds translation-only prompts, and `llm.rs` emits request-scoped `TranslationEvent` values.
+The GlossShift library owns application configuration, prompt construction, and translation streaming so the desktop and CLI binaries use the same contract.
+`llm-profiles` owns library-neutral resolved providers, credential handling, and conversion to Rig through its optional `rig` feature, independently of GlossShift and GPUI.
+`config.rs` loads application settings and handles legacy migration, `prompt.rs` builds translation-only prompts, and `llm.rs` emits request-scoped `TranslationEvent` values using the crate's `rig_agent_builder(Some(&session_id))`, adding the translation preamble before building the agent.
 
 ### Desktop boundary
 

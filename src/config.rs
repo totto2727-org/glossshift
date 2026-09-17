@@ -1,25 +1,18 @@
 use std::{
-    collections::{HashMap, HashSet},
-    fs::{self, OpenOptions, Permissions},
+    collections::HashSet,
+    fs,
     io::Write,
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use anyhow::{Context as _, bail};
 use global_hotkey::hotkey::HotKey;
+use llm_profiles::{AgentConfigPaths, LoadedAgentsConfig, ResolvedProvider};
 use serde::Deserialize;
 
-pub const DEFAULT_CONFIG: &str = r#"active_provider = "default"
-
-[providers.default]
-base_url = "https://api.openai.com/v1"
-model = "gpt-4.1-mini"
-credential = "default"
-first_chunk_timeout_seconds = 30
-stream_idle_timeout_seconds = 60
-
-[translation]
+pub const DEFAULT_CONFIG: &str = r#"[translation]
 source_language = "auto"
 
 [[shortcuts]]
@@ -33,32 +26,11 @@ min_width = 320
 min_height = 180
 "#;
 
-const DEFAULT_CREDENTIALS: &str = r#"[credentials.default]
-api_key = "replace-me"
-"#;
-
 #[derive(Clone, Debug, Deserialize)]
 pub struct AppConfig {
-    pub active_provider: String,
-    pub providers: HashMap<String, ProviderConfig>,
     pub translation: TranslationConfig,
     pub shortcuts: Vec<ShortcutConfig>,
     pub window: WindowConfig,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct ProviderConfig {
-    pub base_url: String,
-    pub model: String,
-    pub credential: String,
-    #[serde(default)]
-    pub headers: HashMap<String, String>,
-    #[serde(default)]
-    pub request_parameters: Option<serde_json::Map<String, serde_json::Value>>,
-    #[serde(default = "default_first_chunk_timeout")]
-    pub first_chunk_timeout_seconds: u64,
-    #[serde(default = "default_stream_idle_timeout")]
-    pub stream_idle_timeout_seconds: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -80,45 +52,33 @@ pub struct WindowConfig {
     pub min_height: f32,
 }
 
-#[derive(Deserialize)]
-struct CredentialsFile {
-    credentials: HashMap<String, Credential>,
-}
-
-#[derive(Deserialize)]
-struct Credential {
-    api_key: String,
-}
-
 pub struct LoadedConfig {
     pub app: AppConfig,
-    pub api_key: String,
+    pub agents: Arc<LoadedAgentsConfig>,
     pub directory: PathBuf,
     pub created_files: bool,
 }
 
-impl AppConfig {
-    /// Return the provider selected by `active_provider`.
+impl LoadedConfig {
+    /// Return the shared provider selected for `GlossShift` translations.
     ///
     /// # Errors
-    /// Returns an error when the selected provider is not configured.
-    pub fn provider(&self) -> anyhow::Result<&ProviderConfig> {
-        self.providers
-            .get(&self.active_provider)
-            .with_context(|| format!("provider '{}' is not configured", self.active_provider))
+    /// Returns an error when the configured provider cannot be resolved.
+    pub fn provider(&self) -> anyhow::Result<&ResolvedProvider> {
+        Ok(self.agents.active_provider()?)
     }
 }
 
-/// Parse and validate application configuration TOML.
+/// Parse and validate GlossShift-specific configuration TOML.
+///
+/// Provider definitions and credentials belong to `llm-profiles` and are ignored
+/// here to make a legacy configuration readable during migration.
 ///
 /// # Errors
 /// Returns an error when the TOML or any required application invariant is invalid.
 pub fn parse_config(source: &str) -> anyhow::Result<AppConfig> {
-    let config: AppConfig = toml::from_str(source).context("config.toml is invalid")?;
-    let provider = config.provider()?;
-    if provider.base_url.trim().is_empty() || provider.model.trim().is_empty() {
-        bail!("the active provider requires non-empty base_url and model");
-    }
+    let config: AppConfig =
+        toml::from_str(source).map_err(|_| anyhow::anyhow!("GlossShift config.toml is invalid"))?;
     if config.window.min_width <= 0.0
         || config.window.min_height <= 0.0
         || config.window.width < config.window.min_width
@@ -141,163 +101,178 @@ pub fn parse_config(source: &str) -> anyhow::Result<AppConfig> {
     Ok(config)
 }
 
-/// Load the shared XDG configuration and create templates when missing.
+/// Load `GlossShift` settings and the selected shared agent provider.
+///
+/// Existing `GlossShift` provider settings migrate into the shared configuration only
+/// when that file does not already exist. Legacy files and existing shared
+/// credentials are never changed.
 ///
 /// # Errors
-/// Returns an error when configuration files cannot be created, read, parsed, or validated.
+/// Returns an error when configuration files cannot be created, migrated, read,
+/// parsed, or validated.
 pub fn load_or_initialize() -> anyhow::Result<LoadedConfig> {
-    let directories = xdg::BaseDirectories::with_prefix("glossshift");
-    let directory = directories
-        .get_config_home()
-        .context("HOME and XDG_CONFIG_HOME are unavailable")?;
-    let config_path = directories
-        .place_config_file("config.toml")
-        .context("failed to prepare the config.toml path")?;
-    let credentials_path = directories
-        .place_config_file("credentials.toml")
-        .context("failed to prepare the credentials.toml path")?;
-    let created_config = create_if_missing(&config_path, DEFAULT_CONFIG, 0o644)?;
-    let created_credentials = create_if_missing(&credentials_path, DEFAULT_CREDENTIALS, 0o600)?;
-    fs::set_permissions(&credentials_path, Permissions::from_mode(0o600))
-        .context("failed to set credentials.toml permissions to 0600")?;
+    let directory = legacy_directory()?;
+    let config_path = directory.join("config.toml");
+    let agents_paths = AgentConfigPaths::standard()?;
+    migrate_legacy_provider_config(
+        &config_path,
+        &directory.join("credentials.toml"),
+        &agents_paths,
+    )?;
 
-    let app =
-        parse_config(&fs::read_to_string(&config_path).context("failed to read config.toml")?)?;
-    let credentials: CredentialsFile = toml::from_str(
-        &fs::read_to_string(&credentials_path).context("failed to read credentials.toml")?,
-    )
-    .context("credentials.toml is invalid")?;
-    let provider = app.provider()?;
-    let api_key = credentials
-        .credentials
-        .get(&provider.credential)
-        .with_context(|| format!("credential '{}' is not configured", provider.credential))?
-        .api_key
-        .clone();
-
+    let created_app = create_if_missing(&config_path, DEFAULT_CONFIG, 0o644)?;
+    let app = parse_config(
+        &fs::read_to_string(&config_path).context("failed to read GlossShift config.toml")?,
+    )?;
+    let agents = llm_profiles::load_or_initialize(agents_paths)?;
+    let created_agents = agents.created_files();
     Ok(LoadedConfig {
         app,
-        api_key,
+        agents: Arc::new(agents),
         directory,
-        created_files: created_config || created_credentials,
+        created_files: created_app || created_agents,
     })
 }
 
-fn create_if_missing(path: &Path, content: &str, mode: u32) -> anyhow::Result<bool> {
-    match OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(mode)
-        .open(path)
-    {
-        Ok(mut file) => {
-            file.write_all(content.as_bytes())
-                .with_context(|| format!("failed to write {}", path.display()))?;
-            Ok(true)
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
-        Err(error) => Err(error).with_context(|| format!("failed to create {}", path.display())),
+fn legacy_directory() -> anyhow::Result<PathBuf> {
+    xdg::BaseDirectories::with_prefix("glossshift")
+        .get_config_home()
+        .context("HOME and XDG_CONFIG_HOME are unavailable")
+}
+
+fn migrate_legacy_provider_config(
+    legacy_config_path: &Path,
+    legacy_credentials_path: &Path,
+    agents_paths: &AgentConfigPaths,
+) -> anyhow::Result<()> {
+    if agents_paths.config_path().exists() || !legacy_config_path.exists() {
+        return Ok(());
     }
+
+    let source = fs::read_to_string(legacy_config_path)
+        .context("failed to read legacy GlossShift configuration")?;
+    let mut document: toml::Table = toml::from_str(&source).map_err(|_| {
+        anyhow::anyhow!("legacy GlossShift config.toml is invalid and cannot be migrated")
+    })?;
+    let providers = document.remove("providers");
+    let active_provider = document.remove("active_provider");
+    if providers.is_none() && active_provider.is_none() {
+        return Ok(());
+    }
+    let Some(providers) = providers else {
+        bail!("legacy GlossShift configuration has active_provider but no providers section");
+    };
+    let Some(active_provider) = active_provider else {
+        bail!("legacy GlossShift configuration has providers but no active_provider");
+    };
+
+    let mut shared = toml::Table::new();
+    shared.insert("active_provider".into(), active_provider);
+    shared.insert("providers".into(), providers);
+    let shared_config = toml::to_string_pretty(&shared)
+        .context("failed to serialize migrated shared agent configuration")?;
+    validate_legacy_migration(&shared_config, legacy_credentials_path, agents_paths)?;
+
+    let credentials = if agents_paths.credentials_path().exists() {
+        None
+    } else {
+        Some(
+            fs::read(legacy_credentials_path)
+                .context("failed to read legacy GlossShift credentials")?,
+        )
+    };
+    if let Some(credentials) = credentials
+        && !create_bytes_if_missing(agents_paths.credentials_path(), &credentials, 0o600)?
+    {
+        bail!("shared credentials appeared during legacy migration; retry startup");
+    }
+    if !create_if_missing(agents_paths.config_path(), &shared_config, 0o600)? {
+        return Ok(());
+    }
+    Ok(())
 }
 
-const fn default_first_chunk_timeout() -> u64 {
-    30
+fn validate_legacy_migration(
+    shared_config: &str,
+    legacy_credentials_path: &Path,
+    agents_paths: &AgentConfigPaths,
+) -> anyhow::Result<()> {
+    let parent = agents_paths
+        .config_path()
+        .parent()
+        .context("shared agent configuration path has no parent directory")?;
+    fs::create_dir_all(parent).with_context(|| {
+        format!(
+            "failed to create shared configuration directory {}",
+            parent.display()
+        )
+    })?;
+    let temporary = tempfile::NamedTempFile::new_in(parent)
+        .context("failed to create temporary shared configuration")?;
+    fs::write(temporary.path(), shared_config)
+        .context("failed to write temporary shared configuration")?;
+    let credentials_path = if agents_paths.credentials_path().exists() {
+        agents_paths.credentials_path().to_path_buf()
+    } else {
+        legacy_credentials_path.to_path_buf()
+    };
+    let validation_paths = AgentConfigPaths::new(temporary.path().to_path_buf(), credentials_path)
+        .context("failed to prepare temporary shared configuration paths")?;
+    llm_profiles::load_from_paths(validation_paths)
+        .context("legacy GlossShift provider settings cannot be migrated")?;
+    Ok(())
 }
 
-const fn default_stream_idle_timeout() -> u64 {
-    60
+fn create_if_missing(path: &Path, content: &str, mode: u32) -> anyhow::Result<bool> {
+    create_bytes_if_missing(path, content.as_bytes(), mode)
+}
+
+fn create_bytes_if_missing(path: &Path, content: &[u8], mode: u32) -> anyhow::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => return Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!("failed to inspect configuration path {}", path.display())
+            });
+        }
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed to create configuration directory {}",
+                parent.display()
+            )
+        })?;
+    }
+    let parent = path
+        .parent()
+        .context("configuration path has no parent directory")?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent).with_context(|| {
+        format!(
+            "failed to create temporary configuration for {}",
+            path.display()
+        )
+    })?;
+    temporary.write_all(content).with_context(|| {
+        format!(
+            "failed to write temporary configuration for {}",
+            path.display()
+        )
+    })?;
+    temporary
+        .as_file()
+        .set_permissions(fs::Permissions::from_mode(mode))
+        .with_context(|| format!("failed to set permissions for {}", path.display()))?;
+    match temporary.persist_noclobber(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(error) => {
+            Err(error.error).with_context(|| format!("failed to create {}", path.display()))
+        }
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use global_hotkey::hotkey::{Code, Modifiers};
-
-    #[test]
-    fn parses_default_config() {
-        let config = parse_config(DEFAULT_CONFIG).unwrap_or_else(|error| panic!("{error}"));
-        let provider = config.provider().unwrap_or_else(|error| panic!("{error}"));
-        assert_eq!(provider.model, "gpt-4.1-mini");
-        assert_eq!(provider.first_chunk_timeout_seconds, 30);
-        assert_eq!(provider.stream_idle_timeout_seconds, 60);
-        assert_eq!(config.shortcuts.len(), 1);
-        assert_eq!(config.shortcuts[0].target_language, "Japanese");
-        assert_eq!(
-            config.shortcuts[0].keys.mods,
-            Modifiers::CONTROL | Modifiers::SUPER
-        );
-        assert_eq!(config.shortcuts[0].keys.key, Code::KeyJ);
-        assert!((config.window.width - 560.0).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn rejects_window_smaller_than_minimum() {
-        let source = DEFAULT_CONFIG.replace("width = 560", "width = 100");
-        assert!(parse_config(&source).is_err());
-    }
-
-    #[test]
-    fn parses_target_language_for_each_shortcut() {
-        // Given
-        let source = format!(
-            "{DEFAULT_CONFIG}\n[[shortcuts]]\nkeys = \"Ctrl+Super+KeyE\"\ntarget_language = \"English\"\n"
-        );
-
-        // When
-        let config = parse_config(&source).unwrap_or_else(|error| panic!("{error}"));
-
-        // Then
-        assert_eq!(config.shortcuts.len(), 2);
-        assert_eq!(config.shortcuts[0].target_language, "Japanese");
-        assert_eq!(config.shortcuts[1].target_language, "English");
-    }
-
-    #[test]
-    fn parses_provider_request_parameters() {
-        // Given
-        let source = format!(
-            "{DEFAULT_CONFIG}\n[providers.default.request_parameters]\nreasoning_effort = \"none\"\n"
-        );
-
-        // When
-        let config = parse_config(&source).unwrap_or_else(|error| panic!("{error}"));
-        let provider = config.provider().unwrap_or_else(|error| panic!("{error}"));
-
-        // Then
-        assert_eq!(
-            provider
-                .request_parameters
-                .as_ref()
-                .and_then(|parameters| parameters.get("reasoning_effort"))
-                .and_then(serde_json::Value::as_str),
-            Some("none")
-        );
-    }
-
-    #[test]
-    fn rejects_duplicate_shortcut_keys() {
-        // Given
-        let source = format!(
-            "{DEFAULT_CONFIG}\n[[shortcuts]]\nkeys = \"Ctrl+Super+KeyJ\"\ntarget_language = \"English\"\n"
-        );
-
-        // When
-        let result = parse_config(&source);
-
-        // Then
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn rejects_empty_target_language() {
-        // Given
-        let source =
-            DEFAULT_CONFIG.replace("target_language = \"Japanese\"", "target_language = \"\"");
-
-        // When
-        let result = parse_config(&source);
-
-        // Then
-        assert!(result.is_err());
-    }
-}
+#[path = "config_test.rs"]
+mod tests;

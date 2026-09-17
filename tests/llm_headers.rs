@@ -1,19 +1,28 @@
 use std::{
     collections::HashMap,
+    fs,
     io::{Read as _, Write as _},
     net::TcpListener,
+    path::Path,
+    sync::Arc,
     thread,
     time::Duration,
 };
 
-use glossshift::{
-    config::{DEFAULT_CONFIG, parse_config},
-    llm::{RequestId, TranslationEvent, TranslationRequest, translate},
-};
+use glossshift::llm::{RequestId, TranslationEvent, TranslationRequest, translate};
+use llm_profiles::{AgentConfigPaths, load_from_paths};
+use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 async fn capture_translation(headers: &str) -> anyhow::Result<HashMap<String, String>> {
+    capture_translation_at(headers, "/v1").await
+}
+
+async fn capture_translation_at(
+    headers: &str,
+    prefix: &'static str,
+) -> anyhow::Result<HashMap<String, String>> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     listener.set_nonblocking(true)?;
     let address = listener.local_addr()?;
@@ -29,8 +38,6 @@ async fn capture_translation(headers: &str) -> anyhow::Result<HashMap<String, St
                 Err(error) => return Err(error.into()),
             }
         };
-        // macOS can inherit the listener's nonblocking mode on accepted sockets.
-        // Only accept is polled. Reading the request must wait for its bytes.
         stream.set_nonblocking(false)?;
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         stream.set_write_timeout(Some(Duration::from_secs(5)))?;
@@ -45,10 +52,8 @@ async fn capture_translation(headers: &str) -> anyhow::Result<HashMap<String, St
             }
         };
         let text = std::str::from_utf8(&request[..header_end])?;
-        assert_eq!(
-            text.lines().next(),
-            Some("POST /v1/chat/completions HTTP/1.1")
-        );
+        let route = format!("POST {prefix}/chat/completions HTTP/1.1");
+        assert_eq!(text.lines().next(), Some(route.as_str()));
         let headers: HashMap<_, _> = text
             .lines()
             .skip(1)
@@ -63,6 +68,9 @@ async fn capture_translation(headers: &str) -> anyhow::Result<HashMap<String, St
             anyhow::ensure!(count > 0, "request ended before body");
             request.extend_from_slice(&buffer[..count]);
         }
+        let payload: serde_json::Value =
+            serde_json::from_slice(&request[header_end + 4..header_end + 4 + length])?;
+        assert_translation_payload(&payload);
         let body = "data: {\"id\":\"mock\",\"object\":\"chat.completion.chunk\",\"created\":0,\"model\":\"mock\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"translated\"},\"finish_reason\":null}]}\n\ndata: [DONE]\n\n";
         write!(
             stream,
@@ -71,15 +79,14 @@ async fn capture_translation(headers: &str) -> anyhow::Result<HashMap<String, St
         )?;
         Ok(headers)
     });
-    let source = format!("{DEFAULT_CONFIG}\n{headers}")
-        .replace("https://api.openai.com/v1", &format!("http://{address}/v1"));
-    let config = parse_config(&source)?;
+    let fixture = TempDir::new()?;
+    let paths = write_provider_config(fixture.path(), address.port(), prefix, headers)?;
+    let loaded = load_from_paths(paths)?;
     let (sender, receiver) = async_channel::bounded(16);
     let result = translate(
         TranslationRequest {
             id: RequestId(1),
-            provider: config.provider()?.clone(),
-            api_key: "test-key".into(),
+            agents: Arc::new(loaded),
             source_language: "auto".into(),
             target_language: "Japanese".into(),
             text: "hello".into(),
@@ -113,8 +120,66 @@ async fn capture_translation(headers: &str) -> anyhow::Result<HashMap<String, St
     Ok(captured)
 }
 
+fn assert_translation_payload(payload: &serde_json::Value) {
+    assert_eq!(payload["model"], "mock-model");
+    assert_eq!(payload["stream"], true);
+    assert_eq!(payload["messages"][0]["role"], "system");
+    assert_eq!(
+        payload["messages"][0]["content"],
+        serde_json::json!([{
+            "type": "text",
+            "text": glossshift::prompt::translation_system_prompt("auto", "Japanese")
+        }])
+    );
+    assert_eq!(payload["messages"][1]["role"], "user");
+    assert_eq!(
+        payload["messages"][1]["content"],
+        glossshift::prompt::translation_user_prompt("hello")
+    );
+    assert_eq!(payload["reasoning_effort"], "none");
+    assert_eq!(payload["chat_template_kwargs"]["enable_thinking"], false);
+}
+
+fn write_provider_config(
+    root: &Path,
+    port: u16,
+    prefix: &str,
+    headers: &str,
+) -> anyhow::Result<AgentConfigPaths> {
+    let config_path = root.join("agents/config.toml");
+    let credentials_path = root.join("agents/credentials.toml");
+    fs::create_dir_all(config_path.parent().unwrap_or(root))?;
+    fs::write(
+        &config_path,
+        format!(
+            "active_provider = \"default\"\n\n[providers.default]\nbase_url = \"http://127.0.0.1:{port}{prefix}\"\nmodel = \"mock-model\"\ncredential = \"default\"\nfirst_chunk_timeout_seconds = 30\nstream_idle_timeout_seconds = 60\n\n[providers.default.request_parameters]\nreasoning_effort = \"none\"\n[providers.default.request_parameters.chat_template_kwargs]\nenable_thinking = false\n\n{headers}"
+        ),
+    )?;
+    fs::write(
+        &credentials_path,
+        "[credentials.default]\napi_key = \"test-key\"\n",
+    )?;
+    Ok(AgentConfigPaths::new(config_path, credentials_path)?)
+}
+
 #[tokio::test]
-async fn sends_configured_headers_through_rig_with_one_session_id() -> anyhow::Result<()> {
+async fn preserves_opencode_go_prefix_and_request_parameters() -> anyhow::Result<()> {
+    let headers = capture_translation_at(
+        "[providers.default.headers]\nx-opencode-session = \"${session_id}\"\n",
+        "/zen/go/v1",
+    )
+    .await?;
+    assert_eq!(headers["authorization"], "Bearer test-key");
+    assert_eq!(
+        Uuid::parse_str(&headers["x-opencode-session"])?.get_version_num(),
+        4
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn sends_configured_headers_through_shared_rig_adapter_with_one_session_id()
+-> anyhow::Result<()> {
     let headers = capture_translation(
         r#"[providers.default.headers]
 x-opencode-session = "${session_id}"
