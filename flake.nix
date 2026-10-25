@@ -16,10 +16,12 @@
           mainProgram = "gshift";
         };
       };
-      mkPkgs = system: import nixpkgs {
-        inherit system;
-        overlays = [ overlay ];
-      };
+      mkPkgs =
+        system:
+        import nixpkgs {
+          inherit system;
+          overlays = [ overlay ];
+        };
     in
     {
       overlays.default = overlay;
@@ -50,6 +52,10 @@
               pkgs.rustc
               pkgs.rustfmt
             ];
+            shellHook = ''
+              # Enable Git Hook
+              vp config
+            '';
           };
         }
       );
