@@ -42,7 +42,7 @@
         let
           pkgs = mkPkgs system;
         in
-        {
+        rec {
           default = pkgs.mkShell {
             inputsFrom = [ self.packages.${system}.default ];
             packages = [
@@ -57,6 +57,7 @@
               vp config
             '';
           };
+          ci = default.overrideAttrs (_: { shellHook = ""; });
         }
       );
     };
