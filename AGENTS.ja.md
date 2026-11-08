@@ -33,19 +33,24 @@ package.nix            Nix Rust package definition
 ### 標準タスク
 
 - `just fix` — フォーマットと Clippy の修正を適用する。
-- `just fix-format` — すべての Rust ソースを `cargo fmt --all` でフォーマットする。
-- `just fix-lint` — すべてのターゲット、機能、警告を deny する設定で Clippy の修正を適用する。
+- `just fix::rustfmt` — すべての Rust ソースを `cargo fmt --all` でフォーマットする。
+- `just fix::clippy` — すべてのターゲット、機能、警告を deny する設定で Clippy の修正を適用する。
 - `just check` — フォーマットと Clippy のチェックを実行する。
-- `just check-format` — Rust のフォーマットを変更せずにチェックする。
-- `just check-lint` — すべてのターゲットと機能に対して厳格な Clippy チェックを実行する。
+- `just check::rustfmt` — Rust のフォーマットを変更せずにチェックする。
+- `just check::clippy` — すべてのターゲットと機能に対して厳格な Clippy チェックを実行する。
 - `just test` — Rust のユニットテストを実行する。
 - `just build` — デバッグバイナリをビルドする。
 - `just ci` — ローカルの完全なチェック、テスト、ビルドゲートを実行する。
 - `just dev` — Cargo からデスクトップバイナリを直接実行する。
 - `just run` — ビルド、アドホック署名、検証を行い、`target/GlossShift.app` を開く。
-- `just package-app` — ローカルアプリケーションバンドルを開かずにビルドして検証する。
+- `just package::app` — ローカルアプリケーションバンドルを開かずにビルドして検証する。
 - `mdt --lang ja --force README.md` — 日本語の README ソース出力を再生成する。
 - `mdt --lang ja --force AGENTS.md` — 日本語の AGENTS ソース出力を再生成する。
+
+Just モジュールはタスク分類とツール・成果物を分離します。
+`just fix` と `just check` は従来どおり集約タスクを実行します。
+複数のレシピを一度に選択するときは、`just check::all test` や `just fix::all check::icons` のように明示的な集約パスを使います。
+`just package` と `just generate` はファイルを変更せず、レシピ一覧を表示します。
 
 ### CLI リファレンス
 

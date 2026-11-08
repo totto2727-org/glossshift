@@ -1,6 +1,6 @@
 #!/usr/bin/env swift
 // Original GlossShift vector artwork. No fonts, external assets, or runtime dependencies.
-// Run from the repository root with `just generate-icons` (macOS developer tools required).
+// Run from the repository root with `just generate::icons` (macOS developer tools required).
 import AppKit
 import Foundation
 
@@ -136,7 +136,7 @@ func svg(shapes: [Shape], size: Int, background: Bool) -> String {
             : "fill=\"none\" stroke=\"#\(shape.color)\" stroke-width=\"\(shape.width)\" stroke-linecap=\"round\" stroke-linejoin=\"round\""
         return "<g \(style)>\(shape.svg)</g>"
     }.joined(separator: "\n")
-    return "\(header)\n<!-- Original GlossShift artwork. Regenerate with just generate-icons. -->\n\(background ? backdrop : "")\n\(body)\n</svg>\n"
+    return "\(header)\n<!-- Original GlossShift artwork. Regenerate with just generate::icons. -->\n\(background ? backdrop : "")\n\(body)\n</svg>\n"
 }
 
 for points in [16, 32, 128, 256, 512] {

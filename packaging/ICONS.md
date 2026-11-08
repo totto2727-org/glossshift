@@ -8,12 +8,12 @@ No fonts, downloaded artwork, or runtime rendering dependencies are required.
 Run these commands from the repository root on macOS with the Swift developer tools installed:
 
 ```bash
-just generate-icons
-just check-icons
-just package-app
+just generate::icons
+just check::icons
+just package::app
 ```
 
-`just generate-icons` runs `scripts/generate-icons.swift` using AppKit/Core Graphics and the system `iconutil`.
+`just generate::icons` runs `scripts/generate-icons.swift` using AppKit/Core Graphics and the system `iconutil`.
 The Swift file is the canonical vector geometry and palette source, and it also exports editable SVG artwork.
 All generated assets are checked in so ordinary Cargo and Nix builds do not need Swift or regenerate icons.
 Generation is byte-for-byte repeatable on the same macOS toolchain, although Apple renderer or PNG encoder changes may change binary output across OS versions.
@@ -31,7 +31,7 @@ The black-only pixels make premultiplied and straight RGBA representations equiv
 Embed the raw tray file at compile time, use dimensions `(32, 32)`, and mark the native menu-bar image as a template so macOS supplies the correct appearance color.
 The tray silhouette is deliberately simpler than the application icon for legibility in the menu bar.
 
-Both `just package-app` and the Nix package's `postInstall` copy `GlossShift.icns` to `GlossShift.app/Contents/Resources/GlossShift.icns`.
+Both `just package::app` and the Nix package's `postInstall` copy `GlossShift.icns` to `GlossShift.app/Contents/Resources/GlossShift.icns`.
 `Info.plist` references it through `CFBundleIconFile`.
 The local recipe copies resources before ad-hoc signing and verifies the bundle without launching it.
-`just check-icons` decodes all ICNS representations and checks dimensions, alpha, the plist reference, and the tray raw-byte/PNG contract.
+`just check::icons` decodes all ICNS representations and checks dimensions, alpha, the plist reference, and the tray raw-byte/PNG contract.

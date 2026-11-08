@@ -1,0 +1,1 @@
+bundle := "target/GlossShift.app"

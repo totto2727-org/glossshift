@@ -35,19 +35,24 @@ package.nix            Nix Rust package definition
 ### Standard tasks
 
 - `just fix` — Apply formatting and Clippy fixes.
-- `just fix-format` — Format all Rust sources with `cargo fmt --all`.
-- `just fix-lint` — Apply Clippy fixes with all targets, features, and denied warnings.
+- `just fix::rustfmt` — Format all Rust sources with `cargo fmt --all`.
+- `just fix::clippy` — Apply Clippy fixes with all targets, features, and denied warnings.
 - `just check` — Run format and Clippy checks.
-- `just check-format` — Check Rust formatting without changing files.
-- `just check-lint` — Run strict Clippy checks for every target and feature.
+- `just check::rustfmt` — Check Rust formatting without changing files.
+- `just check::clippy` — Run strict Clippy checks for every target and feature.
 - `just test` — Run the Rust unit tests.
 - `just build` — Build the debug binaries.
 - `just ci` — Run the complete local check, test, and build gate.
 - `just dev` — Run the desktop binary directly with Cargo.
 - `just run` — Build, ad-hoc sign, verify, and open `target/GlossShift.app`.
-- `just package-app` — Build and verify the local application bundle without opening it.
+- `just package::app` — Build and verify the local application bundle without opening it.
 - `mdt --lang ja --force README.md` — Regenerate the Japanese README source output.
 - `mdt --lang ja --force AGENTS.md` — Regenerate the Japanese AGENTS source output.
+
+Just modules keep task categories separate from tools and artifacts.
+Bare `just fix` and `just check` retain their aggregate behavior.
+When selecting multiple recipes in one invocation, use explicit aggregate paths such as `just check::all test` or `just fix::all check::icons`.
+Bare `just package` and `just generate` list their recipes without changing files.
 
 ### CLI reference
 
