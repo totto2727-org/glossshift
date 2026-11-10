@@ -12,12 +12,16 @@ use zgui_ui_tokens::prelude::*;
 
 use crate::popup::{Pane, Phase, PopupState};
 
+#[path = "ui_markdown.rs"]
+mod markdown;
+
 pub const STYLESHEET: &str = include_str!("ui.css");
 
 type ViewState = RwSignal<PopupState, LocalStorage>;
 
 pub fn popup_view(state: ViewState, on_copy: Rc<dyn Fn(Pane)>) -> impl IntoView {
     let copy_source = Rc::clone(&on_copy);
+    let plaintext = RwSignal::new_local(false);
     view! {
         ThemeProvider(scheme = ColorScheme::Dark) {
             column(
@@ -28,6 +32,12 @@ pub fn popup_view(state: ViewState, on_copy: Rc<dyn Fn(Pane)>) -> impl IntoView 
             ) {
                 row(class = "popup__heading") {
                     text(class = "popup__title") {"GlossShift"}
+                    Toggle(
+                        pressed = plaintext,
+                        size = ToggleSize::Sm,
+                        label = "Show plain text instead of Markdown preview",
+                        attr:data-testid = "toggle-plaintext"
+                    ) {"Plain"}
                     {move || status_badge(state)}
                 }
                 Card(class = "popup__pane popup__source") {
@@ -36,7 +46,7 @@ pub fn popup_view(state: ViewState, on_copy: Rc<dyn Fn(Pane)>) -> impl IntoView 
                         CardAction {
                             Button(
                                 variant = ButtonVariant::Ghost,
-                                size = ButtonSize::Sm,
+                                size = ButtonSize::Xs,
                                 attr:data-testid = "copy-source",
                                 a11y:label = "Copy source text",
                                 on:click = move |_| copy_source(Pane::Source)
@@ -49,8 +59,14 @@ pub fn popup_view(state: ViewState, on_copy: Rc<dyn Fn(Pane)>) -> impl IntoView 
                             label = "Source text",
                             attr:data-testid = "source-scroll"
                         ) {
-                            text(class = "popup__text", attr:data-testid = "source-text") {
-                                {move || state.with(|state| state.source_text.clone())}
+                            column(class = "popup__rendered", attr:data-testid = "source-text") {
+                                if move || plaintext.get() {
+                                    text(class = "popup__text") {
+                                        {move || state.with(|state| state.source_text.clone())}
+                                    }
+                                } else {
+                                    {move || state.with(|state| markdown::preview(&state.source_text))}
+                                }
                             }
                         }
                     }
@@ -61,7 +77,7 @@ pub fn popup_view(state: ViewState, on_copy: Rc<dyn Fn(Pane)>) -> impl IntoView 
                         CardAction {
                             Button(
                                 variant = ButtonVariant::Ghost,
-                                size = ButtonSize::Sm,
+                                size = ButtonSize::Xs,
                                 attr:data-testid = "copy-translation",
                                 a11y:label = "Copy translation",
                                 on:click = move |_| on_copy(Pane::Translation)
@@ -80,8 +96,14 @@ pub fn popup_view(state: ViewState, on_copy: Rc<dyn Fn(Pane)>) -> impl IntoView 
                                     text {"Waiting for the first streamed token…"}
                                 }
                             }
-                            text(class = "popup__text", attr:data-testid = "translation-text") {
-                                {move || state.with(|state| state.output.clone())}
+                            column(class = "popup__rendered", attr:data-testid = "translation-text") {
+                                if move || plaintext.get() {
+                                    text(class = "popup__text", attr:data-testid = "plaintext-text") {
+                                        {move || state.with(|state| state.output.clone())}
+                                    }
+                                } else {
+                                    {move || state.with(|state| markdown::preview(&state.output))}
+                                }
                             }
                         }
                     }
