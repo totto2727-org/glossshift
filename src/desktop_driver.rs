@@ -33,6 +33,14 @@ impl DesktopDriver {
             tray: None,
         }
     }
+
+    fn flush_hidden(cx: &dyn PlatformCx) {
+        if zgui::reactive::flush().needs_another_frame {
+            for surface in cx.surfaces() {
+                surface.request_redraw();
+            }
+        }
+    }
 }
 
 impl AppHandler for DesktopDriver {
@@ -60,7 +68,7 @@ impl AppHandler for DesktopDriver {
         if !self.visible.get() && matches!(event, SurfaceEvent::RedrawRequested) {
             // zgui 0.1 shows every window after its first rendered frame. Flush
             // receiver tasks without rendering until selection has been captured.
-            zgui::reactive::flush();
+            Self::flush_hidden(cx);
             if !self.visible.get() {
                 return;
             }
@@ -69,7 +77,21 @@ impl AppHandler for DesktopDriver {
     }
 
     fn wake(&mut self, cx: &dyn PlatformCx, reason: WakeReason) {
+        let was_hidden = !self.visible.get();
+        if was_hidden {
+            // The suppressed initial redraw leaves zgui's window awaiting that
+            // frame. Poll receiver tasks here, since its next request_frame may
+            // coalesce away the redraw that would otherwise poll them.
+            Self::flush_hidden(cx);
+        }
         self.inner.wake(cx, reason);
+        if was_hidden && self.visible.get() {
+            // Bypass the still-pending runtime request when capture/reopen has
+            // released the first frame. Subsequent frames use zgui normally.
+            for surface in cx.surfaces() {
+                surface.request_redraw();
+            }
+        }
     }
 
     fn idle(&mut self, cx: &dyn PlatformCx) -> IdlePolicy {

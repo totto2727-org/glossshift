@@ -133,7 +133,7 @@ fn spawn_shortcuts(
             tokio::time::sleep(SHORTCUT_RELEASE_SETTLE_DELAY).await;
             // Capture the previous application's selection before showing or focusing.
             let mut controller = controller.borrow_mut();
-            controller.trigger_translation(target_language);
+            controller.trigger_translation(&target_language);
             state.set(controller.snapshot());
             drop(controller);
             visible.set(true);

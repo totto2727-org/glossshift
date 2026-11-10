@@ -6,6 +6,7 @@ compile_error!("glossshift currently supports macOS only");
 mod autostart;
 mod desktop;
 mod desktop_driver;
+mod native;
 mod platform;
 mod popup;
 mod selection;
@@ -117,11 +118,14 @@ fn run(arguments: Arguments) -> anyhow::Result<()> {
         .with_stylesheet(ui::STYLESHEET)
         .run_on(
             move |handler| {
-                zgui::app::desktop()(Box::new(desktop_driver::DesktopDriver::new(
-                    handler,
-                    driver_visible,
-                    quit_tx,
-                )))
+                native::run(
+                    Box::new(desktop_driver::DesktopDriver::new(
+                        handler,
+                        driver_visible,
+                        quit_tx,
+                    )),
+                    arguments.background,
+                )
             },
             move || {
                 desktop::root(
