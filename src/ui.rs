@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{rc::Rc, sync::Arc, time::Duration};
 
 use async_channel::Sender;
 use gpui::{
@@ -12,7 +12,7 @@ use glossshift::{
 };
 use llm_profiles::LoadedAgentsConfig;
 
-use crate::selection;
+use crate::platform::SelectionSource;
 
 actions!(
     glossshift,
@@ -34,6 +34,7 @@ enum Pane {
 }
 
 pub struct PopupView {
+    selection: Rc<dyn SelectionSource>,
     config: Arc<AppConfig>,
     agents: Arc<LoadedAgentsConfig>,
     requests: Sender<TranslationRequest>,
@@ -51,8 +52,10 @@ impl PopupView {
         agents: Arc<LoadedAgentsConfig>,
         requests: Sender<TranslationRequest>,
         initial_status: String,
+        selection: Rc<dyn SelectionSource>,
     ) -> Self {
         Self {
+            selection,
             config,
             agents,
             requests,
@@ -66,7 +69,7 @@ impl PopupView {
     }
 
     pub fn trigger_translation(&mut self, target_language: String, cx: &mut Context<Self>) {
-        let text = match selection::selected_text() {
+        let text = match self.selection.selected_text() {
             Ok(text) => text,
             Err(error) => {
                 self.fail(format!("{error:#}"), cx);

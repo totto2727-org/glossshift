@@ -10,12 +10,28 @@ use core_graphics::{
 use objc2_app_kit::NSPasteboard;
 use objc2_foundation::NSString;
 
+use crate::platform::{AccessibilityPermission, SelectionSource};
+
 const COPY_KEY_CODE: u16 = 0x08;
 const PASTEBOARD_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const PASTEBOARD_TIMEOUT: Duration = Duration::from_millis(300);
 
-pub fn selected_text() -> anyhow::Result<String> {
-    if !macos_accessibility_client::accessibility::application_is_trusted() {
+pub struct MacOsSelection;
+
+impl AccessibilityPermission for MacOsSelection {
+    fn is_granted(&self) -> bool {
+        macos_accessibility_client::accessibility::application_is_trusted()
+    }
+}
+
+impl SelectionSource for MacOsSelection {
+    fn selected_text(&self) -> anyhow::Result<String> {
+        selected_text(self)
+    }
+}
+
+fn selected_text(permission: &impl AccessibilityPermission) -> anyhow::Result<String> {
+    if !permission.is_granted() {
         bail!(
             "Accessibility permission is required. Enable this app in System Settings > Privacy & Security > Accessibility."
         );
@@ -103,6 +119,22 @@ fn copied_text_if_changed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn denied_permission_does_not_access_selection_or_clipboard() {
+        struct Denied;
+
+        impl AccessibilityPermission for Denied {
+            fn is_granted(&self) -> bool {
+                false
+            }
+        }
+
+        let result = selected_text(&Denied);
+        assert!(
+            matches!(result, Err(error) if error.to_string().contains("Accessibility permission is required"))
+        );
+    }
 
     #[test]
     fn returns_copied_text_when_pasteboard_changes() {

@@ -4,11 +4,12 @@
 compile_error!("glossshift currently supports macOS only");
 
 mod autostart;
+mod platform;
 mod selection;
 mod tray;
 mod ui;
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use async_channel::Receiver;
@@ -26,6 +27,7 @@ use glossshift::{
 };
 
 use crate::ui::{CloseWindow, CopySource, CopyTranslation, PopupView, Quit};
+use crate::{platform::AccessibilityPermission, selection::MacOsSelection};
 
 const SHORTCUT_RELEASE_SETTLE_DELAY: Duration = Duration::from_millis(100);
 
@@ -102,7 +104,8 @@ fn run(arguments: Arguments) -> anyhow::Result<()> {
         .context("failed to create Tokio runtime")?;
     let network_task = tokio_runtime.spawn(llm::run_worker(request_rx, event_tx));
     let window_config = loaded.app.window.clone();
-    let initial_status = initial_status(&loaded);
+    let selection = Rc::new(MacOsSelection);
+    let initial_status = initial_status(&loaded, selection.as_ref());
     let agents = loaded.agents.clone();
     let app_config = Arc::new(loaded.app);
 
@@ -132,8 +135,9 @@ fn run(arguments: Arguments) -> anyhow::Result<()> {
                     cx.hide();
                     popup_should_close()
                 });
-                let view =
-                    cx.new(|_| PopupView::new(app_config, agents, request_tx, initial_status));
+                let view = cx.new(|_| {
+                    PopupView::new(app_config, agents, request_tx, initial_status, selection)
+                });
                 let copy_source_view = view.downgrade();
                 cx.on_action(move |_: &CopySource, cx| {
                     let _ = copy_source_view.update(cx, PopupView::copy_source);
@@ -191,6 +195,7 @@ fn spawn_shortcut_listener(
                     .await;
                 let _ = cx.update(|window, app| {
                     let _ = view.update(app, |view, cx| {
+                        // Capture the previous application's selection before focus moves.
                         view.trigger_translation(target_language, cx);
                     });
                     window.activate_window();
@@ -219,11 +224,11 @@ fn spawn_llm_listener(
         .detach();
 }
 
-fn initial_status(loaded: &LoadedConfig) -> String {
+fn initial_status(loaded: &LoadedConfig, permission: &impl AccessibilityPermission) -> String {
     if loaded.created_files {
         return format!("Created configuration in {}", loaded.directory.display());
     }
-    if !macos_accessibility_client::accessibility::application_is_trusted() {
+    if !permission.is_granted() {
         return "Ready · Accessibility permission required".into();
     }
     format!("Ready · {} shortcuts", loaded.app.shortcuts.len())
