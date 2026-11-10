@@ -10,10 +10,14 @@ permissions:
 
 jobs:
   check:
-    runs-on: macos-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: totto2727-org/monorepo/.github/actions/setup-nix@main
-      - name: Check the Rust project
-        run: nix develop --command just ci
+        with:
+          prepare-dev-shell: 'false'
+      - name: Check Rust formatting without building the application
+        run: nix shell --inputs-from . nixpkgs#cargo nixpkgs#rustfmt --command cargo fmt --all --check
+      - name: Evaluate Nix outputs without building them
+        run: nix flake check --all-systems --no-build
