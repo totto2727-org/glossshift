@@ -257,8 +257,10 @@ Vite+ is the task runner, installer, formatter, and linter.
 Type checking, application execution, tests, bundling, and native packaging delegate to NSH rather than Vite or a Node/browser renderer.
 `vp run build` creates an NSH bundle, while `vp run package` creates the native macOS application.
 The application uses Effect for state transitions, scoped request cancellation, validated native boundaries, and bounded streaming.
-Rust keeps `llm-profiles`, the existing Rig provider contract, macOS services, and the `gshift` CLI, so changing a TS view does not require recompiling those Rust implementations.
-This does not eliminate the initial native dependency build or Rust-backend rebuilds.
+Rust keeps `llm-profiles`, the existing Rig provider contract, macOS services, and the batch `gshift` CLI.
+Local NSH commands reuse the Cargo cache in `target` when the Rust inputs are unchanged, so a TS view change does not require recompiling those implementations.
+A changed Nix application derivation builds in a new sandbox and does not reuse that working-directory cache.
+This migration does not make cold Rust builds or changed Nix packages incremental.
 
 The development environment prepares the pinned NSH source dependency at `.nsh/upstream`.
 A small maintained [upstream compatibility patch](./docs/upstream-differences.md) provides pre-activation native setup, hidden startup, retained-window visibility, and shutdown hooks without replacing NSH's AppKit loop.
