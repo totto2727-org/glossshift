@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use gpui::{App, Global};
+use async_channel::Sender;
 use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
     menu::{Menu, MenuEvent, MenuItem},
@@ -9,15 +9,13 @@ const QUIT_ID: &str = "glossshift.quit";
 const ICON_SIZE: u32 = 32;
 const ICON_RGBA: &[u8] = include_bytes!("../packaging/tray-icon.rgba");
 
-// Keep the native status item alive until GPUI shuts down, even while the
+// Keep the native status item alive until the desktop shuts down, even while the
 // translation popup is hidden. All native menu operations stay on its thread.
-struct MenuBarIcon {
+pub struct MenuBarIcon {
     _icon: TrayIcon,
 }
 
-impl Global for MenuBarIcon {}
-
-pub fn install(cx: &mut App) -> anyhow::Result<()> {
+pub fn install(sender: Sender<()>) -> anyhow::Result<MenuBarIcon> {
     let menu = Menu::new();
     let quit = MenuItem::with_id(QUIT_ID, "Quit GlossShift", true, None);
     menu.append(&quit).context("failed to add Quit menu item")?;
@@ -31,20 +29,12 @@ pub fn install(cx: &mut App) -> anyhow::Result<()> {
         .build()
         .context("failed to create native status item")?;
 
-    let (sender, receiver) = async_channel::bounded(1);
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         if event.id.as_ref() == QUIT_ID {
             let _ = sender.try_send(());
         }
     }));
-    cx.set_global(MenuBarIcon { _icon: tray });
-    cx.spawn(async move |cx| {
-        if receiver.recv().await.is_ok() {
-            let _ = cx.update(|app| app.quit());
-        }
-    })
-    .detach();
-    Ok(())
+    Ok(MenuBarIcon { _icon: tray })
 }
 
 #[cfg(test)]

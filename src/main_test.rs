@@ -80,10 +80,25 @@ fn dispatches_hotkey_on_release_event() {
 }
 
 #[test]
-fn keeps_popup_alive_when_close_is_requested() {
-    // Given / When
-    let should_close = popup_should_close();
+fn native_menu_retains_all_configured_shortcuts() {
+    use zgui::{
+        platform::Shortcut,
+        prelude::{Key, Modifiers},
+    };
 
-    // Then
-    assert!(!should_close);
+    let menu = desktop::menu();
+    for (id, key, modifiers) in [
+        ("quit", "q", Modifiers::META),
+        ("hide", "w", Modifiers::META),
+        ("copy-translation", "c", Modifiers::META),
+        ("copy-source", "c", Modifiers::META | Modifiers::SHIFT),
+    ] {
+        let action = menu
+            .action(id)
+            .unwrap_or_else(|| panic!("missing menu action: {id}"));
+        assert_eq!(
+            action.shortcut,
+            Some(Shortcut::new(Key::Character(key.into()), modifiers))
+        );
+    }
 }
