@@ -3436,7 +3436,6 @@ dependencies = [
  "zgui-dom",
  "zgui-platform-headless",
  "zgui-platform-winit",
- "zgui-testkit-view",
  "zgui-ui",
  "zgui-ui-icons",
  "zgui-ui-tokens",
@@ -11383,40 +11382,6 @@ dependencies = [
  "thiserror 2.0.20",
  "usvg",
  "zgui-color",
-]
-
-[[package]]
-name = "zgui-testkit-scene"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e959b46cd044b7b448e4e580a2d7e69720afad88bd90cb38bb37bbf0a974c226"
-dependencies = [
- "smallvec",
- "zgui-atlas",
- "zgui-bits",
- "zgui-color",
- "zgui-geom",
- "zgui-platform",
- "zgui-profile",
- "zgui-render",
- "zgui-scene",
- "zgui-text",
- "zgui-text-style",
-]
-
-[[package]]
-name = "zgui-testkit-view"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8fc5176e664887ed20188ce8093c9c4c347e68bc75606a3f636553431f7f577"
-dependencies = [
- "zgui-edit",
- "zgui-geom",
- "zgui-interned",
- "zgui-reactive",
- "zgui-testkit-scene",
- "zgui-view",
- "zgui-vocab",
 ]
 
 [[package]]

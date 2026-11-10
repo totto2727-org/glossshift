@@ -46,7 +46,6 @@ zgui-ui-tokens = "0.1.0"
 [dev-dependencies]
 zgui-dom = "0.1.0"
 zgui-platform-headless = "0.1.0"
-zgui-testkit-view = "0.1.0"
 zgui-view-dom = "0.1.0"
 
 [profile.release]
