@@ -87,6 +87,19 @@ They do not belong in translation or popup state logic.
 A future platform can supply different adapters without changing the translation worker.
 There is no Linux implementation or runtime platform switch.
 
+### Markdown and plain text
+
+The official zgui-ui Toggle switches both panes between a read-only Markdown preview and plain text without changing popup state or copied content.
+`src/ui_markdown.rs` uses `pulldown-cmark` to render headings, lists, quotes, and code blocks as native text nodes.
+It does not emit HTML, load remote images, open links, or run a syntax highlighter.
+Inline emphasis is flattened to text, images use alternate text, and raw HTML stays literal.
+This is a lightweight CommonMark block preview, not a browser or a complete GitHub-flavored Markdown renderer.
+The original Markdown remains available through the Plain toggle and copy controls.
+
+The supplied [zgui-editor](https://github.com/zortax/zgui-editor/tree/main) repository implements a code editor rather than a Markdown preview, lacks soft wrapping, and depends on Git versions of the framework.
+It is not added as an unused or incompatible dependency.
+The application instead keeps the published zgui stack and its standard component theme.
+
 ### Headless popup tests
 
 Run `just test-ui` to exercise the popup on zgui's headless platform.

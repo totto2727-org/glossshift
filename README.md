@@ -8,7 +8,12 @@ GlossShift is a macOS translation application with a zgui desktop popup and a `g
 open ~/.nix-profile/Applications/GlossShift.app
 ```
 
-Select text in any macOS application and press a configured shortcut. The popup places the captured text in **SOURCE**, streams the result into **TRANSLATION**, and lets you copy either pane.
+Select text in any macOS application and press a configured shortcut.
+The popup places the captured text in **Source**, streams the result into **Translation**, and lets you copy either pane.
+The **Plain** toggle switches both panes between Markdown preview and the original plain text.
+Preview supports headings, lists, block quotes, and code blocks without syntax highlighting.
+Inline emphasis displays as ordinary text, links remain inert, images display alternate text, and HTML is shown literally.
+Copy controls always copy the original text, including Markdown syntax, regardless of the display mode.
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -25,6 +30,7 @@ On its first invocation, `gshift` creates its application settings under the Glo
 ## Key features
 
 - Native macOS popup with global shortcuts, a resizable window, and the official zgui-ui shadcn-style components, icons, and copy controls.
+- Read-only Markdown preview with a plain-text toggle, no syntax highlighting, and no automatic external content loading.
 - Streaming translations through servers that implement the OpenAI Chat Completions API, including custom base URLs and request parameters.
 - Application-specific XDG settings plus shared `~/.agents` providers and credentials reusable by other applications through the independent `llm-profiles` crate.
 - Ordered multi-file Markdown translation with sibling-file or standard-output modes.

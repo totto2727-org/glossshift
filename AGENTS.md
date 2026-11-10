@@ -16,7 +16,8 @@ src/native.rs         macOS event loop and launch activation policy
 src/popup.rs          Framework-independent popup state and translation requests
 src/platform.rs       Injectable selection and Accessibility permission interfaces
 src/selection.rs      macOS Accessibility and clipboard fallback
-src/ui.rs             Official zgui-ui popup components
+src/ui.rs             Official zgui-ui popup components and display-mode toggle
+src/ui_markdown.rs    Safe native Markdown block preview without syntax highlighting
 src/ui.css            Application layout, overflow, and token-based typography
 src/ui_test.rs        Headless popup rendering and interaction tests
 examples/              Starter TOML configuration and credentials
