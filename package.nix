@@ -1,6 +1,7 @@
 {
   lib,
   mainProgram ? "glossshift",
+  python3,
   rustPlatform,
 }:
 
@@ -13,6 +14,8 @@ rustPlatform.buildRustPackage {
     lockFile = ./Cargo.lock;
   };
 
+  nativeBuildInputs = [ python3 ];
+
   postInstall = ''
     test -x "$out/bin/glossshift"
     test -x "$out/bin/gshift"
@@ -24,7 +27,7 @@ rustPlatform.buildRustPackage {
   '';
 
   meta = {
-    description = "A macOS GPUI popup and CLI for streaming translations through Rig";
+    description = "A macOS zgui popup and CLI for streaming translations through Rig";
     license = lib.licenses.mit;
     inherit mainProgram;
     platforms = lib.platforms.darwin;

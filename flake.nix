@@ -47,6 +47,7 @@
               pkgs.cargo
               pkgs.clippy
               pkgs.just
+              pkgs.python3
               pkgs.rustc
               pkgs.rustfmt
             ];

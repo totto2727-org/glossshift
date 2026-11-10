@@ -2,7 +2,7 @@
 name = "glossshift"
 version = "0.2.0"
 edition = "2024"
-description = "A macOS GPUI popup and CLI for streaming translations through OpenAI-compatible APIs"
+description = "A macOS zgui popup and CLI for streaming translations through OpenAI-compatible APIs"
 license = "MIT"
 repository = "https://github.com/totto2727-org/glossshift"
 homepage = "https://github.com/totto2727-org/glossshift"
@@ -17,7 +17,6 @@ core-foundation = "0.10"
 core-graphics = "0.24.0"
 futures = "0.3"
 global-hotkey = { version = "0.8.0", features = ["serde"] }
-gpui = { version = "0.2.2", features = ["runtime_shaders"] }
 libc = "0.2"
 macos-accessibility-client = "0.0.2"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSPasteboard"] }
@@ -36,9 +35,14 @@ tree-sitter-highlight = "0.26"
 tree-sitter-md = "0.5"
 uuid = { version = "1", features = ["v4"] }
 xdg = "3.0.0"
+zgui = { version = "0.1.0", features = ["tokio"] }
+zgui-ui = "0.1.0"
+zgui-ui-icons = "0.1.0"
+zgui-ui-tokens = "0.1.0"
 
 [dev-dependencies]
-gpui = { version = "0.2.2", features = ["test-support"] }
+zgui-platform-headless = "0.1.0"
+zgui-testkit-view = "0.1.0"
 
 [profile.release]
 lto = "thin"
