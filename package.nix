@@ -23,8 +23,10 @@ stdenv.mkDerivation {
   cargoDeps = buildEnv {
     name = "cargo-vendor-dir";
     paths = [
-      (rustPlatform.importCargoLock { lockFile = ./nix/nsh-host-Cargo.lock; })
+      # cargoSetupHook validates cargoRoot against this lock, not the batch CLI lock.
+      (lib.hiPrio (rustPlatform.importCargoLock { lockFile = ./nix/nsh-host-Cargo.lock; }))
       (rustPlatform.importCargoLock { lockFile = ./nix/nsh-tui-Cargo.lock; })
+      (rustPlatform.importCargoLock { lockFile = ./native/Cargo.lock; })
     ];
     pathsToLink = [ "/" ];
     ignoreCollisions = true;
