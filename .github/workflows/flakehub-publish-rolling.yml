@@ -17,4 +17,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: totto2727-org/monorepo/.github/actions/setup-nix@main
+        with:
+          dev-shell: ci
       - uses: totto2727-org/monorepo/.github/actions/publish-flakehub@main
