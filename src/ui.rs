@@ -212,6 +212,7 @@ impl PopupView {
             .child(
                 div()
                     .id(id)
+                    .debug_selector(move || id.into())
                     .cursor_pointer()
                     .rounded_md()
                     .px_2()
@@ -309,3 +310,7 @@ impl Render for PopupView {
             )
     }
 }
+
+#[cfg(test)]
+#[path = "ui_test.rs"]
+mod tests;
