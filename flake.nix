@@ -16,10 +16,12 @@
           mainProgram = "gshift";
         };
       };
-      mkPkgs = system: import nixpkgs {
-        inherit system;
-        overlays = [ overlay ];
-      };
+      mkPkgs =
+        system:
+        import nixpkgs {
+          inherit system;
+          overlays = [ overlay ];
+        };
     in
     {
       overlays.default = overlay;
@@ -40,7 +42,7 @@
         let
           pkgs = mkPkgs system;
         in
-        {
+        rec {
           default = pkgs.mkShell {
             inputsFrom = [ self.packages.${system}.default ];
             packages = [
@@ -51,7 +53,12 @@
               pkgs.rustc
               pkgs.rustfmt
             ];
+            shellHook = ''
+              # Enable Git Hook
+              vp config
+            '';
           };
+          ci = default.overrideAttrs (_: { shellHook = ""; });
         }
       );
     };
