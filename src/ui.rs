@@ -1,313 +1,123 @@
-use std::{rc::Rc, sync::Arc, time::Duration};
+//! The native popup, built from zgui's standard themed components.
 
-use async_channel::Sender;
-use gpui::{
-    Animation, AnimationExt, ClipboardItem, Context, ElementId, IntoElement, Render, SharedString,
-    Window, actions, div, prelude::*, rgb,
+use std::rc::Rc;
+
+use zgui::{prelude::*, reactive::LocalStorage};
+use zgui_ui::prelude::*;
+use zgui_ui_icons::{
+    prelude::*,
+    set::status::{ALERT_CIRCLE, CHECK_CIRCLE, INFO},
 };
+use zgui_ui_tokens::prelude::*;
 
-use glossshift::{
-    config::AppConfig,
-    llm::{RequestId, TranslationEvent, TranslationRequest},
-};
-use llm_profiles::LoadedAgentsConfig;
+use crate::popup::{Pane, Phase, PopupState};
 
-use crate::platform::SelectionSource;
+pub const STYLESHEET: &str = include_str!("ui.css");
 
-actions!(
-    glossshift,
-    [CloseWindow, CopySource, CopyTranslation, Quit,]
-);
+type ViewState = RwSignal<PopupState, LocalStorage>;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Phase {
-    Ready,
-    Streaming,
-    Complete,
-    Error,
-}
-
-#[derive(Clone, Copy)]
-enum Pane {
-    Source,
-    Translation,
-}
-
-pub struct PopupView {
-    selection: Rc<dyn SelectionSource>,
-    config: Arc<AppConfig>,
-    agents: Arc<LoadedAgentsConfig>,
-    requests: Sender<TranslationRequest>,
-    next_request_id: u64,
-    active_request: Option<RequestId>,
-    source_text: SharedString,
-    output: SharedString,
-    status: SharedString,
-    phase: Phase,
-}
-
-impl PopupView {
-    pub fn new(
-        config: Arc<AppConfig>,
-        agents: Arc<LoadedAgentsConfig>,
-        requests: Sender<TranslationRequest>,
-        initial_status: String,
-        selection: Rc<dyn SelectionSource>,
-    ) -> Self {
-        Self {
-            selection,
-            config,
-            agents,
-            requests,
-            next_request_id: 1,
-            active_request: None,
-            source_text: "No text captured yet.".into(),
-            output: "Select text in any application, then press a configured shortcut.".into(),
-            status: initial_status.into(),
-            phase: Phase::Ready,
-        }
-    }
-
-    pub fn trigger_translation(&mut self, target_language: String, cx: &mut Context<Self>) {
-        let text = match self.selection.selected_text() {
-            Ok(text) => text,
-            Err(error) => {
-                self.fail(format!("{error:#}"), cx);
-                return;
+pub fn popup_view(state: ViewState, on_copy: Rc<dyn Fn(Pane)>) -> impl IntoView {
+    let copy_source = Rc::clone(&on_copy);
+    view! {
+        ThemeProvider(scheme = ColorScheme::Dark) {
+            column(
+                class = "popup",
+                attr:data-phase = move || Some(phase_name(state.with(|state| state.phase)).to_owned()),
+                a11y:role = Role::Group,
+                a11y:label = "GlossShift translation"
+            ) {
+                row(class = "popup__heading") {
+                    text(class = "popup__title") {"GlossShift"}
+                    {move || status_badge(state)}
+                }
+                Card(class = "popup__pane popup__source") {
+                    CardHeader(class = "popup__pane-heading") {
+                        CardTitle {"Source"}
+                        CardAction {
+                            Button(
+                                variant = ButtonVariant::Ghost,
+                                size = ButtonSize::Sm,
+                                attr:data-testid = "copy-source",
+                                a11y:label = "Copy source text",
+                                on:click = move |_| copy_source(Pane::Source)
+                            ) {"Copy"}
+                        }
+                    }
+                    CardContent(class = "popup__pane-content") {
+                        ScrollArea(
+                            class = "popup__scroll",
+                            label = "Source text",
+                            attr:data-testid = "source-scroll"
+                        ) {
+                            text(class = "popup__text", attr:data-testid = "source-text") {
+                                {move || state.with(|state| state.source_text.clone())}
+                            }
+                        }
+                    }
+                }
+                Card(class = "popup__pane popup__translation") {
+                    CardHeader(class = "popup__pane-heading") {
+                        CardTitle {"Translation"}
+                        CardAction {
+                            Button(
+                                variant = ButtonVariant::Ghost,
+                                size = ButtonSize::Sm,
+                                attr:data-testid = "copy-translation",
+                                a11y:label = "Copy translation",
+                                on:click = move |_| on_copy(Pane::Translation)
+                            ) {"Copy"}
+                        }
+                    }
+                    CardContent(class = "popup__pane-content") {
+                        ScrollArea(
+                            class = "popup__scroll",
+                            label = "Translation text",
+                            attr:data-testid = "translation-scroll"
+                        ) {
+                            if move || state.with(|state| state.phase == Phase::Streaming && state.output.is_empty()) {
+                                row(class = "popup__waiting", attr:data-testid = "streaming-indicator") {
+                                    Spinner(label = "Waiting for translation")
+                                    text {"Waiting for the first streamed token…"}
+                                }
+                            }
+                            text(class = "popup__text", attr:data-testid = "translation-text") {
+                                {move || state.with(|state| state.output.clone())}
+                            }
+                        }
+                    }
+                }
             }
-        };
-        let provider = match self.agents.active_provider() {
-            Ok(provider) => provider,
-            Err(error) => {
-                self.fail(error.to_string(), cx);
-                return;
-            }
-        };
-        if provider.api_key().trim().is_empty() || provider.api_key() == "replace-me" {
-            self.fail(
-                format!(
-                    "Set api_key in {}, then restart the app.",
-                    self.agents.paths().credentials_path().display()
-                ),
-                cx,
-            );
-            return;
         }
-        let id = RequestId(self.next_request_id);
-        self.next_request_id = self.next_request_id.saturating_add(1);
-        let status = format!("Translating to {target_language}");
-        let request = TranslationRequest {
-            id,
-            agents: self.agents.clone(),
-            source_language: self.config.translation.source_language.clone(),
-            target_language,
-            text: text.clone(),
-        };
-        if self.requests.try_send(request).is_err() {
-            self.fail(
-                "The translation queue is busy. Try the shortcut again.".into(),
-                cx,
-            );
-            return;
-        }
-        self.active_request = Some(id);
-        self.source_text = text.into();
-        self.output = "Waiting for the first streamed token…".into();
-        self.status = status.into();
-        self.phase = Phase::Streaming;
-        cx.notify();
-    }
-
-    pub fn handle_event(&mut self, event: TranslationEvent, cx: &mut Context<Self>) {
-        let id = event.request_id();
-        if self.active_request != Some(id) {
-            return;
-        }
-        match event {
-            TranslationEvent::Started { source_text, .. } => {
-                self.source_text = source_text.into();
-                self.output = SharedString::default();
-                self.phase = Phase::Streaming;
-            }
-            TranslationEvent::Delta { text, .. } => {
-                let mut output = self.output.to_string();
-                output.push_str(&text);
-                self.output = output.into();
-            }
-            TranslationEvent::Finished { .. } => {
-                self.status = "Translation complete".into();
-                self.phase = Phase::Complete;
-            }
-            TranslationEvent::Failed { message, .. } => self.fail(message, cx),
-        }
-        cx.notify();
-    }
-
-    fn fail(&mut self, message: String, cx: &mut Context<Self>) {
-        self.output = message.into();
-        self.status = "Action required".into();
-        self.phase = Phase::Error;
-        cx.notify();
-    }
-
-    fn copy_pane(&mut self, pane: Pane, cx: &mut Context<Self>) {
-        let text = match pane {
-            Pane::Source => self.source_text.to_string(),
-            Pane::Translation => self.output.to_string(),
-        };
-        cx.write_to_clipboard(ClipboardItem::new_string(text));
-        self.status = "Text copied".into();
-        cx.notify();
-    }
-
-    pub fn copy_source(&mut self, cx: &mut Context<Self>) {
-        self.copy_pane(Pane::Source, cx);
-    }
-
-    pub fn copy_translation(&mut self, cx: &mut Context<Self>) {
-        self.copy_pane(Pane::Translation, cx);
-    }
-
-    fn streaming_indicator() -> impl IntoElement {
-        // Offset each dot's phase so the three pulse in sequence.
-        let phases = [0.0, 1.0 / 3.0, 2.0 / 3.0];
-        let mut rendered = Vec::new();
-        for (index, phase_offset) in phases.into_iter().enumerate() {
-            rendered.push(
-                div()
-                    .size_2()
-                    .rounded_full()
-                    .bg(rgb(0x0094_a3b8))
-                    .with_animation(
-                        ElementId::named_usize("streaming-dot", index),
-                        Animation::new(Duration::from_millis(900)).repeat(),
-                        move |element, delta| {
-                            let phase = (delta + phase_offset) % 1.0;
-                            element.opacity(0.3 + 0.7 * phase)
-                        },
-                    ),
-            );
-        }
-        div()
-            .id("streaming-indicator")
-            .flex()
-            .items_center()
-            .gap_3()
-            .text_sm()
-            .text_color(rgb(0x00cb_d5e1))
-            .child("Translating…")
-            .children(rendered)
-    }
-
-    fn pane_header(pane: Pane, cx: &mut Context<Self>) -> impl IntoElement {
-        let (label, id) = match pane {
-            Pane::Source => ("SOURCE", "copy-source"),
-            Pane::Translation => ("TRANSLATION", "copy-translation"),
-        };
-        div()
-            .flex()
-            .items_center()
-            .justify_between()
-            .child(div().text_xs().text_color(rgb(0x0094_a3b8)).child(label))
-            .child(
-                div()
-                    .id(id)
-                    .debug_selector(move || id.into())
-                    .cursor_pointer()
-                    .rounded_md()
-                    .px_2()
-                    .py_1()
-                    .text_xs()
-                    .text_color(rgb(0x00cb_d5e1))
-                    .hover(|style| style.bg(rgb(0x0037_4151)))
-                    .child("COPY")
-                    .on_click(cx.listener(move |this, _, _, cx| this.copy_pane(pane, cx))),
-            )
     }
 }
 
-impl Render for PopupView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let accent = match self.phase {
-            Phase::Ready => rgb(0x0094_a3b8),
-            Phase::Streaming => rgb(0x0060_a5fa),
-            Phase::Complete => rgb(0x0034_d399),
-            Phase::Error => rgb(0x00fb_7185),
-        };
+fn status_badge(state: ViewState) -> impl IntoView {
+    let (variant, icon) = match state.with(|state| state.phase) {
+        Phase::Ready => (BadgeVariant::Outline, INFO),
+        Phase::Streaming => (BadgeVariant::Secondary, INFO),
+        Phase::Complete => (BadgeVariant::Success, CHECK_CIRCLE),
+        Phase::Error => (BadgeVariant::Destructive, ALERT_CIRCLE),
+    };
+    view! {
+        Badge(
+            variant = variant,
+            class = "popup__status",
+            attr:data-testid = "popup-status",
+            a11y:role = Role::Status,
+            a11y:live = zgui::vocab::Live::Polite
+        ) {
+            Icon(icon = icon, size = IconSize::Sm)
+            text(class = "popup__status-text") {{move || state.with(|state| state.status.clone())}}
+        }
+    }
+}
 
-        div()
-            .size_full()
-            .flex()
-            .flex_col()
-            .gap_4()
-            .p_5()
-            .bg(rgb(0x0011_1827))
-            .text_color(rgb(0x00e5_e7eb))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .text_lg()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child("GlossShift"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(accent)
-                            .child(self.status.clone()),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap_2()
-                    .child(Self::pane_header(Pane::Source, cx))
-                    .child(
-                        div()
-                            .id("source-scroll")
-                            .max_h_24()
-                            .overflow_y_scroll()
-                            .p_3()
-                            .rounded_lg()
-                            .bg(rgb(0x001f_2937))
-                            .text_sm()
-                            .child(self.source_text.clone()),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .flex_1()
-                    .min_h_0()
-                    .gap_2()
-                    .child(Self::pane_header(Pane::Translation, cx))
-                    .child(
-                        div()
-                            .id("translation-scroll")
-                            .flex_1()
-                            .min_h_0()
-                            .overflow_y_scroll()
-                            .p_3()
-                            .rounded_lg()
-                            .border_1()
-                            .border_color(rgb(0x0037_4151))
-                            .bg(rgb(0x000f_172a))
-                            .text_base()
-                            .child(
-                                if self.phase == Phase::Streaming && self.output.is_empty() {
-                                    Self::streaming_indicator().into_any_element()
-                                } else {
-                                    self.output.clone().into_any_element()
-                                },
-                            ),
-                    ),
-            )
+const fn phase_name(phase: Phase) -> &'static str {
+    match phase {
+        Phase::Ready => "ready",
+        Phase::Streaming => "streaming",
+        Phase::Complete => "complete",
+        Phase::Error => "error",
     }
 }
 

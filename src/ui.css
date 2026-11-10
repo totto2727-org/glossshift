@@ -1,0 +1,114 @@
+:root {
+    background: var(--zui-color-background);
+    color: var(--zui-color-foreground);
+    font-family: var(--zui-type-family-sans);
+}
+
+.popup {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    gap: 8px;
+    padding: 10px;
+}
+
+.popup__heading {
+    flex: 0 0 auto;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.popup__title {
+    flex-shrink: 0;
+    font-size: var(--zui-type-size-lg);
+    font-weight: var(--zui-type-weight-semibold);
+}
+
+.popup__status {
+    min-width: 0;
+    max-width: 65%;
+    flex-shrink: 1;
+}
+
+.popup__status .zui-icon {
+    flex-shrink: 0;
+}
+
+.popup__status-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.popup .popup__pane {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding-block: 6px;
+    gap: 4px;
+}
+
+.popup__source {
+    flex: 0 1 34%;
+    max-height: 160px;
+}
+
+.popup__translation {
+    flex: 1 1 0;
+}
+
+.popup .popup__pane-heading {
+    flex: 0 0 auto;
+    min-width: 0;
+    align-items: center;
+    padding-inline: 10px;
+    gap: 0;
+}
+
+.popup__pane-heading .zui-card__title {
+    font-size: var(--zui-type-size-sm);
+}
+
+.popup .popup__pane-content {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding-inline: 10px;
+}
+
+.popup__scroll {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+}
+
+.popup__scroll .zui-scroll-area__viewport {
+    min-width: 0;
+    min-height: 0;
+}
+
+.popup__text {
+    display: block;
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-size: var(--zui-type-size-sm);
+    line-height: 1.5;
+}
+
+.popup__waiting {
+    align-items: center;
+    gap: 8px;
+    color: var(--zui-color-muted-foreground);
+    font-size: var(--zui-type-size-sm);
+}
