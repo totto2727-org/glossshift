@@ -92,11 +92,13 @@ stdenv.mkDerivation {
     for item in .nsh/out/bundle.* .nsh/out/app.json .nsh/out/capabilities.json .nsh/out/assets; do
       if [ -e "$item" ]; then cp -R "$item" "$out/share/glossshift/tui/"; fi
     done
+    # The TUI host only accepts external JS. Bytecode is restricted to its own
+    # app resources or signed .nshpkg files, not this share directory.
     cat > "$out/bin/gshift" <<'EOF'
     #!${stdenv.shell}
     if [ "$#" -eq 0 ] || [ "$1" = "--tui" ]; then
       [ "$#" -eq 0 ] || shift
-      exec @out@/libexec/glossshift/gshift-tui-host --bundle @out@/share/glossshift/tui/bundle.nshc "$@"
+      exec @out@/libexec/glossshift/gshift-tui-host --bundle @out@/share/glossshift/tui/bundle.js "$@"
     else
       exec @out@/libexec/glossshift/gshift-batch "$@"
     fi
@@ -112,6 +114,7 @@ stdenv.mkDerivation {
     runHook preInstallCheck
     test -x "$out/bin/glossshift"
     test -x "$out/bin/gshift"
+    test -s "$out/share/glossshift/tui/bundle.js"
     test -s "$out/Applications/GlossShift.app/Contents/Resources/nsh/bundle.nshc"
     "$out/bin/gshift" --help > /dev/null
     runHook postInstallCheck
