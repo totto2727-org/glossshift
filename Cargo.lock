@@ -5692,7 +5692,8 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 [[package]]
 name = "llm-profiles"
 version = "0.1.0"
-source = "git+https://github.com/totto2727-org/llm-profiles?rev=d3b3ede46fd823fe400aad85217537799b3ed40f#d3b3ede46fd823fe400aad85217537799b3ed40f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67ff3949660676f44c38937f021a31a9cb02a5f65938339a835fca622942739e"
 dependencies = [
  "http",
  "rig",
