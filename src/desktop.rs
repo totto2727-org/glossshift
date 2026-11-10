@@ -62,16 +62,7 @@ pub fn root(
     let state = RwSignal::new_local(controller.borrow().snapshot());
     let window = use_window();
     let windows = use_windows();
-    let clipboard = use_clipboard();
-    let copy: Rc<dyn Fn(Pane)> = Rc::new({
-        let controller = controller.clone();
-        move |pane| {
-            let mut controller = controller.borrow_mut();
-            clipboard.set_text(ClipboardKind::Standard, controller.text(pane).to_owned());
-            controller.copied();
-            state.set(controller.snapshot());
-        }
-    });
+    let copy = copy_action(controller.clone(), state);
     let close = on_close_request({
         let window = window.clone();
         move || {
@@ -119,6 +110,16 @@ pub fn root(
         }
     });
     crate::ui::popup_view(state, copy)
+}
+
+pub(crate) fn copy_action(controller: Controller, state: ViewState) -> Rc<dyn Fn(Pane)> {
+    let clipboard = use_clipboard();
+    Rc::new(move |pane| {
+        let mut controller = controller.borrow_mut();
+        clipboard.set_text(ClipboardKind::Standard, controller.text(pane).to_owned());
+        controller.copied();
+        state.set(controller.snapshot());
+    })
 }
 
 fn spawn_shortcuts(
