@@ -1,0 +1,16 @@
+{
+  "extends": ["@tsconfig/strictest/tsconfig.json", "@tsconfig/node-ts/tsconfig.json", "./.nsh/tsconfig.json"],
+  "compilerOptions": {
+    "target": "ESNext"
+  },
+  "include": [
+    "App.tsx",
+    "App.test.ts",
+    "Tui.test.ts",
+    "ui.fixture.tsx",
+    "terminal.fixture.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": ["node_modules", "tmp", "native", ".nsh"]
+}

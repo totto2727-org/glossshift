@@ -1,6 +1,6 @@
 # GlossShift
 
-GlossShift is a macOS translation application with a zgui desktop popup and a `gshift` command that share OpenAI-compatible providers, prompts, credentials, and streaming behavior.
+GlossShift is a macOS translation application with an [NSH](https://nsh.dev/) desktop popup and interactive terminal UI written in TypeScript and Effect, plus a `gshift` batch command that shares its OpenAI-compatible providers, prompts, credentials, and streaming transport.
 
 ## Usage
 
@@ -11,9 +11,23 @@ open ~/.nix-profile/Applications/GlossShift.app
 Select text in any macOS application and press a configured shortcut.
 The popup places the captured text in **Source**, streams the result into **Translation**, and lets you copy either pane.
 The **Plain** toggle switches both panes between Markdown preview and the original plain text.
-Preview supports headings, lists, block quotes, and code blocks without syntax highlighting.
-Inline emphasis displays as ordinary text, links remain inert, images display alternate text, and HTML is shown literally.
+Preview uses NSH's standard Markdown `TextView`, including headings, lists, tables, inline emphasis, block quotes, and plain code blocks without syntax highlighting.
+Links do not open external pages, images display alternate text without fetching them, and HTML is shown literally.
 Copy controls always copy the original text, including Markdown syntax, regardless of the display mode.
+
+Run `gshift` without arguments to open the interactive terminal UI:
+
+```bash
+gshift
+```
+
+Enter the source text and target language, then choose **Translate**.
+The terminal UI shares the desktop application's Markdown/plain toggle, raw-copy controls, cancellation, provider configuration, and credentials.
+It does not initialize desktop hotkeys, the tray, or selection capture, and it does not require Accessibility permission.
+Use **Quit** or `Ctrl+C` to exit and restore the terminal.
+The installed wrapper also accepts `gshift --tui` to select interactive mode explicitly.
+
+To translate files in batch mode:
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -29,7 +43,10 @@ On its first invocation, `gshift` creates its application settings under the Glo
 
 ## Key features
 
-- Native macOS popup with global shortcuts, a resizable window, and the official zgui-ui shadcn-style components, icons, and copy controls.
+- Native macOS popup with global shortcuts, a resizable window, official NSH components, native Tailwind classes, and raw-text copy controls.
+- Official NSH terminal backend for interactive translation, sharing TypeScript/Effect state and provider transport without initializing desktop hotkeys, tray, or selection capture.
+- A pinned NSH nightly distribution and matching source and terminal component, not a Rust nightly toolchain requirement.
+- TypeScript/Effect application state with injected native services, while Rust retains macOS integration, shared credential resolution, and the existing translation transport.
 - Read-only Markdown preview with a plain-text toggle, no syntax highlighting, and no automatic external content loading.
 - Streaming translations through servers that implement the OpenAI Chat Completions API, including custom base URLs and request parameters.
 - Application-specific XDG settings plus shared `~/.agents` providers and credentials reusable by other applications through the independent `llm-profiles` crate.
@@ -187,19 +204,25 @@ The supported end-user interfaces are the packaged `GlossShift.app` and `gshift`
 
 ### `gshift`
 
+The installed `gshift` wrapper selects the official NSH terminal host when called without arguments or with `--tui`.
+File and option invocations continue to use the batch interface below.
+The pinned upstream nightly does not provide `nsh package --target tui`, so the Nix package installs NSH's generated terminal host together with its application bundle.
+
 ```text
+gshift
+gshift --tui
 gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]
 ```
 
-| Input or option | Meaning |
-| --- | --- |
-| `<FILES>...` | One or more `.md` or `.mbt.md` files, translated sequentially in the supplied order. |
-| `-l`, `--lang <LANGUAGE>` | Required target-language code. It is trimmed, lowercased, and must contain only ASCII letters, digits, and internal hyphens. |
-| `-f`, `--force` | Replace existing sibling outputs. This conflicts with `--stdout`. |
-| `--stdout` | Concatenate translations to standard output in input order without inserted separators. |
-| `--color <auto|always|never>` | Control ANSI Markdown highlighting for `--stdout`; defaults to `auto` and requires `--stdout`. |
-| `-h`, `--help` | Print the generated command reference. |
-| `-V`, `--version` | Print the installed version. |
+| Input or option           | Meaning                                                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `<FILES>...`              | One or more `.md` or `.mbt.md` files, translated sequentially in the supplied order.                                           |
+| `-l`, `--lang <LANGUAGE>` | Required target-language code. It is trimmed, lowercased, and must contain only ASCII letters, digits, and internal hyphens.   |
+| `-f`, `--force`           | Replace existing sibling outputs. This conflicts with `--stdout`.                                                              |
+| `--stdout`                | Concatenate translations to standard output in input order without inserted separators.                                        |
+| `--color <MODE>`          | Control ANSI Markdown highlighting for batch stdout: `auto`, `always`, or `never`. Defaults to `auto` and requires `--stdout`. |
+| `-h`, `--help`            | Print the generated command reference.                                                                                         |
+| `-V`, `--version`         | Print the installed version.                                                                                                   |
 
 Without `--stdout`, `gshift` inserts `.<language>` before `.md`, preserves the compound `.mbt.md` extension, and replaces an existing trailing `.ja` or `.en` language segment. It rejects output paths that collide with an input or another output. Existing files and symbolic links are rejected unless `--force` is set; forced symbolic-link output replaces the link itself without modifying its target.
 
@@ -218,9 +241,30 @@ gshift document.md --lang en --stdout --color never
 ## Development
 
 For repository structure, architecture, and development commands, see [AGENTS.md](./AGENTS.md).
-Run `just test-ui` for headless popup rendering, streaming, and clipboard tests with synthetic provider credentials.
-The desktop uses the official [zgui Tokio integration](https://zgui.zortax.de/docs/learn/tokio-integration) and [clipboard interface](https://zgui.zortax.de/docs/building/clipboard).
-The popup keeps the standard zgui-ui theme and component variants, with minimal application CSS for layout, overflow, and token-based typography.
+
+```bash
+nix develop
+vp install --frozen-lockfile
+vp run typecheck
+vp run test
+vp run test-tui
+vp run tui
+# Start the desktop development host separately:
+vp run dev
+```
+
+Vite+ is the task runner, installer, formatter, and linter.
+Type checking, application execution, tests, bundling, and native packaging delegate to NSH rather than Vite or a Node/browser renderer.
+`vp run build` creates an NSH bundle, while `vp run package` creates the native macOS application.
+The application uses Effect for state transitions, scoped request cancellation, validated native boundaries, and bounded streaming.
+Rust keeps `llm-profiles`, the existing Rig provider contract, macOS services, and the `gshift` CLI, so changing a TS view does not require recompiling those Rust implementations.
+This does not eliminate the initial native dependency build or Rust-backend rebuilds.
+
+The development environment prepares the pinned NSH source dependency at `.nsh/upstream`.
+A small maintained [upstream compatibility patch](./docs/upstream-differences.md) provides pre-activation native setup, hidden startup, retained-window visibility, and shutdown hooks without replacing NSH's AppKit loop.
+No application CSS stylesheet or custom Markdown parser is needed.
+Application tests run in NSH's official test host with injected services and synthetic credentials.
+Native selection across other applications still requires macOS Accessibility permission.
 
 ## License
 

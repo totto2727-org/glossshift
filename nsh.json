@@ -1,0 +1,8 @@
+{
+  "name": "GlossShift",
+  "id": "com.totto2727.glossshift",
+  "version": "0.2.0",
+  "build": 1,
+  "icon": "packaging/app-icon.png",
+  "rust": "native"
+}

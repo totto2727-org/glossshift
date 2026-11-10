@@ -4,3 +4,10 @@
 .omo/
 .direnv/
 /tmp/
+node_modules/
+.nsh/
+.vite/
+.vite-plus/
+/native/target/
+/result
+/result-*

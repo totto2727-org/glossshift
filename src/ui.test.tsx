@@ -1,0 +1,32 @@
+import { expect, open, test } from 'nsh/test'
+
+test('NSH popup renders native safe Markdown, toggles plain text, and dispatches Copy', async () => {
+  const app = await open('./ui.fixture.tsx')
+  await app.waitFor('Translation complete')
+  expect(app.texts()).toContain('GlossShift')
+  expect(app.texts()).toContain('Source heading')
+  expect(app.texts()).toContain('Translation heading')
+  expect(app.texts()).toContain('let safe = true;')
+  expect(app.texts()).toContain('Alt only')
+  await app.press('label:Plain text')
+  expect(app.texts()).toContain('# Source heading\n\nSelected **before** activation.')
+  await app.press('Copy Translation')
+  await app.waitFor('Text copied')
+  await app.press('label:Plain text')
+  expect(app.texts()).toContain('Translation heading')
+})
+
+test('NSH popup controls remain operable at the supported 320 by 180 minimum', async () => {
+  const app = await open('./ui.fixture.tsx', { width: 320, height: 180, platform: 'macos' })
+  await app.waitFor('Translation complete')
+  await app.press('label:Copy Source')
+  await app.waitFor('Text copied')
+  await app.press('label:Copy Translation')
+  await app.press('label:Plain text')
+  await app.press('label:Plain text')
+  await app.press('label:Cancel translation')
+  await app.press('Hide')
+  await app.press('Quit')
+  expect(app.requests()).toEqual([])
+  expect(app.openedUrls()).toEqual([])
+})

@@ -3,144 +3,174 @@
 ## Repository structure
 
 ```text
-src/lib.rs            Shared public library modules
-src/config.rs         XDG application settings and non-destructive legacy migration
-src/prompt.rs         Translation prompt construction
-src/llm.rs            Rig streaming worker and request events
-src/cli.rs            Public CLI path, language, and Markdown rendering helpers
-src/bin/gshift.rs     Markdown translation CLI binary
-src/main.rs           Desktop command-line entry point and native service assembly
-src/desktop.rs        zgui window, clipboard, keyboard, and streaming integration
-src/desktop_driver.rs Hidden-start native driver adapter
-src/native.rs         macOS event loop and launch activation policy
-src/popup.rs          Framework-independent popup state and translation requests
-src/platform.rs       Injectable selection and Accessibility permission interfaces
-src/selection.rs      macOS Accessibility and clipboard fallback
-src/ui.rs             Official zgui-ui popup components and display-mode toggle
-src/ui_markdown.rs    Safe native Markdown block preview without syntax highlighting
-src/ui.css            Application layout, overflow, and token-based typography
-src/ui_test.rs        Headless popup rendering and interaction tests
-examples/              Starter TOML configuration and credentials
-packaging/             macOS application metadata
-Justfile               Local development and packaging recipes
-flake.nix              Darwin packages, overlay, and development shell
-package.nix            Nix Rust package definition
+App.tsx                     NSH entry in the same directory as nsh.json
+src/domain.ts               Pure popup states, messages, and transitions
+src/controller.ts           Effect-owned request lifetimes and bounded event processing
+src/ports.ts                Injectable native services and public settings
+src/                        NSH views, native-module adapters, and application tests
+native/Cargo.toml           Rust native bridge and gshift package
+native/Cargo.lock           Locked Rust dependencies
+native/src/bridge.rs        Typed NSH module exports
+native/src/bridge_types.rs  Non-secret values crossing the TS/Rust boundary
+native/src/desktop.rs       macOS service startup and shutdown
+native/src/selection.rs     Accessibility and clipboard selection capture
+native/src/platform.rs      Selection and permission interfaces
+native/src/llm.rs           Rig translation stream and cancellation
+native/src/config.rs        XDG settings and non-destructive provider migration
+native/src/prompt.rs        Shared translation prompts
+native/src/cli.rs           CLI language, path, and ANSI Markdown helpers
+native/src/bin/gshift.rs    Ordered Markdown translation CLI
+native/tests/              Real CLI and HTTP-boundary regression tests
+nsh.json                    Native module, application identity, and entry metadata
+vite.config.ts              Vite+ formatting, lint, and delegated task definitions
+pnpm-workspace.yaml         Catalog, package-manager policy, and release-age safeguards
+patches/                    Minimal NSH operational compatibility patch
+packaging/                  macOS application metadata and assets
+flake.nix                   Pinned development tools and Darwin package outputs
+package.nix                 Native application packaging
+Justfile                    Compatibility aliases into Vite+ tasks
 ```
 
 ## Development commands
 
-### Execution rules
+Run commands from the repository root.
+Enter `nix develop` to prepare the pinned NSH nightly distribution, matching terminal component, Rust tools, Vite+, and patched NSH source dependency.
+Nightly refers to the NSH distribution channel, not the Rust compiler channel.
+Keep the source, CLI, and terminal component on the same exact revision with content hashes.
+Then install JavaScript dependencies with `vp install --frozen-lockfile`.
+Do not point committed manifests at benchmark fixtures, arbitrary sibling checkouts, or developer-specific absolute paths.
+The generated `.nsh/upstream` dependency is prepared from the pinned source and maintained patch, not from a mutable sibling repository.
 
-- Run commands from the repository root.
-- Cargo uses the independent [`llm-profiles`](https://github.com/totto2727-org/llm-profiles) library from crates.io with version requirement `0.1.0` and its `rig` feature; no sibling checkout is required.
-- Standalone Nix packaging uses the same registry dependency through `Cargo.lock` and its checksums, without a fixed Git output hash in `package.nix`; update the lockfile when changing the dependency version, and do not claim a successful Nix build from Cargo checks alone.
-- Support macOS only until the project explicitly expands its platform scope.
-- Use the named Just recipes below instead of ad-hoc shell workflows; use Cargo directly only when a recipe cannot express the needed target.
-- Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `mdt`.
-- Do not create a separate `CLAUDE.md`; keep `AGENTS.md` as the canonical agent document.
-- Never commit real credentials, log API keys, or weaken a failing test or lint.
+| Command                                  | Responsibility                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                                                   |
+| `vp run check`                           | Check formatting and lint without a second typechecker.                                           |
+| `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                                            |
+| `vp run typecheck`                       | Delegate to `nsh check .`, including native declarations and NSH's TypeScript compiler.           |
+| `vp run dev`                             | Delegate development and reload to NSH's macOS host.                                              |
+| `vp run run`                             | Run the application through NSH.                                                                  |
+| `vp run build`                           | Produce the NSH release bundle, not an installable application.                                   |
+| `vp run package`                         | Package the native macOS application through NSH.                                                 |
+| `vp run test`                            | Run application tests through the official NSH test host.                                         |
+| `vp run tui`                             | Run the shared TS application through NSH's official terminal host.                               |
+| `vp run test-tui`                        | Run the dedicated terminal interaction suite through NSH's official TestBackend.                  |
+| `vp run test-native`                     | Run Rust library, CLI, and local HTTP transport regressions.                                      |
+| `vp run test-lifecycle`                  | Opt in to a real AppKit window lifecycle check without reading credentials or other applications. |
+| `vp run cli -- FILES... --lang LANGUAGE` | Run the retained Rust CLI.                                                                        |
+| `vp run ci`                              | Run the minimal formatting and lint gate.                                                         |
 
-### Standard tasks
+Vite+ owns installation, task orchestration, formatting, and lint only.
+Do not introduce Vite bundling, `vp pack`, Vitest, or a standalone TypeScript compiler as an alternative application toolchain.
+The template's strictest and Node-TS configuration presets remain, with NSH's generated configuration last so application types come from NSH rather than Node globals.
+The Just aliases exist for compatibility, including the existing workflow's `just ci` entry point.
+Native Cargo tasks share the repository-root `target` directory with NSH's generated hosts instead of creating a second build cache under `native/target`.
+The lifecycle check briefly shows and activates its own verification window, then checks close, reopening, and shutdown.
+It is a local opt-in check, not part of CI.
+Keep workflow changes within the user's explicitly approved runner and timeout changes.
+Do not add macOS jobs, application builds, all-system evaluation, or flake checks to GitHub Actions without a new request.
 
-- `just fix`: Apply formatting and Clippy fixes.
-- `just fix-rustfmt`: Format all Rust sources with `cargo fmt --all`.
-- `just fix-clippy`: Apply Clippy fixes with all targets, features, and denied warnings.
-- `just check`: Run format and Clippy checks.
-- `just check-rustfmt`: Check Rust formatting without changing files.
-- `just check-clippy`: Run strict Clippy checks for every target and feature.
-- `just test`: Run the Rust unit tests.
-- `just test-ui`: Run popup rendering and interaction tests on zgui's isolated test platform.
-- `just build`: Build the debug binaries.
-- `just ci`: Run the complete local check, test, and build gate.
-- `just dev`: Run the desktop binary directly with Cargo.
-- `just run`: Build, ad-hoc sign, verify, and open `target/GlossShift.app`.
-- `just package-app`: Build and verify the local application bundle without opening it.
-- `mdt --lang ja --force README.md`: Regenerate the Japanese README source output.
-- `mdt --lang ja --force AGENTS.md`: Regenerate the Japanese AGENTS source output.
+## Application architecture
 
-### CLI reference
+### TS application boundary
 
-Run the CLI from the repository root with `just cli FILES... --lang LANGUAGE [OPTIONS]`; the equivalent direct command is `cargo run --bin gshift -- FILES... --lang LANGUAGE [OPTIONS]`. The `gshift` binary always reuses the desktop application's XDG application settings, shared agent provider, source language, timeout values, and named credential; it has no separate model, prompt, or token settings.
+TypeScript owns popup state, display mode, request replacement, stale and terminal event handling, copy actions, and view rendering.
+Use Effect services, scoped fibers, validated schemas, and Effect collection and string utilities instead of manual Promise orchestration or JavaScript standard-library collection helpers.
+Keep unavoidable NSH Promise and UI APIs in boundary adapters.
+Use one application-lifetime runtime, dispose its scope on teardown, and do not create a runtime per render.
+Provider deltas use bounded, lossless transport.
+Complete view snapshots may coalesce, but cancellation and replacement must not wait behind a full delta queue.
 
-The positional `FILES...` accepts one or more Markdown files with `.md` or `.mbt.md` suffixes and preserves their input order. `--lang`/`-l` is required and accepts a non-empty ASCII language code containing only letters, digits, and internal hyphens; it is trimmed and lowercased before use. `--force`/`-f` permits replacing existing sibling outputs and conflicts with `--stdout`. `--stdout` writes translations to standard output instead of files. `--color auto|always|never` controls ANSI Markdown highlighting, requires `--stdout`, and defaults to `auto`.
+Use the official NSH components and native Tailwind `class` support.
+Use NSH `Scroll`, not browser overflow behavior.
+Markdown uses the standard NSH `TextView`, with literal HTML, disabled math, non-opening links, alt-only images, and plain code-block rendering without syntax highlighting.
+Plain mode switches both panes without modifying stored source or translation text.
+Copy always uses the raw domain text, not rendered Markdown.
+Do not reintroduce an application CSS stylesheet, a custom Markdown parser, or a browser renderer.
 
-Before loading configuration or translating, the CLI resolves every sibling output and rejects batches whose outputs collide with any input or with one another. Without `--stdout`, it creates one sibling path per input by inserting `.<language>` before `.md`, preserves the compound `.mbt.md` extension, and replaces an existing trailing `.ja` or `.en` segment. It refuses an existing output, including a symbolic link, unless `--force` is present. With `--force`, a symbolic link is removed and replaced by a regular output file without modifying its target. The CLI never writes ANSI escapes to files.
+### Rust boundary
 
-Inputs are translated sequentially in their command-line order. With `--stdout`, translation bodies are concatenated in that same order without inserted separators. With `--stdout --color auto`, redirected stdout remains byte-plain and each provider delta is flushed immediately, while terminal stdout buffers each translation until completion and then renders it with Tree-sitter Markdown ANSI styles. `--color never` keeps output plain and streamed even on a terminal. `--color always` buffers each completed translation and emits ANSI styles even when stdout is redirected.
+The published [`llm-profiles`](https://crates.io/crates/llm-profiles) crate owns shared provider loading, validation, named credentials, and its optional Rig adapter.
+Rust retains configuration migration, provider-specific headers and parameters, translation prompts and transport, native selection, hotkeys, tray, autostart, and the `gshift` CLI.
+Credentials and secret headers never cross into view state or native-module bootstrap data.
+Rig is retained for provider and CLI parity, not because NSH lacks streaming HTTP primitives.
+Replacing it with Effect AI requires proving compatible base URLs, parameters, header substitution, cancellation, both timeout classes, and CLI behavior first.
 
-Examples:
+The NSH module exports typed data and bounded pull-based events.
+Decode unknown data at the TS boundary, attach a request ID to every stream event, and reject stale or terminal generations.
+Native asynchronous functions must not block the JS engine thread or move JS callbacks across threads.
+A pending native receive belongs to an explicit transport session and must be released or invalidated during reload and shutdown.
+Opening a new session cancels old pending receivers, and closing an old session must not close a newer session.
+Namespace translation request IDs by session so a reloaded controller cannot alias a previous request.
+Project provider failures to allowlisted public messages instead of returning raw errors, response bodies, headers, or configuration parse context to the UI.
+Capture the previous application's selection before showing or activating the popup.
+Native selection and permission interfaces remain injectable for another OS implementation without introducing another GUI event loop.
 
-```bash
-just cli README.md AGENTS.md --lang ja --force
-just cli README.md AGENTS.md --lang ja --stdout
-just cli README.md AGENTS.md --lang ja --stdout --color never
-just cli README.md --lang ja --stdout --color always
-```
+### Terminal UI
 
-### Configuration and credentials
+Use the official NSH TUI backend, not a second terminal renderer.
+Select terminal behavior with `platform.idiom === 'terminal'`; the operating system remains macOS and `nsh/desktop.isAvailable` alone does not distinguish a terminal host.
+Share the Effect controller, provider transport, Markdown/plain behavior, and raw-copy semantics with the desktop app.
+Inject typed terminal input instead of capturing another application's selection.
+Do not initialize AppKit, global hotkeys, tray resources, or desktop menus from terminal startup.
+Use the official terminal clipboard and lifecycle APIs.
+Keep batch `gshift` output compatible with existing files and pipelines.
+Run terminal interaction tests through `nsh test --target tui`, which exercises the official TestBackend.
+Do not pass `setViewport` to that backend; choose the initial dimensions in `open`.
+The terminal screenshot format is cell JSON, not a pixel image.
+Do not invent an NSH terminal package target when the pinned upstream release does not provide one.
 
-The application configuration root is resolved through `xdg::BaseDirectories`, defaults to `~/.config/glossshift`, and honors `XDG_CONFIG_HOME`.
-The independent `llm-profiles` crate owns shared provider definitions in `~/.agents/config.toml`, named keys in `~/.agents/credentials.toml`, and their validation and permissions.
-`AGENTS_CONFIG` selects an absolute shared config path, with credentials beside it, rather than searching the current directory.
-Treat shortcut strings, TOML content, Accessibility values, and HTTP responses as untrusted boundary input.
-Tests must select temporary shared paths and must never load or migrate the developer's real home configuration.
-Legacy provider migration preserves the original GlossShift files and never overwrites shared files.
+### macOS lifecycle
 
-The shared agent configuration retains multiple named OpenAI-compatible providers and a selected `active_provider`.
-Provider URLs, models, credentials, headers, and positive timeouts are validated by `llm-profiles`; first-chunk and stream-idle timeouts default to 30 and 60 seconds.
-Optional `[providers.<name>.request_parameters]` JSON fields are forwarded through its Rig adapter, and `${session_id}` header placeholders receive one UUID per translation.
-GlossShift validates unique hotkeys, non-empty target languages, and positive window dimensions at least as large as their minimums.
+Support Apple Silicon macOS only until platform scope explicitly expands.
+Keep NSH's AppKit event loop and delegate.
+The maintained [NSH upstream difference record](docs/upstream-differences.md) explains the exact source revision and the narrow setup, shutdown, visibility, and window-bounds patch.
+Native module registration must only register types and lifecycle function pointers.
+It must not access the developer's configuration, request permissions, register hotkeys, or create tray resources while NSH describes exports or runs headless tests.
+Initialize native services in the main-thread standalone setup hook and release them at shutdown.
+Closing the popup hides it without destroying the engine, and reopening reveals the retained state.
+Background startup must not briefly activate and hide a window.
 
-## Architecture
+## Configuration and credentials
 
-### Shared library boundary
+The application configuration root uses `xdg::BaseDirectories`, defaults to `~/.config/glossshift`, and honors `XDG_CONFIG_HOME`.
+Shared providers live in `~/.agents/config.toml`, with named keys in `~/.agents/credentials.toml` and permissions `0600`.
+`AGENTS_CONFIG` selects an absolute shared configuration path, with credentials beside it.
+Do not search the current directory for credentials.
+Legacy migration preserves original GlossShift files and never overwrites existing shared files.
 
-The GlossShift library owns application configuration, prompt construction, and translation streaming so the desktop and CLI binaries use the same contract.
-`llm-profiles` owns library-neutral resolved providers, credential handling, and conversion to Rig through its optional `rig` feature, independently of GlossShift and zgui.
-`config.rs` loads application settings and handles legacy migration, `prompt.rs` builds translation-only prompts, and `llm.rs` emits request-scoped `TranslationEvent` values using the crate's `rig_agent_builder(Some(&session_id))`, adding the translation preamble before building the agent.
+Provider resolution must preserve the active provider, custom compatible API prefixes, positive first-chunk and idle timeouts, request parameters, and one UUID substitution for `${session_id}` headers per translation.
+Cancel a previous request during connection establishment and while backpressured, not only after the provider produces a delta.
+The provider idle timeout excludes time waiting for the downstream consumer to accept a text delta.
+Treat TOML, shortcut strings, native selection values, and HTTP data as untrusted input.
+Tests must use isolated temporary settings and synthetic credentials, never the developer's home configuration.
 
-### Desktop boundary
+## CLI contract
 
-The zgui application thread owns the popup signals, window handles, and clipboard commands.
-`main.rs` retains native services and the shared two-worker Tokio runtime.
-`native.rs` configures the macOS event loop without launch activation for `--background`, and `desktop_driver.rs` defers zgui's first visible frame while continuing to poll UI tasks.
-The desktop adopts that runtime with `zgui::tokio::install_handle` and consumes bounded shortcut and translation channels in scoped UI tasks.
-`popup.rs` owns translation requests and state transitions without UI framework APIs.
-`platform.rs` defines the selection and Accessibility permission interfaces, and `main.rs` injects the macOS adapter at startup.
-`selection.rs` owns native Accessibility and pasteboard access, and `desktop.rs` uses the injected selection source and zgui's clipboard interface.
-`ui.rs` uses the official zgui-ui components, icons, tokens, and standard variants.
-Keep application CSS focused on layout, overflow, and token-based typography rather than replacing component themes.
-Native tray, hotkey, and autostart adapters are assembled at the composition root, not inside popup state or translation logic.
-Keep macOS as the only supported platform until platform scope is explicitly expanded.
-The popup keeps its window alive when closed, cancels older streams when a newer shortcut starts, and ignores stale or terminal request events.
-Headless tests use temporary shared provider paths, synthetic credentials, injected selection results, and zgui's headless clipboard without starting native desktop services.
+`gshift` without arguments, or with `--tui`, starts the official NSH terminal host in the installed package.
+The wrapper forwards file and option invocations to the retained batch binary.
+`gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]` retains its existing behavior.
+Resolve every sibling output and reject input/output collisions before loading configuration or contacting a provider.
+Preserve ordered `.md` and `.mbt.md` processing, normalized language suffixes, and safe forced replacement of symlinks without changing their targets.
+File outputs and redirected automatic-color stdout must remain free of ANSI escapes.
+Plain stdout streams provider deltas without inserted separators.
+Terminal automatic color and forced color buffer each completed translation before Tree-sitter rendering.
+Desktop and CLI share configuration, credentials, prompts, parameters, and timeout semantics.
 
-### CLI boundary
+## Verification and maintenance
 
-`cli.rs` owns language validation, Markdown sibling-path resolution, batch output preflight, and Tree-sitter ANSI rendering. `gshift` owns ordered file/stdout I/O and feeds each input sequentially to the shared `llm::translate` function. Bounded channels isolate the desktop UI and streaming worker, and cancellation is observed at the provider stream boundary.
-
-### Packaging boundary
-
-Both binaries are included in the Rust and Nix package outputs. The default flake overlay publishes `glossshift` and `gshift` with matching `meta.mainProgram` values, and the package derivation exposes the desktop binary through a stable `GlossShift.app` bundle layout.
-
-## Development tools
-
-- **Rust and Cargo**: Compile, test, format, and lint the 2024-edition package with `unsafe_code` forbidden and strict Clippy lints.
-- **Just**: Provides the repository's named development, validation, CLI, and macOS packaging workflows.
-- **Nix flakes**: Provide Darwin package outputs, the reusable overlay, and a development shell with the Rust toolchain and Just; run `nix develop` before the named recipes when those tools are not installed locally.
-- **mdt**: Generates the Japanese source-document translations with the configured OpenCode or Codex adapter.
-- **zgui and zgui-ui**: Supply the native window, reactive signals, official shadcn-style components, icons, design tokens, and headless platform.
-- **Rig**: Supplies OpenAI Chat Completions streaming, including custom compatible base URLs.
-- **global-hotkey and macOS Accessibility crates**: Provide global shortcut registration and safe selection capture boundaries.
-- **Tree-sitter**: Provides Markdown syntax highlighting for colorized terminal output.
-
-## Package-specific rules
-
-- Keep production source files below 250 lines when practical and preserve the existing module responsibility boundaries.
-- Use bounded channels across callback, UI, CLI, and network boundaries, and attach a request ID to every streaming event.
-- Cancel the active stream before starting a newer translation and do not allow stale events to overwrite current UI state.
-- Keep ANSI escapes out of generated files and redirected stdout in automatic color mode.
-- Regenerate and commit `README.ja.md` and `AGENTS.ja.md` with `mdt --lang ja --force README.md` and `mdt --lang ja --force AGENTS.md` beside their English sources after either source document changes.
-- Preserve the relative links in both source documents and the exact share-artifact provenance footer at the end of each English source.
+- Run application behavior tests through NSH, not Node or a copied controller harness.
+- Check real Vite+ task delegation, generated native declarations, native packaging, and the retained CLI independently.
+- A successful NSH bundle is not proof that the native application, CLI package, or Nix derivation works.
+- Use real local HTTP/SSE fixtures to verify transport boundaries without contacting a paid model.
+- Distinguish synthetic-provider tests from actual provider acceptance and headless layout from native visual review.
+- If Accessibility or screen permissions block an end-user check, report the boundary and stop attempts to bypass it.
+- Keep Rust `unsafe_code = "forbid"` and strict Clippy rules.
+- Keep production source files below 250 lines when practical and preserve module responsibilities.
+- Preserve the template's package-manager pin, release-age waiting period, strict age checking, and denied lifecycle builds.
+- Do not commit credentials or generated `.nsh`, `node_modules`, target directories, benchmark fixtures, or temporary reports.
+- Keep source, configuration, commit messages, and canonical documentation in English.
+- Regenerate Japanese documents with `mdt --lang ja --force README.md` and `mdt --lang ja --force AGENTS.md`.
+- If generation is blocked, record it instead of manually fabricating generated output.
+- Keep `AGENTS.md` canonical and do not create a separate `CLAUDE.md`.
 
 _This AGENTS.md was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [AGENTS template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/agents/template.md)._

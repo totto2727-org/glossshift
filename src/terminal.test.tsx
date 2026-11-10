@@ -1,0 +1,40 @@
+import { expect, open, test } from 'nsh/test'
+
+test('official terminal inputs submit source and target through the shared Effect actor and copy raw Markdown', async () => {
+  const app = await open('./terminal.fixture.tsx')
+  await app.waitFor('Synthetic terminal ready')
+  await app.type('label:Source text', '# Terminal source')
+  await app.clear('label:Target language')
+  await app.type('label:Target language', 'en')
+  await app.press('Translate')
+  await app.waitFor('Translation complete')
+  await app.press('label:Copy Translation')
+  await app.waitFor('Text copied')
+  expect(app.clipboard()).toBe('# Translated en\n\n# Terminal source')
+  await app.press('label:Plain text')
+  expect(app.texts()).toContain('# Translated en\n\n# Terminal source')
+  await app.press('label:Copy Source')
+  expect(app.clipboard()).toBe('# Terminal source')
+  expect(app.shows('Hide')).toBe(false)
+  expect(app.requests()).toEqual([])
+})
+
+test('official terminal inputs validate empty submissions without a provider call', async () => {
+  const app = await open('./terminal.fixture.tsx')
+  await app.waitFor('Synthetic terminal ready')
+  await app.press('Translate')
+  await app.waitFor('Enter source text and a target language before translating.')
+  expect(app.requests()).toEqual([])
+})
+
+test('official terminal Cancel interrupts a pending shared-actor translation', async () => {
+  const app = await open('./terminal.fixture.tsx')
+  await app.waitFor('Synthetic terminal ready')
+  await app.type('label:Source text', 'pending source')
+  await app.clear('label:Target language')
+  await app.type('label:Target language', 'wait')
+  await app.press('Translate')
+  await app.waitFor('Translating to wait')
+  await app.press('label:Cancel translation')
+  await app.waitFor('Translation cancelled')
+})
