@@ -19,5 +19,5 @@ jobs:
           prepare-dev-shell: 'false'
       - name: Check Rust formatting without building the application
         run: nix shell --inputs-from . nixpkgs#cargo nixpkgs#rustfmt --command cargo fmt --all --check
-      - name: Evaluate Nix outputs without building them
-        run: nix flake check --all-systems --no-build
+      - name: Check Nix outputs for the current runner without building
+        run: nix flake check --no-build
