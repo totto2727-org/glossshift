@@ -3431,11 +3431,13 @@ dependencies = [
  "uuid",
  "xdg",
  "zgui",
+ "zgui-dom",
  "zgui-platform-headless",
  "zgui-testkit-view",
  "zgui-ui",
  "zgui-ui-icons",
  "zgui-ui-tokens",
+ "zgui-view-dom",
 ]
 
 [[package]]
