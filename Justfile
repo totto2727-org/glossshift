@@ -39,7 +39,7 @@ check-clippy:
 test:
     cargo test
 
-# Run popup rendering and interaction tests on GPUI's isolated test platform.
+# Run popup rendering and interaction tests on zgui's isolated headless platform.
 test-ui:
     cargo test --bin glossshift ui::tests::
 

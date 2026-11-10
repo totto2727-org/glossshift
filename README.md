@@ -1,6 +1,6 @@
 # GlossShift
 
-GlossShift is a macOS translation application with a GPUI desktop popup and a `gshift` command that share OpenAI-compatible providers, prompts, credentials, and streaming behavior.
+GlossShift is a macOS translation application with a zgui desktop popup and a `gshift` command that share OpenAI-compatible providers, prompts, credentials, and streaming behavior.
 
 ## Usage
 
@@ -9,8 +9,6 @@ open ~/.nix-profile/Applications/GlossShift.app
 ```
 
 Select text in any macOS application and press a configured shortcut. The popup places the captured text in **SOURCE**, streams the result into **TRANSLATION**, and lets you copy either pane.
-
-![GlossShift desktop popup showing the Accessibility permission status, empty source and translation panes, and copy controls](./docs/assets/glossshift-desktop.png)
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
@@ -26,7 +24,7 @@ On its first invocation, `gshift` creates its application settings under the Glo
 
 ## Key features
 
-- Native macOS popup with global shortcuts, a resizable window, and copy controls for source and translated text.
+- Native macOS popup with global shortcuts, a resizable window, and the official zgui-ui shadcn-style components, icons, and copy controls.
 - Streaming translations through servers that implement the OpenAI Chat Completions API, including custom base URLs and request parameters.
 - Application-specific XDG settings plus shared `~/.agents` providers and credentials reusable by other applications through the independent `llm-profiles` crate.
 - Ordered multi-file Markdown translation with sibling-file or standard-output modes.
@@ -86,7 +84,7 @@ nix profile add 'github:totto2727-org/glossshift#gshift'
 
 GlossShift keeps translation, shortcut, and window settings in `~/.config/glossshift/config.toml`, or `$XDG_CONFIG_HOME/glossshift/config.toml` when `XDG_CONFIG_HOME` is set.
 Provider definitions live separately in `~/.agents/config.toml`, and named API keys live in `~/.agents/credentials.toml` with Unix permissions `0600`.
-The independent `llm-profiles` crate owns loading, validation, credential resolution, and conversion to Rig.
+The published [`llm-profiles`](https://crates.io/crates/llm-profiles) crate owns loading, validation, credential resolution, and conversion to Rig.
 Other applications can read these same files and choose any named provider without depending on GlossShift.
 
 Set `AGENTS_CONFIG` to an absolute configuration-file path to select a different shared configuration.
@@ -214,6 +212,9 @@ gshift document.md --lang en --stdout --color never
 ## Development
 
 For repository structure, architecture, and development commands, see [AGENTS.md](./AGENTS.md).
+Run `just test-ui` for headless popup rendering, streaming, and clipboard tests with synthetic provider credentials.
+The desktop uses the official [zgui Tokio integration](https://zgui.zortax.de/docs/learn/tokio-integration) and [clipboard interface](https://zgui.zortax.de/docs/building/clipboard).
+The popup keeps the standard zgui-ui theme and component variants, with minimal application CSS for layout, overflow, and token-based typography.
 
 ## License
 

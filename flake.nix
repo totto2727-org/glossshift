@@ -1,5 +1,5 @@
 {
-  description = "A macOS GPUI popup and CLI for streaming translations through Rig";
+  description = "A macOS zgui popup and CLI for streaming translations through Rig";
 
   inputs.nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1";
 

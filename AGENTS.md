@@ -9,10 +9,15 @@ src/prompt.rs         Translation prompt construction
 src/llm.rs            Rig streaming worker and request events
 src/cli.rs            Public CLI path, language, and Markdown rendering helpers
 src/bin/gshift.rs     Markdown translation CLI binary
-src/main.rs           GPUI desktop binary wiring
+src/main.rs           Desktop command-line entry point and native service assembly
+src/desktop.rs        zgui window, clipboard, keyboard, and streaming integration
+src/desktop_driver.rs Hidden-start native driver adapter
+src/native.rs         macOS event loop and launch activation policy
+src/popup.rs          Framework-independent popup state and translation requests
 src/platform.rs       Injectable selection and Accessibility permission interfaces
 src/selection.rs      macOS Accessibility and clipboard fallback
-src/ui.rs             GPUI popup view and actions
+src/ui.rs             Official zgui-ui popup components
+src/ui.css            Application layout, overflow, and token-based typography
 src/ui_test.rs        Headless popup rendering and interaction tests
 examples/              Starter TOML configuration and credentials
 packaging/             macOS application metadata
@@ -36,21 +41,21 @@ package.nix            Nix Rust package definition
 
 ### Standard tasks
 
-- `just fix` — Apply formatting and Clippy fixes.
-- `just fix-format` — Format all Rust sources with `cargo fmt --all`.
-- `just fix-lint` — Apply Clippy fixes with all targets, features, and denied warnings.
-- `just check` — Run format and Clippy checks.
-- `just check-format` — Check Rust formatting without changing files.
-- `just check-lint` — Run strict Clippy checks for every target and feature.
-- `just test` — Run the Rust unit tests.
-- `just test-ui`: Run popup rendering and interaction tests on GPUI's isolated test platform.
-- `just build` — Build the debug binaries.
-- `just ci` — Run the complete local check, test, and build gate.
-- `just dev` — Run the desktop binary directly with Cargo.
-- `just run` — Build, ad-hoc sign, verify, and open `target/GlossShift.app`.
-- `just package-app` — Build and verify the local application bundle without opening it.
-- `mdt --lang ja --force README.md` — Regenerate the Japanese README source output.
-- `mdt --lang ja --force AGENTS.md` — Regenerate the Japanese AGENTS source output.
+- `just fix`: Apply formatting and Clippy fixes.
+- `just fix-rustfmt`: Format all Rust sources with `cargo fmt --all`.
+- `just fix-clippy`: Apply Clippy fixes with all targets, features, and denied warnings.
+- `just check`: Run format and Clippy checks.
+- `just check-rustfmt`: Check Rust formatting without changing files.
+- `just check-clippy`: Run strict Clippy checks for every target and feature.
+- `just test`: Run the Rust unit tests.
+- `just test-ui`: Run popup rendering and interaction tests on zgui's isolated test platform.
+- `just build`: Build the debug binaries.
+- `just ci`: Run the complete local check, test, and build gate.
+- `just dev`: Run the desktop binary directly with Cargo.
+- `just run`: Build, ad-hoc sign, verify, and open `target/GlossShift.app`.
+- `just package-app`: Build and verify the local application bundle without opening it.
+- `mdt --lang ja --force README.md`: Regenerate the Japanese README source output.
+- `mdt --lang ja --force AGENTS.md`: Regenerate the Japanese AGENTS source output.
 
 ### CLI reference
 
@@ -90,18 +95,24 @@ GlossShift validates unique hotkeys, non-empty target languages, and positive wi
 ### Shared library boundary
 
 The GlossShift library owns application configuration, prompt construction, and translation streaming so the desktop and CLI binaries use the same contract.
-`llm-profiles` owns library-neutral resolved providers, credential handling, and conversion to Rig through its optional `rig` feature, independently of GlossShift and GPUI.
+`llm-profiles` owns library-neutral resolved providers, credential handling, and conversion to Rig through its optional `rig` feature, independently of GlossShift and zgui.
 `config.rs` loads application settings and handles legacy migration, `prompt.rs` builds translation-only prompts, and `llm.rs` emits request-scoped `TranslationEvent` values using the crate's `rig_agent_builder(Some(&session_id))`, adding the translation preamble before building the agent.
 
 ### Desktop boundary
 
-The GPUI application thread owns the popup entity, global-hotkey manager, window actions, and shared two-worker Tokio runtime.
+The zgui application thread owns the popup signals, window handles, and clipboard commands.
+`main.rs` retains native services and the shared two-worker Tokio runtime.
+`native.rs` configures the macOS event loop without launch activation for `--background`, and `desktop_driver.rs` defers zgui's first visible frame while continuing to poll UI tasks.
+The desktop adopts that runtime with `zgui::tokio::install_handle` and consumes bounded shortcut and translation channels in scoped UI tasks.
+`popup.rs` owns translation requests and state transitions without UI framework APIs.
 `platform.rs` defines the selection and Accessibility permission interfaces, and `main.rs` injects the macOS adapter at startup.
-`selection.rs` owns native Accessibility and pasteboard access, and `ui.rs` uses the injected selection source and GPUI's clipboard interface.
-Native tray, hotkey, and autostart adapters are assembled at the composition root, not inside popup or translation logic.
+`selection.rs` owns native Accessibility and pasteboard access, and `desktop.rs` uses the injected selection source and zgui's clipboard interface.
+`ui.rs` uses the official zgui-ui components, icons, tokens, and standard variants.
+Keep application CSS focused on layout, overflow, and token-based typography rather than replacing component themes.
+Native tray, hotkey, and autostart adapters are assembled at the composition root, not inside popup state or translation logic.
 Keep macOS as the only supported platform until platform scope is explicitly expanded.
-The popup keeps its window alive when closed, cancels older streams when a newer shortcut starts, and ignores events whose `RequestId` is stale.
-Headless tests use temporary shared provider paths, synthetic credentials, injected selection results, and GPUI's test clipboard without starting native desktop services.
+The popup keeps its window alive when closed, cancels older streams when a newer shortcut starts, and ignores stale or terminal request events.
+Headless tests use temporary shared provider paths, synthetic credentials, injected selection results, and zgui's headless clipboard without starting native desktop services.
 
 ### CLI boundary
 
@@ -117,7 +128,7 @@ Both binaries are included in the Rust and Nix package outputs. The default flak
 - **Just**: Provides the repository's named development, validation, CLI, and macOS packaging workflows.
 - **Nix flakes**: Provide Darwin package outputs, the reusable overlay, and a development shell with the Rust toolchain and Just; run `nix develop` before the named recipes when those tools are not installed locally.
 - **mdt**: Generates the Japanese source-document translations with the configured OpenCode or Codex adapter.
-- **GPUI**: Supplies the native-title-bar, resizable desktop popup and application-thread UI model.
+- **zgui and zgui-ui**: Supply the native window, reactive signals, official shadcn-style components, icons, design tokens, and headless platform.
 - **Rig**: Supplies OpenAI Chat Completions streaming, including custom compatible base URLs.
 - **global-hotkey and macOS Accessibility crates**: Provide global shortcut registration and safe selection capture boundaries.
 - **Tree-sitter**: Provides Markdown syntax highlighting for colorized terminal output.
