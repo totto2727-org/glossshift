@@ -64,3 +64,26 @@ A translation shortcut reveals it normally.
 - [Apple: Manage login items and background tasks](https://support.apple.com/guide/deployment/manage-login-items-and-background-tasks-depdca572563/web)
 
 The implementation uses user LaunchAgents for compatibility with the application's macOS 12 minimum rather than the macOS 13-only `SMAppService` API.
+
+## Contributor reference: native dependencies
+
+macOS is the only supported platform.
+The interfaces in `src/platform.rs` separate selection capture and Accessibility permission checks from the popup.
+`src/main.rs` selects the macOS implementation and injects it into the popup at startup.
+`src/selection.rs` owns Accessibility access, simulated Cmd+C, and the pasteboard fallback.
+The selection is captured before the popup receives focus.
+
+The popup uses GPUI's clipboard interface instead of a native pasteboard API.
+GPUI supplies a separate clipboard for its test platform.
+Menu bar installation, global shortcut registration, and autostart commands remain native adapters assembled at the application entry point.
+They do not belong in translation or popup state logic.
+A future platform can supply different adapters without changing the translation worker.
+There is no Linux implementation or runtime platform switch.
+
+### Headless popup tests
+
+Run `just test-ui` to exercise the popup on GPUI's test platform.
+The tests use temporary provider files, synthetic keys, injected selection results, and the test clipboard.
+They do not start the production application, register shortcuts, request Accessibility permission, or change login startup.
+`just test` and `just ci` also include these tests.
+These checks do not replace verification of native Accessibility capture, the menu bar, or a signed application bundle.

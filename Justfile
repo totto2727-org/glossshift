@@ -39,6 +39,10 @@ check-clippy:
 test:
     cargo test
 
+# Run popup rendering and interaction tests on GPUI's isolated test platform.
+test-ui:
+    cargo test --bin glossshift ui::tests::
+
 # Build the debug binary.
 build:
     cargo build
