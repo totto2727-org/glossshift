@@ -7,7 +7,7 @@ on:
 
 jobs:
   flakehub-publish:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 15
     permissions:
       id-token: write
@@ -17,4 +17,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: totto2727-org/monorepo/.github/actions/setup-nix@main
+        with:
+          prepare-dev-shell: 'false'
       - uses: totto2727-org/monorepo/.github/actions/publish-flakehub@main
