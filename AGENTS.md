@@ -10,8 +10,10 @@ src/llm.rs            Rig streaming worker and request events
 src/cli.rs            Public CLI path, language, and Markdown rendering helpers
 src/bin/gshift.rs     Markdown translation CLI binary
 src/main.rs           GPUI desktop binary wiring
+src/platform.rs       Injectable selection and Accessibility permission interfaces
 src/selection.rs      macOS Accessibility and clipboard fallback
 src/ui.rs             GPUI popup view and actions
+src/ui_test.rs        Headless popup rendering and interaction tests
 examples/              Starter TOML configuration and credentials
 packaging/             macOS application metadata
 Justfile               Local development and packaging recipes
@@ -24,8 +26,8 @@ package.nix            Nix Rust package definition
 ### Execution rules
 
 - Run commands from the repository root.
-- Cargo pins the independent [`llm-profiles`](https://github.com/totto2727-org/llm-profiles) library to Git revision `d3b3ede46fd823fe400aad85217537799b3ed40f` with its `rig` feature because the renamed library is not yet published to crates.io; no sibling checkout is required.
-- Standalone Nix packaging uses the same pinned Git dependency through `Cargo.lock` and its fixed output hash in `package.nix`; update both when changing the dependency revision, and do not claim a successful Nix build from Cargo checks alone.
+- Cargo uses the independent [`llm-profiles`](https://github.com/totto2727-org/llm-profiles) library from crates.io with version requirement `0.1.0` and its `rig` feature; no sibling checkout is required.
+- Standalone Nix packaging uses the same registry dependency through `Cargo.lock` and its checksums, without a fixed Git output hash in `package.nix`; update the lockfile when changing the dependency version, and do not claim a successful Nix build from Cargo checks alone.
 - Support macOS only until the project explicitly expands its platform scope.
 - Use the named Just recipes below instead of ad-hoc shell workflows; use Cargo directly only when a recipe cannot express the needed target.
 - Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `mdt`.
@@ -41,6 +43,7 @@ package.nix            Nix Rust package definition
 - `just check-format` — Check Rust formatting without changing files.
 - `just check-lint` — Run strict Clippy checks for every target and feature.
 - `just test` — Run the Rust unit tests.
+- `just test-ui`: Run popup rendering and interaction tests on GPUI's isolated test platform.
 - `just build` — Build the debug binaries.
 - `just ci` — Run the complete local check, test, and build gate.
 - `just dev` — Run the desktop binary directly with Cargo.
@@ -92,7 +95,13 @@ The GlossShift library owns application configuration, prompt construction, and 
 
 ### Desktop boundary
 
-The GPUI application thread owns the popup entity, global-hotkey manager, window actions, and shared two-worker Tokio runtime. `selection.rs` is the only module that accesses macOS Accessibility and clipboard APIs; `ui.rs` is the only module that mutates GPUI view state. The popup keeps its window alive when closed, cancels older streams when a newer shortcut starts, and ignores events whose `RequestId` is stale.
+The GPUI application thread owns the popup entity, global-hotkey manager, window actions, and shared two-worker Tokio runtime.
+`platform.rs` defines the selection and Accessibility permission interfaces, and `main.rs` injects the macOS adapter at startup.
+`selection.rs` owns native Accessibility and pasteboard access, and `ui.rs` uses the injected selection source and GPUI's clipboard interface.
+Native tray, hotkey, and autostart adapters are assembled at the composition root, not inside popup or translation logic.
+Keep macOS as the only supported platform until platform scope is explicitly expanded.
+The popup keeps its window alive when closed, cancels older streams when a newer shortcut starts, and ignores events whose `RequestId` is stale.
+Headless tests use temporary shared provider paths, synthetic credentials, injected selection results, and GPUI's test clipboard without starting native desktop services.
 
 ### CLI boundary
 
