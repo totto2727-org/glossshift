@@ -10,11 +10,24 @@
   pnpm,
   pnpmConfigHook,
   jq,
-  darwin,
+  rcodesign,
+  writeShellScriptBin,
   glossshift-source,
   glossshift-pnpm-deps,
 }:
 
+let
+  # NSH expects Apple's bundle-signing CLI. sigtool only signs Mach-O files.
+  # Accept only the exact offline ad-hoc invocation used by the pinned packager.
+  bundleSigner = writeShellScriptBin "codesign" ''
+    if [ "$#" -ne 5 ] || [ "$1" != --force ] || [ "$2" != --sign ] ||
+       [ "$3" != - ] || [ "$4" != --timestamp=none ]; then
+      printf '%s\n' 'Unsupported codesign invocation: only offline ad-hoc bundle signing is supported.' >&2
+      exit 1
+    fi
+    exec ${rcodesign}/bin/rcodesign sign "$5"
+  '';
+in
 stdenv.mkDerivation {
   pname = "glossshift";
   version = "0.2.0";
@@ -41,7 +54,7 @@ stdenv.mkDerivation {
     pnpm
     pnpmConfigHook
     jq
-    darwin.sigtool
+    rcodesign
   ];
   CARGO_NET_OFFLINE = "true";
   prePatch = ''
@@ -51,6 +64,7 @@ stdenv.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
+    export PATH="${bundleSigner}/bin:$PATH"
     # Reuse the checked-in ICNS instead of invoking host-only sips/iconutil.
     jq 'del(.icon)' nsh.json > nsh.json.new
     mv nsh.json.new nsh.json
@@ -65,7 +79,7 @@ stdenv.mkDerivation {
     substituteInPlace "$app/Contents/Info.plist" \
       --replace-fail '<key>CFBundleName</key>' \
       '<key>CFBundleIconFile</key><string>GlossShift.icns</string><key>CFBundleName</key>'
-    codesign --force --sign - --timestamp=none "$app"
+    rcodesign sign "$app"
     runHook postBuild
   '';
   installPhase = ''
