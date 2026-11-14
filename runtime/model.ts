@@ -1,9 +1,8 @@
-import { createHash } from 'node:crypto'
-
 import { Effect, FileSystem, Path, Stdio, Stream } from 'effect'
 
 import { defaultModel, modelNotice, TranslationError } from './config.ts'
 import type { LocalConfig } from './config.ts'
+import { runModelUtility } from './model-process.ts'
 import { startServer } from './server.ts'
 
 const unavailable = () =>
@@ -19,22 +18,16 @@ const integrityMismatch = () =>
       'The local model failed SHA-256 verification. Remove the damaged cached model or correct the configured digest.',
   })
 
-/** Hash incrementally without loading model bytes into JS memory. */
+/** The packaged utility hashes incrementally. No model bytes enter the JS heap. */
 export const verifyModel = (modelPath: string, sha256: string) =>
   Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem
-    const hash = createHash('sha256')
-    yield* fs.stream(modelPath).pipe(
-      Stream.runForEach((bytes) =>
-        Effect.sync(() => {
-          hash.update(bytes)
-        }),
-      ),
-    )
-    if (hash.digest('hex') !== sha256) return yield* Effect.fail(integrityMismatch())
+    const result = yield* runModelUtility('sha256sum', ['--binary', '--zero', '--', modelPath])
+    if (result.code !== 0) return yield* Effect.fail(unavailable())
+    const match = /^([a-f0-9]{64}) [*]/.exec(result.stdout)
+    if (match === null || match[1] !== sha256) return yield* Effect.fail(integrityMismatch())
   }).pipe(Effect.mapError((error) => (error instanceof TranslationError ? error : unavailable())))
 
-/** Resume only byte ranges, then verify the complete artifact before publishing the cache entry. */
+/** Private attempts own their partial file. Curl owns bounded binary transfer and byte-range validation. */
 const downloadModel = (config: LocalConfig, target: string) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -50,6 +43,10 @@ const downloadModel = (config: LocalConfig, target: string) =>
       )
       // Rename atomically claims the dormant resume slot. Active attempts never share a writer.
       if (yield* fs.exists(resume)) yield* fs.rename(resume, partial).pipe(Effect.ignore)
+      if ((yield* fs.exists(partial)) && (yield* fs.lstat(partial)).type !== 'File') {
+        yield* fs.remove(partial)
+        return yield* Effect.fail(unavailable())
+      }
       yield* Effect.addFinalizer(() =>
         Effect.gen(function* () {
           if (!(yield* fs.exists(partial))) return
@@ -57,34 +54,56 @@ const downloadModel = (config: LocalConfig, target: string) =>
           yield* fs.rename(partial, resume)
         }).pipe(Effect.ignore),
       )
-      // Close the writer and HTTP request before preserving partial bytes or removing their directory.
+      // Child scope ends the transfer before preserving partial bytes or removing the owned directory.
       yield* Effect.scoped(
         Effect.gen(function* () {
-          const offset = (yield* fs.exists(partial)) ? Number((yield* fs.stat(partial)).size) : 0
-          const abort = yield* Effect.acquireRelease(
-            Effect.sync(() => new AbortController()),
-            (controller) => Effect.sync(() => controller.abort()),
-          )
-          const response = yield* Effect.tryPromise({
-            try: () =>
-              fetch(config.model.uri, {
-                headers: offset === 0 ? {} : { Range: `bytes=${offset}-`, 'Accept-Encoding': 'identity' },
-                signal: abort.signal,
-              }),
-            catch: unavailable,
-          })
-          if (response.status === 416 && offset > 0) {
-            yield* verifyPartial
-            yield* fs.rename(partial, target)
-            return
+          const existing = yield* fs.exists(partial)
+          if (!existing) yield* fs.writeFileString(partial, '', { flag: 'wx', mode: 0o600 })
+          const transfer = (resuming: boolean) =>
+            runModelUtility('curl', [
+              '--disable',
+              '--silent',
+              '--show-error',
+              '--fail',
+              '--location',
+              '--max-redirs',
+              '5',
+              '--proto',
+              '=https',
+              '--proto-redir',
+              '=https',
+              '--header',
+              'Accept-Encoding: identity',
+              ...(resuming ? ['--continue-at', '-'] : []),
+              '--output',
+              partial,
+              '--write-out',
+              '%{http_code}',
+              '--url',
+              config.model.uri,
+            ])
+          const result = yield* transfer(existing)
+          if (result.code !== 0) {
+            if (existing && result.stdout === '416') {
+              yield* verifyPartial
+              yield* fs.rename(partial, target)
+              return
+            }
+            // A complete partial can receive 416. Unsupported ranges instead retry from a fresh private file.
+            const complete =
+              existing &&
+              (yield* verifyModel(partial, config.model.sha256).pipe(
+                Effect.as(true),
+                Effect.catch(() => Effect.succeed(false)),
+              ))
+            if (!complete) {
+              if (result.code !== 33) return yield* Effect.fail(unavailable())
+              yield* fs.remove(partial)
+              yield* fs.writeFileString(partial, '', { flag: 'wx', mode: 0o600 })
+              const fresh = yield* transfer(false)
+              if (fresh.code !== 0) return yield* Effect.fail(unavailable())
+            }
           }
-          if (!response.ok || response.body === null || (response.status !== 200 && response.status !== 206))
-            return yield* Effect.fail(unavailable())
-          if (response.status === 206 && !response.headers.get('content-range')?.startsWith(`bytes ${offset}-`))
-            return yield* Effect.fail(unavailable())
-          yield* Stream.fromReadableStream({ evaluate: () => response.body!, onError: unavailable }).pipe(
-            Stream.run(fs.sink(partial, { flag: response.status === 206 ? 'a' : 'w', mode: 0o600 })),
-          )
           yield* verifyPartial
           yield* fs.rename(partial, target)
         }),

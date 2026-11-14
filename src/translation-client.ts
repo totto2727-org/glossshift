@@ -1,6 +1,6 @@
 import { Effect, Stream } from 'effect'
 
-import type { TranslationService } from '../node/translation'
+import type { TranslationService } from '../runtime/translation'
 import type { TranslationEvent } from './domain'
 import type { Fault, TranslationRequest } from './ports'
 

@@ -6,13 +6,19 @@ lib.fileset.toSource {
     ../App.tsx
     ../App.test.ts
     ../Tui.test.ts
-    ../Node.test.ts
+    ../DesktopConfig.test.ts
+    ../Inference.test.ts
+    ../InferenceModel.test.ts
+    ../InferencePolicy.test.ts
+    ../InferenceStorage.test.ts
     ../terminal.fixture.tsx
     ../ui.fixture.tsx
     ../nsh.json
     ../src
     ../terminal
-    ../node
+    ../batch
+    ../platform
+    ../runtime
     ../packaging
     (../patches + "/plist@5.1.1.patch")
     ../package.json

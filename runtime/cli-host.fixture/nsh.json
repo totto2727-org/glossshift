@@ -1,0 +1,7 @@
+{
+  "name": "GlossShiftCliRegressionFixture",
+  "capabilities": {
+    "fs": { "read": ["${dataDir}"], "write": ["${dataDir}"] },
+    "process": { "execute": ["coreutils"], "env": ["GLOSSSHIFT_COREUTILS"] }
+  }
+}

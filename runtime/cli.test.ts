@@ -1,4 +1,5 @@
 import { Array, Effect, FileSystem, Option, Path, Result, Sink, Stdio, Stream } from 'effect'
+import { ChildProcessSpawner, make as makeSpawner } from 'effect/process/ChildProcessSpawner'
 import { expect, open, test } from 'nsh/test'
 
 import { prepareBatch, readSource } from './cli-files.ts'
@@ -12,6 +13,58 @@ import {
   runBatch,
   targetPath,
 } from './cli.ts'
+import { runCli, runProgram } from './main.ts'
+
+test('direct batch help and version require only Stdio and do not initialize configuration or models', async () => {
+  for (const argument of ['--help', '-h', '--version', '-V']) {
+    let output = ''
+    const stdio = Stdio.layerTest({
+      args: Effect.succeed([argument]),
+      stdout: () =>
+        Sink.forEach((chunk: string | Uint8Array) =>
+          Effect.sync(() => {
+            output += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
+          }),
+        ),
+    })
+    await Effect.runPromise(
+      runProgram.pipe(
+        Effect.scoped,
+        Effect.provide(stdio),
+        Effect.provideService(FileSystem.FileSystem, FileSystem.makeNoop({})),
+        Effect.provide(Path.layer),
+        Effect.provideService(
+          ChildProcessSpawner,
+          makeSpawner(() => Effect.die('help must not spawn a process')),
+        ),
+      ),
+    )
+    expect(output).toContain(argument === '--help' || argument === '-h' ? 'Usage: gshift' : 'gshift 0.2.0\n')
+  }
+  let output = ''
+  await Effect.runPromise(
+    runCli(['--version']).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Stdio.layerTest({
+          stdout: () =>
+            Sink.forEach((chunk: string | Uint8Array) =>
+              Effect.sync(() => {
+                output += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
+              }),
+            ),
+        }),
+      ),
+      Effect.provideService(FileSystem.FileSystem, FileSystem.makeNoop({})),
+      Effect.provide(Path.layer),
+      Effect.provideService(
+        ChildProcessSpawner,
+        makeSpawner(() => Effect.die('version must not spawn a process')),
+      ),
+    ),
+  )
+  expect(output).toBe('gshift 0.2.0\n')
+})
 
 const parse = (args: ReadonlyArray<string>) => Effect.runSync(parseBatchArgs(args))
 const fails = <A, E>(effect: Effect.Effect<A, E>) => Result.isFailure(Effect.runSync(Effect.result(effect)))
@@ -243,8 +296,12 @@ test('preflight failure does not initialize the model', async () => {
   expect(initialized).toBe(false)
 })
 
-test('Node filesystem preserves force, hardlink, symlink, raw file, and ordered stdout behavior', async () => {
+test('official NSH filesystem preserves force, hardlink, symlink, raw file, and ordered stdout behavior', async () => {
   const app = await open('./cli-host.fixture/App.tsx')
-  await app.waitUntil(() => !app.shows('Running CLI filesystem acceptance'), { timeout: 35_000 })
-  expect(app.texts()).toContain('CLI filesystem acceptance passed')
+  try {
+    await app.waitUntil(() => !app.shows('Running CLI filesystem acceptance'), { timeout: 35_000 })
+    expect(app.texts()).toContain('CLI filesystem acceptance passed')
+  } finally {
+    app.dispose()
+  }
 })

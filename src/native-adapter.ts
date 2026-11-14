@@ -2,7 +2,7 @@ import process from 'process'
 
 import { Effect, Stream } from 'effect'
 
-import type { TranslationService } from '../node/translation'
+import type { TranslationService } from '../runtime/translation'
 import type { NativeConnection } from './application'
 import { loadApplicationServices } from './application-services'
 import { desktopControls } from './desktop-controls'

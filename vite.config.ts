@@ -3,7 +3,6 @@ import { defineConfig } from 'vite-plus'
 
 const ignorePatterns = await generateIgnorePatterns(new URL('.', import.meta.url))
 const nsh = (args: string) => `nsh ${args}`
-const localRuntime = 'GLOSSSHIFT_NODE_COMMAND=node GLOSSSHIFT_NODE_ENTRY="$PWD/node/main.ts"'
 
 export default defineConfig({
   fmt: {
@@ -27,28 +26,33 @@ export default defineConfig({
       check: 'vp check',
       fix: 'vp check --fix',
       ci: { command: '', dependsOn: ['check'] },
-      typecheck: { command: nsh('check .'), dependsOn: ['typecheck-node', 'typecheck-tui'], cache: false },
-      'typecheck-node': { command: nsh('check . -- --project node/tsconfig.json'), cache: false },
+      typecheck: {
+        command: nsh('check .'),
+        dependsOn: ['typecheck-runtime', 'typecheck-tui', 'typecheck-batch'],
+        cache: false,
+      },
+      'typecheck-runtime': { command: nsh('check . -- --project runtime/tsconfig.json'), cache: false },
+      'typecheck-batch': { command: nsh('check batch'), cache: false },
       'typecheck-tui': { command: nsh('check terminal'), cache: false },
-      dev: { command: `export ${localRuntime}; ${nsh('dev . --target macos')}`, cache: false },
-      run: { command: `export ${localRuntime}; ${nsh('run . --target macos')}`, cache: false },
-      tui: { command: `export ${localRuntime}; ${nsh('run terminal --target tui')}`, cache: false },
+      dev: { command: nsh('dev . --target macos'), cache: false },
+      run: { command: nsh('run . --target macos'), cache: false },
+      tui: { command: nsh('run terminal --target tui'), cache: false },
       build: { command: nsh('build . --release'), cache: false },
       'build-tui': { command: nsh('build terminal --release --out terminal/.nsh/out'), cache: false },
       test: { command: nsh('test App.test.ts'), cache: false },
-      'test-tui': {
-        command: `export ${localRuntime}; ${nsh('test terminal/Tui.test.ts --target tui')}`,
+      'build-batch': { command: nsh('build batch --release --out batch/.nsh/out'), cache: false },
+      'test-platform': { command: nsh('test platform --target tui'), cache: false },
+      'test-inference': {
+        command: `${nsh('test Inference.test.ts')} && ${nsh('test InferencePolicy.test.ts')} && ${nsh('test InferenceStorage.test.ts --target tui')}`,
         cache: false,
       },
-      'test-local-model': {
-        command: `export ${localRuntime}; ${nsh('test terminal/LocalModel.test.ts --target tui')}`,
-        cache: false,
-      },
-      'test-node': { command: nsh('test Node.test.ts --target tui'), cache: false },
-      'test-cli': { command: nsh('test node/cli.test.ts --target tui'), cache: false },
+      'test-settings': { command: nsh('test DesktopConfig.test.ts --target tui'), cache: false },
+      'test-tui': { command: nsh('test terminal/Tui.test.ts --target tui'), cache: false },
+      'test-local-model': { command: nsh('test InferenceModel.test.ts --target tui'), cache: false },
+      'test-cli': { command: nsh('test runtime/cli.test.ts --target tui'), cache: false },
       package: { command: nsh('package . --target macos'), cache: false },
       cli: {
-        command: `${localRuntime} sh -c 'if [ "$1" = "--" ]; then shift; fi; if [ "$#" -eq 0 ] || [ "$1" = "--tui" ]; then [ "$#" -eq 0 ] || shift; exec nsh run terminal --target tui "$@"; else exec node node/main.ts "$@"; fi' --`,
+        command: `sh -c 'if [ "$1" = "--" ]; then shift; fi; if [ "$#" -eq 0 ] || [ "$1" = "--tui" ]; then [ "$#" -eq 0 ] || shift; exec nsh run terminal --target tui "$@"; else nsh build batch --release --out batch/.nsh/out >&2 && exec "\${GLOSSSHIFT_BATCH_LAUNCHER:?Run nix develop to prepare the batch launcher}" "$@"; fi' --`,
         cache: false,
       },
     },

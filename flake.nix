@@ -67,25 +67,56 @@
           inherit ci;
         }
         // nixpkgs.lib.optionalAttrs (system == "aarch64-darwin") {
-          default = pkgs.mkShell {
-            GLOSSSHIFT_NODE_COMMAND = "${pkgs.nodejs_26}/bin/node";
-            GLOSSSHIFT_LLAMA_SERVER = "${pkgs.glossshift-llama-server}/bin/llama-server";
-            GLOSSSHIFT_MACOS_HELPER = "${pkgs.glossshift-macos-helper}/bin/glossshift-macos-helper";
-            packages = tooling ++ [
-              pkgs.nodejs_26
-              pkgs.nsh
-              pkgs.glossshift-llama-server
-              pkgs.glossshift-macos-helper
-            ];
-            shellHook = ''
-              if [ ! -f nsh.json ]; then
-                printf '%s\n' 'Run nix develop from the GlossShift root.' >&2
-                exit 1
-              fi
-              export GLOSSSHIFT_NODE_ENTRY="$PWD/node/main.ts"
-              vp config
-            '';
-          };
+          default =
+            let
+              runtimeTools = [
+                pkgs.coreutils
+                pkgs.curl
+                pkgs.glossshift-llama-server
+                pkgs.glossshift-macos-helper
+              ];
+              batchLauncher = pkgs.writeTextFile {
+                name = "glossshift-source-batch";
+                executable = true;
+                text = import ./nix/batch-launcher.nix {
+                  inherit (pkgs) coreutils jq;
+                  shell = pkgs.stdenvNoCC.shell;
+                  host = "${pkgs.nsh}/libexec/nsh/runtime/tui/nsh-tui-host";
+                  tuiBundle = ''"$PWD/terminal/.nsh/out/bundle.js"'';
+                  batchBundle = ''"$PWD/batch/.nsh/out/bundle.js"'';
+                  capabilities = ''"$PWD/batch/.nsh/out/capabilities.json"'';
+                  runtimeEnvironment = ''
+                    export GLOSSSHIFT_COREUTILS='${pkgs.coreutils}/bin/coreutils'
+                    export GLOSSSHIFT_CURL='${pkgs.curl}/bin/curl'
+                    export GLOSSSHIFT_LLAMA_SERVER='${pkgs.glossshift-llama-server}/bin/llama-server'
+                    export SSL_CERT_FILE='${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt'
+                  '';
+                };
+              };
+            in
+            pkgs.mkShell {
+              GLOSSSHIFT_LLAMA_SERVER = "llama-server";
+              GLOSSSHIFT_MACOS_HELPER = "glossshift-macos-helper";
+              GLOSSSHIFT_COREUTILS = "coreutils";
+              GLOSSSHIFT_CURL = "curl";
+              GLOSSSHIFT_BATCH_LAUNCHER = "${batchLauncher}";
+              SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              packages =
+                tooling
+                ++ [
+                  pkgs.nodejs_26
+                  pkgs.nsh
+                ]
+                ++ runtimeTools;
+              shellHook = ''
+                if [ ! -f nsh.json ]; then
+                  printf '%s\n' 'Run nix develop from the GlossShift root.' >&2
+                  exit 1
+                fi
+                export PATH="${pkgs.lib.makeBinPath runtimeTools}:$PATH"
+                vp config
+              '';
+            };
         }
       );
     };

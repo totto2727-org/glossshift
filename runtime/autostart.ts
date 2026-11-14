@@ -142,8 +142,7 @@ export const runAutostart = (args: ReadonlyArray<string>) =>
               catch: () => new Error('Unable to serialize autostart configuration'),
             }),
           )
-          const handle = yield* fs.open(temporary, { flag: 'r+' })
-          yield* handle.sync
+          // The complete staged plist is published atomically after a second ownership/content check.
           const existing = yield* read
           if (Option.isSome(existing)) yield* fs.rename(temporary, destination)
           else yield* fs.link(temporary, destination)

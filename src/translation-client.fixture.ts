@@ -1,7 +1,7 @@
 import { Effect, Option, Queue, Stream } from 'effect'
 
-import type { TranslationRequest } from '../node/prompt'
-import type { TranslationService } from '../node/translation'
+import type { TranslationRequest } from '../runtime/prompt'
+import type { TranslationService } from '../runtime/translation'
 
 export const translationFixture = Effect.gen(function* () {
   const requests = yield* Queue.unbounded<{

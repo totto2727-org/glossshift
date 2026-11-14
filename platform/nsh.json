@@ -1,0 +1,19 @@
+{
+  "name": "GlossShiftPlatformFixture",
+  "id": "com.totto2727.glossshift.platform-fixture",
+  "capabilities": {
+    "fs": { "read": ["${dataDir}"], "write": ["${dataDir}"] },
+    "process": {
+      "execute": ["coreutils"],
+      "env": [
+        "GLOSSSHIFT_COREUTILS",
+        "GLOSSSHIFT_BATCH_CWD",
+        "GLOSSSHIFT_BATCH_ARGS",
+        "GLOSSSHIFT_BATCH_STDOUT",
+        "GLOSSSHIFT_BATCH_STDOUT_IS_TTY",
+        "GLOSSSHIFT_BATCH_STDERR",
+        "GLOSSSHIFT_BATCH_STDIN"
+      ]
+    }
+  }
+}

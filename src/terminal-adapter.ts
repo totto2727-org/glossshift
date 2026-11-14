@@ -2,7 +2,7 @@ import { Effect, Stream } from 'effect'
 import { Clipboard } from 'nsh'
 import { Application } from 'nsh/desktop'
 
-import type { TranslationService } from '../node/translation'
+import type { TranslationService } from '../runtime/translation'
 import type { NativeConnection } from './application'
 import { loadApplicationServices } from './application-services'
 import type { DesktopConfiguration } from './desktop-settings'

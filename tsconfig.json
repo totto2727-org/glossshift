@@ -9,6 +9,8 @@
     "Tui.test.ts",
     "Inference.test.ts",
     "InferenceModel.test.ts",
+    "InferencePolicy.test.ts",
+    "InferenceStorage.test.ts",
     "DesktopConfig.test.ts",
     "terminal/LocalModel.test.ts",
     "ui.fixture.tsx",

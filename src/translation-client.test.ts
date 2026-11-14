@@ -1,7 +1,7 @@
 import { Deferred, Effect, Fiber, Option, Queue, Schema, Stream } from 'effect'
 import { expect, test } from 'nsh/test'
 
-import { TranslationError } from '../node/config'
+import { TranslationError } from '../runtime/config'
 import { RequestId } from './domain'
 import { createTranslationClient } from './translation-client'
 import { translationFixture } from './translation-client.fixture'

@@ -89,17 +89,16 @@ export const loadConfig = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const explicit = yield* Config.option(Config.String('GLOSSSHIFT_CONFIG'))
-  const home = yield* Config.String('HOME')
+  const home = yield* Config.option(Config.String('HOME'))
   const cache = yield* Config.option(Config.String('XDG_CACHE_HOME'))
   const configRoot = yield* Config.option(Config.String('XDG_CONFIG_HOME'))
-  const configFile = Option.getOrElse(explicit, () =>
-    path.join(
-      Option.getOrElse(configRoot, () => path.join(home, '.config')),
-      'glossshift',
-      'local.json',
-    ),
+  const configDirectory = Option.getOrElse(configRoot, () =>
+    Option.isSome(home) ? path.join(home.value, '.config') : undefined,
   )
-  if (!path.isAbsolute(configFile)) return yield* Effect.fail(invalidConfig())
+  const configFile = Option.getOrElse(explicit, () =>
+    configDirectory === undefined ? undefined : path.join(configDirectory, 'glossshift', 'local.json'),
+  )
+  if (configFile === undefined || !path.isAbsolute(configFile)) return yield* Effect.fail(invalidConfig())
   const exists = yield* fs.exists(configFile)
   if (Option.isSome(explicit) && !exists) return yield* Effect.fail(invalidConfig())
   const values = exists
@@ -107,16 +106,14 @@ export const loadConfig = Effect.gen(function* () {
         .readFileString(configFile)
         .pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(ConfigFile))))
     : {}
+  const cacheRoot = Option.getOrElse(cache, () => (Option.isSome(home) ? path.join(home.value, '.cache') : undefined))
+  const cacheDirectory =
+    values.cacheDirectory ?? (cacheRoot === undefined ? undefined : path.join(cacheRoot, 'glossshift', 'models'))
+  if (cacheDirectory === undefined) return yield* Effect.fail(invalidConfig())
   return yield* validateConfig({
     sourceLanguage: values.sourceLanguage ?? 'auto',
     model: values.model ?? defaultModel,
-    cacheDirectory:
-      values.cacheDirectory ??
-      path.join(
-        Option.getOrElse(cache, () => path.join(home, '.cache')),
-        'glossshift',
-        'models',
-      ),
+    cacheDirectory,
     contextSize: values.contextSize ?? 8192,
     maxTokens: values.maxTokens ?? 4096,
   })

@@ -7,6 +7,9 @@
   pnpm,
   pnpmConfigHook,
   jq,
+  coreutils,
+  curl,
+  cacert,
   rcodesign,
   writeShellScriptBin,
   makeBinaryWrapper,
@@ -17,7 +20,6 @@
 }:
 
 let
-  nodeCommand = "${nodejs_26}/bin/node";
   serverCommand = "${glossshift-llama-server}/bin/llama-server";
   helperCommand = "${glossshift-macos-helper}/bin/glossshift-macos-helper";
   # Match only the pinned packager's offline ad-hoc signing invocation.
@@ -37,11 +39,24 @@ let
     exec ${rcodesign}/bin/rcodesign sign "$5"
   '';
   runtimeEnvironment = ''
-    export GLOSSSHIFT_NODE_COMMAND='${nodeCommand}'
-    export GLOSSSHIFT_NODE_ENTRY='@out@/libexec/glossshift/node/main.ts'
     export GLOSSSHIFT_LLAMA_SERVER='${serverCommand}'
     export GLOSSSHIFT_MACOS_HELPER='${helperCommand}'
+    export GLOSSSHIFT_COREUTILS='${coreutils}/bin/coreutils'
+    export GLOSSSHIFT_CURL='${curl}/bin/curl'
+    export SSL_CERT_FILE='${cacert}/etc/ssl/certs/ca-bundle.crt'
   '';
+  systemTools = [
+    "${coreutils}/bin/coreutils"
+    "${curl}/bin/curl"
+  ];
+  batchLauncher = import ./nix/batch-launcher.nix {
+    inherit coreutils jq runtimeEnvironment;
+    shell = stdenvNoCC.shell;
+    host = "@out@/libexec/glossshift/gshift-tui-host";
+    tuiBundle = "@out@/share/glossshift/tui/bundle.js";
+    batchBundle = "@out@/share/glossshift/batch/bundle.js";
+    capabilities = "@out@/share/glossshift/batch/capabilities.json";
+  };
 in
 stdenvNoCC.mkDerivation {
   pname = "glossshift";
@@ -61,25 +76,25 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
     export PATH="${bundleSigner}/bin:$PATH"
-    # Both official prebuilt hosts receive only the exact installed executables.
-    for manifest in nsh.json terminal/nsh.json; do
-      jq --arg node '${nodeCommand}' --arg helper '${helperCommand}' '
+    # Official prebuilt hosts receive only the exact installed executables.
+    for manifest in nsh.json terminal/nsh.json batch/nsh.json; do
+      jq --arg server '${serverCommand}' --arg helper '${helperCommand}' \
+        --argjson tools '${builtins.toJSON systemTools}' '
         del(.rust, .icon) |
-        .capabilities.process.execute = [$node, $helper] |
-        .capabilities.process.env = [
-          "HOME", "TMPDIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "GLOSSSHIFT_CONFIG",
-          "GLOSSSHIFT_NODE_COMMAND", "GLOSSSHIFT_NODE_ENTRY",
-          "GLOSSSHIFT_LLAMA_SERVER", "GLOSSSHIFT_MACOS_HELPER", "GLOSSSHIFT_BACKGROUND"
-        ]' "$manifest" > "$manifest.new"
+        .capabilities.process.execute = ($tools + [$server] + (if .id == "com.totto2727.glossshift" then [$helper] else [] end)) |
+        .capabilities.process.env = ((.capabilities.process.env // [] | map(select(. != "GLOSSSHIFT_NODE_COMMAND" and . != "GLOSSSHIFT_NODE_ENTRY"))) + ["GLOSSSHIFT_COREUTILS", "GLOSSSHIFT_CURL", "SSL_CERT_FILE"] | unique)' "$manifest" > "$manifest.new"
       mv "$manifest.new" "$manifest"
     done
     nsh check .
     nsh check terminal
+    nsh check batch
     nsh build . --release
     nsh build terminal --release --out terminal/.nsh/out
+    nsh build batch --release --out batch/.nsh/out
     test ! -e .nsh/rust
     test ! -e terminal/.nsh/rust
-    for bundle in .nsh/out/bundle.js terminal/.nsh/out/bundle.js; do
+    test ! -e batch/.nsh/rust
+    for bundle in .nsh/out/bundle.js terminal/.nsh/out/bundle.js batch/.nsh/out/bundle.js; do
       if grep -q 'glossshift/native' "$bundle"; then
         printf '%s\n' 'Official prebuilt bundles must not import a custom native module.' >&2
         exit 1
@@ -110,7 +125,7 @@ stdenvNoCC.mkDerivation {
         ;;
       autostart|--autostart)
         shift
-        exec ${nodeCommand} "$GLOSSSHIFT_NODE_ENTRY" --autostart "$@"
+        exec @out@/bin/gshift --autostart "$@"
         ;;
       --background)
         export GLOSSSHIFT_BACKGROUND=1
@@ -135,35 +150,23 @@ stdenvNoCC.mkDerivation {
     makeBinaryWrapper ${stdenvNoCC.shell} "$app/Contents/MacOS/GlossShift" \
       --add-flag "$out/Applications/GlossShift.app/Contents/Resources/glossshift/GlossShift-launcher"
     rcodesign sign "$app"
-    CI=true npm_config_offline=true pnpm prune --prod --ignore-scripts
     runHook postBuild
   '';
   installPhase = ''
     runHook preInstall
-    mkdir -p "$out/Applications" "$out/bin" "$out/libexec/glossshift" "$out/share/glossshift/tui"
+    mkdir -p "$out/Applications" "$out/bin" "$out/libexec/glossshift" "$out/share/glossshift/tui" "$out/share/glossshift/batch"
     cp -R .nsh/out/GlossShift.app "$out/Applications/GlossShift.app"
     ln -s "$out/Applications/GlossShift.app/Contents/MacOS/GlossShift" "$out/bin/glossshift"
-    cp -R node_modules package.json "$out/libexec/glossshift/"
-    mkdir -p "$out/libexec/glossshift/node" "$out/libexec/glossshift/src"
-    for source in node/*.ts; do
-      case "$source" in *.test.ts) continue ;; esac
-      cp "$source" "$out/libexec/glossshift/node/"
-    done
-    cp src/local-protocol.ts src/desktop-settings.ts "$out/libexec/glossshift/src/"
     ln -s ${nsh}/libexec/nsh/runtime/tui/nsh-tui-host "$out/libexec/glossshift/gshift-tui-host"
     for item in terminal/.nsh/out/bundle.* terminal/.nsh/out/app.json terminal/.nsh/out/capabilities.json terminal/.nsh/out/assets; do
       if [ -e "$item" ]; then cp -R "$item" "$out/share/glossshift/tui/"; fi
     done
+    for item in batch/.nsh/out/bundle.* batch/.nsh/out/app.json batch/.nsh/out/capabilities.json batch/.nsh/out/assets; do
+      if [ -e "$item" ]; then cp -R "$item" "$out/share/glossshift/batch/"; fi
+    done
     # The official TUI host accepts external JS, not external unsigned bytecode.
     cat > "$out/bin/gshift" <<'EOF'
-    #!${stdenvNoCC.shell}
-    ${runtimeEnvironment}
-    if [ "$#" -eq 0 ] || [ "$1" = "--tui" ]; then
-      [ "$#" -eq 0 ] || shift
-      exec @out@/libexec/glossshift/gshift-tui-host --bundle @out@/share/glossshift/tui/bundle.js "$@"
-    else
-      exec ${nodeCommand} @out@/libexec/glossshift/node/main.ts "$@"
-    fi
+    ${batchLauncher}
     EOF
     substituteInPlace "$out/bin/gshift" --replace-fail @out@ "$out"
     chmod +x "$out/bin/gshift"
@@ -181,6 +184,7 @@ stdenvNoCC.mkDerivation {
     test -x "$out/Applications/GlossShift.app/Contents/Resources/glossshift/GlossShift-launcher"
     test -x '${helperCommand}'
     test -s "$out/share/glossshift/tui/bundle.js"
+    test -s "$out/share/glossshift/batch/bundle.js"
     test -s "$out/Applications/GlossShift.app/Contents/Resources/nsh/bundle.nshc"
     '${serverCommand}' --version
     "$out/bin/glossshift" --help > /dev/null

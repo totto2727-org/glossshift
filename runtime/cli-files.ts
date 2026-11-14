@@ -78,9 +78,9 @@ export const prepareBatch = (options: BatchOptions) =>
     return plan
   })
 
-/** Replace a forced symbolic link itself. Never follow it when opening the output. */
+/** Publish a complete sibling file atomically. Forced replacement never follows or truncates the old inode. */
 export const writeTranslation = (
-  path: string,
+  destination: string,
   translated: string,
   force: boolean,
   inputs: ReadonlyArray<string> = [],
@@ -88,6 +88,8 @@ export const writeTranslation = (
   Effect.scoped(
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const protectedNames = HashSet.fromIterable(yield* Effect.forEach(inputs, pathName))
       const protectedIdentities = HashSet.fromIterable(
         yield* Effect.forEach(inputs, (input) =>
           Effect.gen(function* () {
@@ -95,19 +97,29 @@ export const writeTranslation = (
           }),
         ),
       )
-      if (force) {
-        const info = yield* optionalStat(path, false)
-        if (Option.isSome(info) && info.value.type === 'SymbolicLink') yield* fs.remove(path)
-      }
-      // Append opens without truncating and needs no read permission. Truncate only after
-      // checking the opened descriptor, so a swapped hard link cannot destroy an input.
-      const file = yield* fs.open(path, { flag: force ? 'a' : 'wx', noFollow: true })
-      const openedIdentity = identity(yield* pathName(path), Option.some(yield* file.stat))
-      if (HashSet.has(protectedIdentities, openedIdentity)) {
-        return yield* Effect.fail(cliError(`output file '${path}' is also an input file`))
-      }
-      if (force) yield* file.truncate(0)
-      yield* file.writeAll(new TextEncoder().encode(translated))
+      const inspect = Effect.gen(function* () {
+        const name = yield* pathName(destination)
+        const info = yield* optionalStat(destination, false)
+        const outputIdentity = identity(
+          name,
+          Option.filter(info, (value) => value.type !== 'SymbolicLink'),
+        )
+        if (HashSet.has(protectedNames, name) || HashSet.has(protectedIdentities, outputIdentity)) {
+          return yield* Effect.fail(cliError(`output file '${destination}' is also an input file`))
+        }
+        return info
+      })
+      const previous = yield* inspect
+      const temporary = yield* fs.makeTempFileScoped({ directory: path.dirname(destination), prefix: '.translation-' })
+      yield* fs.writeFileString(temporary, translated)
+      yield* fs.chmod(
+        temporary,
+        Option.isSome(previous) && previous.value.type === 'File' ? previous.value.mode & 0o777 : 0o644,
+      )
+      // Recheck after staging. Rename replaces a swapped symlink or hard link itself, never its target.
+      yield* inspect
+      if (force) yield* fs.rename(temporary, destination)
+      else yield* fs.link(temporary, destination)
     }),
   )
 

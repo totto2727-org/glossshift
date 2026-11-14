@@ -18,6 +18,7 @@
         "GLOSSSHIFT_CONFIG",
         "GLOSSSHIFT_COREUTILS",
         "GLOSSSHIFT_CURL",
+        "SSL_CERT_FILE",
         "GLOSSSHIFT_LLAMA_SERVER"
       ]
     }
