@@ -7,12 +7,16 @@
     "App.tsx",
     "App.test.ts",
     "Tui.test.ts",
-    "Node.test.ts",
+    "Inference.test.ts",
+    "InferenceModel.test.ts",
+    "DesktopConfig.test.ts",
     "terminal/LocalModel.test.ts",
     "ui.fixture.tsx",
     "terminal.fixture.tsx",
     "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.tsx",
+    "platform/**/*.ts",
+    "platform/**/*.tsx"
   ],
   "exclude": ["node_modules", "tmp", "native", ".nsh"]
 }
