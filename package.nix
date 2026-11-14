@@ -1,33 +1,157 @@
 {
   lib,
-  mainProgram ? "glossshift",
-  rustPlatform,
+  stdenvNoCC,
+  darwin,
+  nsh,
+  nodejs_26,
+  pnpm,
+  pnpmConfigHook,
+  jq,
+  coreutils,
+  curl,
+  cacert,
+  rcodesign,
+  writeShellScriptBin,
+  makeBinaryWrapper,
+  glossshift-source,
+  glossshift-pnpm-deps,
+  glossshift-llama-server,
+  glossshift-macos-helper,
+  gshift,
 }:
 
-rustPlatform.buildRustPackage {
+let
+  serverCommand = "${glossshift-llama-server}/bin/llama-server";
+  helperCommand = "${glossshift-macos-helper}/bin/glossshift-macos-helper";
+  # Match only the pinned packager's offline ad-hoc signing invocation.
+  bundleSigner = writeShellScriptBin "codesign" ''
+    if [ "$#" -ne 5 ] || [ "$1" != --force ] || [ "$2" != --sign ] ||
+       [ "$3" != - ] || [ "$4" != --timestamp=none ]; then
+      printf '%s\n' 'Unsupported codesign invocation: only offline ad-hoc bundle signing is supported.' >&2
+      exit 1
+    fi
+    if [ "$5" != .nsh/out/GlossShift.app ] || [ ! -d "$5" ] || [ -L "$5" ]; then
+      printf '%s\n' 'Refusing to sign outside the copied GlossShift build bundle.' >&2
+      exit 1
+    fi
+    # NSH preserves read-only Nix source modes when copying its official runner.
+    # Only regular files in this build-local bundle may be rewritten by signing.
+    find "$5" -type f -exec chmod u+w {} +
+    exec ${rcodesign}/bin/rcodesign sign "$5"
+  '';
+  runtimeEnvironment = ''
+    export GLOSSSHIFT_LLAMA_SERVER='${serverCommand}'
+    export GLOSSSHIFT_MACOS_HELPER='${helperCommand}'
+    export GLOSSSHIFT_COREUTILS='${coreutils}/bin/coreutils'
+    export GLOSSSHIFT_CURL='${curl}/bin/curl'
+    export SSL_CERT_FILE='${cacert}/etc/ssl/certs/ca-bundle.crt'
+  '';
+  systemTools = [
+    "${coreutils}/bin/coreutils"
+    "${curl}/bin/curl"
+  ];
+in
+stdenvNoCC.mkDerivation {
   pname = "glossshift";
   version = "0.2.0";
-
-  src = lib.cleanSource ./.;
-  cargoLock = {
-    lockFile = ./Cargo.lock;
-    outputHashes."llm-profiles-0.1.0" = "1rarzkrppbka3k2ardmd64x61k36xhaggcxcnxhischbchaivxpx";
-  };
-
-  postInstall = ''
-    test -x "$out/bin/glossshift"
-    test -x "$out/bin/gshift"
-    app="$out/Applications/GlossShift.app/Contents"
-    mkdir -p "$app/MacOS" "$app/Resources"
-    cp packaging/Info.plist "$app/Info.plist"
-    cp packaging/GlossShift.icns "$app/Resources/GlossShift.icns"
-    ln -s "$out/bin/glossshift" "$app/MacOS/glossshift"
+  src = glossshift-source;
+  pnpmDeps = glossshift-pnpm-deps;
+  nativeBuildInputs = [
+    makeBinaryWrapper
+    (lib.getBin darwin.cctools)
+    nsh
+    nodejs_26
+    pnpm
+    pnpmConfigHook
+    jq
+    rcodesign
+  ];
+  buildPhase = ''
+    runHook preBuild
+    export PATH="${bundleSigner}/bin:$PATH"
+    # Official prebuilt hosts receive only the exact installed executables.
+    for manifest in nsh.json; do
+      jq --arg server '${serverCommand}' --arg helper '${helperCommand}' \
+        --argjson tools '${builtins.toJSON systemTools}' '
+        del(.rust, .icon) |
+        .capabilities.process.execute = ($tools + [$server] + (if .id == "com.totto2727.glossshift" then [$helper] else [] end)) |
+        .capabilities.process.env = ((.capabilities.process.env // [] | map(select(. != "GLOSSSHIFT_NODE_COMMAND" and . != "GLOSSSHIFT_NODE_ENTRY"))) + ["GLOSSSHIFT_COREUTILS", "GLOSSSHIFT_CURL", "SSL_CERT_FILE"] | unique)' "$manifest" > "$manifest.new"
+      mv "$manifest.new" "$manifest"
+    done
+    nsh build . --release
+    test ! -e .nsh/rust
+    for bundle in .nsh/out/bundle.js; do
+      if grep -q 'glossshift/native' "$bundle"; then
+        printf '%s\n' 'Official prebuilt bundles must not import a custom native module.' >&2
+        exit 1
+      fi
+    done
+    nsh package . --target macos --arch arm64
+    app=.nsh/out/GlossShift.app
+    cp packaging/GlossShift.icns "$app/Contents/Resources/GlossShift.icns"
+    substituteInPlace "$app/Contents/Info.plist" \
+      --replace-fail '<key>CFBundleName</key>' \
+      '<key>CFBundleIconFile</key><string>GlossShift.icns</string><key>CFBundleName</key>'
+    # Finder launches must receive the same immutable runtime paths as CLI launches.
+    mv "$app/Contents/MacOS/GlossShift" "$app/Contents/MacOS/GlossShift-host"
+    mkdir -p "$app/Contents/Resources/glossshift"
+    cat > "$app/Contents/Resources/glossshift/GlossShift-launcher" <<'EOF'
+    #!${stdenvNoCC.shell}
+    ${runtimeEnvironment}
+    export GLOSSSHIFT_BACKGROUND=0
+    case "''${1-}" in
+      --help|-h)
+        printf '%s\n' 'Usage: glossshift [--background | --help | --version]' \
+          '       glossshift autostart <enable --app PATH | disable | status>'
+        exit 0
+        ;;
+      --version|-V)
+        printf '%s\n' 'glossshift 0.2.0'
+        exit 0
+        ;;
+      autostart|--autostart)
+        shift
+        exec @out@/bin/gshift --autostart "$@"
+        ;;
+      --background)
+        export GLOSSSHIFT_BACKGROUND=1
+        shift
+        ;;
+      "") ;;
+      *)
+        printf '%s\n' 'Unknown GlossShift option. Run glossshift --help.' >&2
+        exit 2
+        ;;
+    esac
+    if [ "$#" -ne 0 ]; then
+      printf '%s\n' 'Unexpected GlossShift arguments. Run glossshift --help.' >&2
+      exit 2
+    fi
+    exec @out@/Applications/GlossShift.app/Contents/MacOS/GlossShift-host
+    EOF
+    substituteInPlace "$app/Contents/Resources/glossshift/GlossShift-launcher" --replace-fail @out@ "$out"
+    chmod +x "$app/Contents/Resources/glossshift/GlossShift-launcher"
+    # CFBundleExecutable must be Mach-O for genuine macOS bundle signing.
+    # The standard Nix binary wrapper only dispatches to the audited shell launcher.
+    makeBinaryWrapper ${stdenvNoCC.shell} "$app/Contents/MacOS/GlossShift" \
+      --add-flag "$out/Applications/GlossShift.app/Contents/Resources/glossshift/GlossShift-launcher"
+    rcodesign sign "$app"
+    runHook postBuild
   '';
-
+  installPhase = ''
+    runHook preInstall
+    mkdir -p "$out/Applications" "$out/bin"
+    cp -R .nsh/out/GlossShift.app "$out/Applications/GlossShift.app"
+    ln -s "$out/Applications/GlossShift.app/Contents/MacOS/GlossShift" "$out/bin/glossshift"
+    ln -s ${gshift}/bin/gshift "$out/bin/gshift"
+    runHook postInstall
+  '';
+  # Preserve the official runners' signatures and resource layout.
+  dontFixup = true;
   meta = {
-    description = "A macOS GPUI popup and CLI for streaming translations through Rig";
+    description = "Native macOS streaming translation popup and Markdown CLI";
     license = lib.licenses.mit;
-    inherit mainProgram;
-    platforms = lib.platforms.darwin;
+    mainProgram = "glossshift";
+    platforms = [ "aarch64-darwin" ];
   };
 }

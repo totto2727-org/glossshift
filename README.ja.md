@@ -1,59 +1,106 @@
 # GlossShift
 
-GlossShift は、OpenAI 互換プロバイダー、プロンプト、認証情報、ストリーミング動作を共有する GPUI デスクトップポップアップと `gshift` コマンドを備えた macOS 用翻訳アプリケーションです。
+GlossShiftは、Apple Silicon Mac上でテキストをローカル翻訳します。
+デスクトップのポップアップでは、NSH、TypeScript、Effectが使用されます。
+スタンドアロンの `gshift` コマンドは、Node.js 26 上で Effect 4 CLI と共に動作し、ローカル翻訳サービスを共有します。
 
-## 使い方
+## 使用方法
+
+インストール済みのデスクトップアプリケーションを起動します：
 
 ```bash
 open ~/.nix-profile/Applications/GlossShift.app
 ```
 
-任意の macOS アプリケーションでテキストを選択して、設定済みのショートカットを押します。ポップアップは取得したテキストを **SOURCE** に表示し、結果を **TRANSLATION** へストリーミングし、どちらのペインもコピーできます。
+別のアプリケーションでテキストを選択し、設定済みのショートカットを押します。
+GlossShift はソースを表示し、翻訳を 2 つ目のペインにストリーミングします。
+コピーは常に、Markdown 構文を含む元のテキストを使用します。
+**Plain** トグルで、両方のペインを Markdown プレビューとプレーンテキストで切り替えます。
+コードブロックには構文ハイライトがなく、リンクは開かず、画像は代替テキストを表示し、HTML はリテラルのままです。
+デスクトップ選択のキャプチャには、macOS Accessibility 権限が必要です。
+ヘルパーは、GlossShift がポップアップを有効にする前に、フォーカスされているアプリケーションの Accessibility 選択を読み取ります。
+この API を通じて選択されたテキストを公開しないアプリケーションは、エラーを報告します。
+GlossShift は、選択をキャプチャするために `Cmd+C` をシミュレートしたり、クリップボードの内容を置換したりしません。
 
-![アクセシビリティ権限の状態、空の原文・翻訳ペイン、コピー操作を表示するGlossShiftデスクトップポップアップ](./docs/assets/glossshift-desktop.png)
+コマンドヘルプを表示します：
+
+```bash
+gshift
+gshift --help
+```
+
+CLI は非対話的であり、NSH、Swift、または Accessibility 権限を必要としません。
+`--tui` は拒否されます。
+インタラクティブなポップアップ用に、デスクトップアプリケーションを別途起動します。
+デスクトップでは、NSH の公式プリビルドホストと、カスタム Rust アプリケーションコードを必要としない別の Swift 選択ヘルパーを使用します。
+
+提供された順序で Markdown ファイルを翻訳します：
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
+# 兄弟ファイルを作成せずにプレーンな出力を書き出す：
+gshift document.md --lang en --stdout --color never
 ```
 
-ANSI スタイルを付けずに翻訳を標準出力へ書き込みます。
+ファイルモードでは、`document.ja.md` と `notes.ja.mbt.md` を書き出し、それらのパスを stderr に報告します。
+プレーンな stdout は、区切り文字を挿入せずに翻訳を連結します。
+最初の翻訳は、公式の PLaMo 3 Translate 0.8B Q4_K_M GGUF（約 573 MB）を自動的にダウンロードします。
+後続の実行では、再度ダウンロードすることなく、検証済みのキャッシュモデルを使用します。
+ホスト型モデルのアカウントや API キーは不要です。
+テキストは Mac で処理され、ホスト型の推論サービスには送信されません。
 
-```bash
-gshift document.md --lang ja --stdout --color never
-```
+> [!IMPORTANT]
+> デフォルトモデルは [PLaMo Community License](https://plamo.preferredai.jp/info/plamo-community-license-en) を使用し、アプリケーションの MIT メタデータライセンスは使用しません。
+> 商用利用には、事前の登録と当該ライセンスに基づく資格が必要です。
+> 使用前に利用規約を確認してください。
+> GlossShift は、NSH や Swift を介さず、ユーザーを登録したり、代わりに商用規約を受け入れたりすることはありません。
 
-`gshift` は初回実行時に GlossShift の XDG 設定ディレクトリへ `config.toml` と `credentials.toml` を作成し、プレースホルダーの API キーが置換されるまで終了します。設定後、最初のコマンドは `document.ja.md` と `notes.ja.mbt.md` を書き込み、そのパスを標準エラー出力へ表示します。2 番目のコマンドはファイルを作成せず、プレーンな翻訳本文を標準出力へ出力します。複数の入力は常にコマンドラインの指定順に処理されます。
+## 機能
 
-## 主な機能
-
-- グローバルショートカット、サイズ変更可能なウィンドウ、原文と翻訳文のコピー操作を備えたネイティブ macOS ポップアップ。
-- カスタムベース URL とリクエストパラメーターを含む、OpenAI Chat Completions API を実装するサーバー経由のストリーミング翻訳。
-- デスクトップアプリケーションと `gshift` CLI で共有する XDG 設定と認証情報。
-- 同階層ファイルまたは標準出力を選べる、順序を保持した複数 Markdown ファイル翻訳。
-- パイプ向けのプレーンなストリーミング出力と、ターミナル向けの任意の Tree-sitter Markdown ANSI ハイライト。
-- システムプロンプトとユーザードキュメントを分離し、原文を不活性な内容として扱い、その構造を翻訳契約の変更なしで一対一に翻訳。
-- 新しいショートカットが古い翻訳をキャンセルして置き換える、デスクトップポップアップのリクエスト置換。
+- グローバルショートカットと別の Effect 4 CLI を備えたネイティブ macOS ポップアップ。
+- ピン留めされた公式 llama サーバーと本物の Effect AI `LanguageModel` アダプターによるローカル Metal 推論。
+- モデルの自動ダウンロード、ピン留めされたデフォルトリビジョン、SHA-256 検証、およびオフラインキャッシュの再利用。
+- より大規模な GGUF モデルの設定可能、および明示的なコンテキストと出力制限。
+- デスクトップと CLI 間での共有翻訳、キャンセル、モデル選択、およびトークン予算ポリシー。
+- 入力/出力の衝突チェックと安全なシンボリックリンク置換を伴う、順序付き Markdown ファイル処理。
+- TypeScript アプリケーション、翻訳、設定、および自動起動ポリシー（少数の独立した Swift Accessibility ヘルパーを含む）。
 
 ## 前提条件
 
-- **Apple Silicon搭載Macのみ**: Intel Macはサポートしていません。
-- **flakes を有効にした Nix**
-- **OpenAI 互換プロバイダーの認証情報**: Chat Completions を実装するサーバーの API キー、モデル、ベース URL を用意してください。
-- **デスクトップアプリのアクセシビリティ権限**: グローバルな選択テキスト取得と、そのフォールバックである `Cmd+C` シミュレーションを使用するときに付与してください。
+- Apple Silicon macOS。
+- flakes を有効にした Nix。
+- 初回モデルダウンロード用のネットワークアクセスとディスク容量。
+- 選択したモデルとコンテキストに十分な空きメモリ。
+- デスクトップ選択のキャプチャにのみ Accessibility 権限。
+
+スタンドアロンの `gshift` Nix パッケージには、NSH や Swift を必要とせず、Node.js 26、プロダクション JavaScript 依存関係、およびピン留めされた推論・ファイルユーティリティが含まれています。
+GUI は公式の NSH ホストと小さな Swift ヘルパーを使用し、Node プロセスを起動しません。
+統合された `glossshift` パッケージには `GlossShift.app` が含まれており、スタンドアロン CLI をリンクしているため、そのクロージャには Node も含まれています。
+両パッケージとも、Metal サポート付きの Nixpkgs unstable の `llama-cpp` 0.9.0 を使用しています。
+推論依存関係には、アプリケーションのメインツールチェーンピンを変更することなく、独自の正確な Nixpkgs ピンが付与されています。
+初回使用時にコンパイラ、ネイティブ Node アドオン、またはエンジンのダウンロードは不要です。
+モデルの重みは、Nix ストアではなくユーザーのキャッシュに保持されます。
+推論サーバーはアプリケーションにとってプライベートであり、ループバックでのみ待機し、起動ごとに新しい認証キーを使用します。
 
 ## セットアップ
 
-### Run without installing
+### インストールなしで実行する
 
 ```bash
 nix run 'github:totto2727-org/glossshift#glossshift'
 nix run 'github:totto2727-org/glossshift#gshift' -- --help
 ```
 
-### Install
+### インストール
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
+```
+
+パッケージには `GlossShift.app` と `gshift` が含まれています。
+NSH や Swift を使用せず、CLI のみをインストールする場合：
+
+```bash
 nix profile add 'github:totto2727-org/glossshift#gshift'
 ```
 
@@ -73,10 +120,7 @@ nix profile add 'github:totto2727-org/glossshift#gshift'
     in {
       packages.${system}.default = pkgs.buildEnv {
         name = "translation-tools";
-        paths = [
-          glossshift.packages.${system}.glossshift
-          glossshift.packages.${system}.gshift
-        ];
+        paths = [ glossshift.packages.${system}.glossshift ];
       };
     };
 }
@@ -84,81 +128,137 @@ nix profile add 'github:totto2727-org/glossshift#gshift'
 
 ## 設定
 
-GlossShift は初回利用時に `~/.config/glossshift/config.toml` と `~/.config/glossshift/credentials.toml` を作成します。`XDG_CONFIG_HOME` が設定されている場合は `$XDG_CONFIG_HOME/glossshift` を使用します。`credentials.toml` のプレースホルダー API キーを置換してください。GlossShift は常にこのファイルのモードを `0600` に戻します。
+### ローカル翻訳
 
-```toml
-[credentials.default]
-api_key = "your-api-key"
+デフォルトの 0.8B モデルに設定は不要です。
+サポートされている PLaMo 3 翻訳モデルには、`runtime/models.ts` にプリセットが組み込まれています。
+モデルを選択すると、その変更不可能な GGUF URL、SHA-256 ダイジェスト、プロンプト形式、言語ポリシー、およびサポートされているコンテキスト制限も選択されます。
+4 つのプリセットすべてが、`runtime/models.ts` で 262144 トークンのコンテキスト制限を宣言しており、これはパブリッシャーの `max_position_embeddings` メタデータと一致しています。
+完了予算は、プロンプトのトークン化後に残存するコンテキストから計算されます。
+明示的な設定で予算を削減できますが、モデルがサポートするコンテキストを超えることはできません。
+
+| モデルセレクター                     | 量子化 | ダウンロードサイズ          |
+| ---------------------------------- | ------------ | ---------------------- |
+| `plamo-3-translate-0.8b` (デフォルト) | Q4_K_M       | 約 573 MB   |
+| `plamo-3-translate-2b`             | Q4_K_M       | 約 1.81 GB  |
+| `plamo-3-translate-8b`             | Q4_K_M       | 約 5.28 GB  |
+| `plamo-3-translate-31b`            | Q4_K_M       | 約 19.53 GB |
+
+大規模なモデルや大規模なコンテキストでは、GGUF ファイルサイズを超えるランタイムおよびコンテキストバッファを含む、より多くのディスク容量とメモリが必要になります。
+フルコンテキストが利用可能なメモリに収まらない場合は、小さな明示的な `contextSize` を設定してください。
+31B プリセットは、公式の PLaMo 3 Translate ファミリーで最大のモデルです。
+実際のソースおよびインストール済み CLI チェックにより、設定済みの 262144 トークンコンテキストでキャッシュされた 0.8B 翻訳がカバーされます。
+そのコンテキストでのプロダクションサーバー起動チェックにより、Metal およびポジティブな GPU レイヤーオフロードが検証されます。
+これらのチェックでは、262144 トークンのプロンプト、大規模モデル、または比較性能は検証されません。
+設定ファイルを作成せずに組み込みモデルを選択してください：
+
+```sh
+GLOSSSHIFT_MODEL=plamo-3-translate-2b gshift README.md --lang ja
 ```
 
-デフォルトが利用するプロバイダーと一致しない場合は、`config.toml` のアクティブプロバイダー、モデル、ショートカットを調整します。
+同じ環境選択が GUI および CLI 起動にも適用されます。
+未知のセレクターは、別のモデルをサイレントに使用せずに失敗します。
+あるいは、オプションのローカル設定で `"model": "plamo-3-translate-2b"` を設定してください。
+`GLOSSSHIFT_MODEL` はファイルのモデルより優先されますが、明示的なキャッシュやトークン予算のオーバーライドは置き換えません。
+
+オプション設定は `~/.config/glossshift/local.json` または `$XDG_CONFIG_HOME/glossshift/local.json` に保存されます。
+別のローカル設定を選択するには、`GLOSSSHIFT_CONFIG` を絶対ファイルパスに設定してください。
+明示的に選択されたファイルが存在する必要があります。
+
+```json
+{
+  "sourceLanguage": "auto"
+}
+```
+
+`sourceLanguage` はデフォルトで自動検出されます。
+組み込みプリセットの場合、オプションの `contextSize` には入力、プロンプト、および生成された翻訳が含まれます。
+オプションの `maxTokens` は、動的に計算される残りのコンテキスト内で生成されたトークンをさらに制限します。
+サイズが大きすぎるソースや不完全な出力は、正常に切り詰められたファイルを生成せずに失敗します。
+設定された制限が不十分な場合は、小規模なセクションを翻訳してください。
+
+デフォルトのキャッシュは `~/.cache/glossshift/models` または `$XDG_CACHE_HOME/glossshift/models` です。
+`cacheDirectory` を絶対ディレクトリに設定してオーバーライドしてください。
+ダウンロードされたファイルは SHA-256 ダイジェストで命名され、ロード前に検証されます。
+
+PLaMo 3 翻訳モデルには `prompt: "plamo"` を使用してください。
+別の単一ファイル GGUF の場合は、メタデータに有効なチャットテンプレートが提供されている場合にのみ `prompt: "chat"` を使用してください。
+カスタム `model` オブジェクトには、`uri`、`sha256`、および `prompt` が必要で、HTTPS または `file:` URI とその完全な SHA-256 ダイジェストが必要です。
+そのダイジェストが既知の組み込みアーティファクトでない場合は、その GGUF のサポートされている値に `contextSize` を明示的に設定してください。
+未知のカスタムアーティファクトは、デフォルトの PLaMo コンテキストサイズを継承しません。
+既知のプリセットアーティファクトは、同じダイジェストを持つカスタム `file:` URI で選択した場合でも、フルモデルコンテキストのデフォルトを保持します。
+マルチパート GGUF はサポートされていません。
+ダウンロード URL はモデルの重みを選択しますが、ホスト型の推論エンドポイントを選択しません。
+設定変更後はアプリケーションを再起動してください。
+
+[公式のデフォルトアーティファクト](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/tree/1cf96ae02133958a20074bfdfab76517bb737d00) およびすべてのプリセットダイジェストは、`runtime/models.ts` にピン留めされています。
+
+### デスクトップ設定
+
+ウィンドウおよびショートカット設定は `~/.config/glossshift/config.toml` に保存され、`XDG_CONFIG_HOME` に準拠します：
 
 ```toml
-active_provider = "default"
-
-[providers.default]
-base_url = "https://api.openai.com/v1"
-model = "gpt-4.1-mini"
-credential = "default"
-first_chunk_timeout_seconds = 30
-stream_idle_timeout_seconds = 60
-
-[translation]
-source_language = "auto"
-
 [[shortcuts]]
 keys = "Ctrl+Super+KeyJ"
 target_language = "Japanese"
+
+[window]
+width = 560
+height = 360
+min_width = 320
+min_height = 180
 ```
 
-GlossShift が Chat Completions のルートを追加するため、プロバイダーのベース URL には通常 `/v1` である API プレフィックスを含める必要があります。プロバイダー名と認証情報名は一致し、ショートカットキーは一意で、すべてのターゲット言語は空でない必要があります。
+ショートカットキーは一意である必要があり、各ターゲット言語は空であってはなりません。
+GlossShift はこのファイルが存在しない場合にのみ作成します。
+既存の設定や共有の `~/.agents` ファイルは上書きされません。
+プロバイダーの認証情報および古いプロバイダー設定はローカル翻訳に使用されません。
+ソース言語およびモデル設定には `local.json` を使用してください。
 
-両方のファイルを保存した後、「使い方」に示したコマンドを再実行します。
-
-## 権限
-
-システム設定 > プライバシーとセキュリティ > アクセシビリティで、インストール済みの `GlossShift.app` にアクセスを許可します。この権限により、グローバルショートカットで選択テキストを取得し、アプリケーションが選択範囲を直接公開しない場合に `Cmd+C` シミュレーションへフォールバックできます。
-
-## API
-
-サポート対象のエンドユーザーインターフェースは、パッケージ化された `GlossShift.app` と `gshift` コマンドです。ソースパッケージで公開されている Rust モジュールは 2 つのバイナリ間で実装を共有するためのものであり、GlossShift は独立してサポートする Rust ライブラリ API やレジストリ参照を公開していません。
-
-### `gshift`
+## コマンドリファレンス
 
 ```text
+gshift
+gshift --help
 gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]
 ```
 
-| 入力またはオプション | 意味 |
-| --- | --- |
-| `<FILES>...` | 1 つ以上の `.md` または `.mbt.md` ファイル。指定順に逐次翻訳します。 |
-| `-l`, `--lang <LANGUAGE>` | 必須のターゲット言語コード。前後の空白を除去して小文字化され、ASCII 英数字と内部のハイフンだけを使用できます。 |
-| `-f`, `--force` | 既存の同階層出力を置換します。`--stdout` とは同時に指定できません。 |
-| `--stdout` | 区切りを追加せず、入力順に翻訳を標準出力へ連結します。 |
-| `--color <auto|always|never>` | `--stdout` の ANSI Markdown ハイライトを制御します。デフォルトは `auto` で、`--stdout` が必要です。 |
-| `-h`, `--help` | 生成されたコマンドリファレンスを表示します。 |
-| `-V`, `--version` | インストールされたバージョンを表示します。 |
+| オプション                    | 動作                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `<FILES>...`              | `.md` および `.mbt.md` の入力を順に処理します。                                          |
+| `-l`, `--lang <LANGUAGE>` | ターゲット言語（`ja` や `en` など）を選択します。                                     |
+| `-f`, `--force`           | 既存の兄弟出力を置換しますが、入力ファイルは置換しません。`--stdout` と競合します。 |
+| `--stdout`                | ファイルを書き出さずに翻訳を stdout に連結します。                             |
+| `--color <MODE>`          | 出力全体の ANSI スタイリングを `auto`, `always`, `never` に設定します。`--stdout` が必要です。   |
+| `-h`, `--help`            | モデルや設定をロードせずにヘルプを表示します。                                   |
+| `-V`, `--version`         | モデルや設定をロードせずにバージョンを表示します。                            |
 
-`--stdout` を指定しない場合、`gshift` は `.md` の前に `.<language>` を挿入し、複合拡張子 `.mbt.md` を維持し、末尾に既存の `.ja` または `.en` 言語セグメントがあれば置換します。入力または別の出力と衝突する出力パスは拒否されます。既存ファイルとシンボリックリンクは `--force` なしでは拒否されます。強制指定したシンボリックリンク出力は、リンク先を変更せずリンク自体を置換します。
-
-`--stdout --color auto` では、リダイレクトされた出力はプレーンなままストリーミングされ、ターミナル出力は翻訳ごとにバッファリングされて ANSI ハイライトされます。`--color never` は常にプレーン出力をストリーミングし、`--color always` はリダイレクト時にも ANSI スタイルを出力します。ファイル出力に ANSI エスケープは含まれません。
-
-設定、入力、プロバイダー、タイムアウト、出力の失敗は `gshift failed:` プレフィックス付きで標準エラーへ書き込まれ、終了ステータス `1` を返します。ヘルプとバージョンは設定を読み込まず正常終了します。
-
-```bash
-# 既存の日本語同階層出力を置換します。
-gshift first.md second.md --lang ja --force
-
-# パイプ向けにプレーンな英語出力をストリーミングします。
-gshift document.md --lang en --stdout --color never
-```
+ファイル名は、`.md` または `.mbt.md` の前に言語サフィックスが付与されます。
+既存の末尾の `.ja` または `.en` サフィックスは置換されます。
+入力/出力の衝突、重複出力、および未承認のオーバーライトは、モデルのロード前に失敗します。
+`--force` を使用すると、ターゲットを変更せずにシンボリックリンク出力が置換されます。
+ファイル出力およびリダイレクトされた自動色 stdout には ANSI スタイリングは含まれません。
+色はターミナルのスタイリングのみを追加し、Markdown 構文ハイライトは追加しません。
+CLI は引数、ワーキングディレクトリ、および標準ストリームを直接 Node のネイティブプロセス環境経由で受け取ります。
+シェルキャプチャディレクトリやヘッドレス NSH ブリッジは関与しません。
+推論の失敗により、以前完了した入力からの出力が残ることがありますが、未完了の翻訳は完了ファイルとして公開されません。
+ファイルモードは完了した翻訳のみを書き込みます。
+失敗時の診断出力は stderr となり、終了ステータスは 0 未満になります。
 
 ## 開発
 
-リポジトリ構造、アーキテクチャ、開発コマンドについては [AGENTS.md](./AGENTS.md) を参照してください。
+リポジトリの構造、アーキテクチャ、ツールチェーンのセットアップ、および検証コマンドについては [AGENTS.md](./AGENTS.md) を参照してください。
+Vite+ は、Vitest を通じてインストール、タスク、フォーマット、リント、およびネイティブ CLI テストを管理しています。
+NSH は、GUI 実行、テスト、バンドル、およびネイティブパッケージングを管理しています。
+CLI は Node.js 26 上で `cli/main.ts` を実行し、`runtime/main.ts` 内の宣言的な Effect 4 コマンドを使用します。
+GUI は、抽出準備が整った Effect Platform レイヤーを通じて、NSH 内部で共有の設定および翻訳ポリシーを直接実行します。
+[ランタイムアーキテクチャ](./docs/runtime-architecture.md) には、これらのプロセスおよびパッケージングの境界が記載されています。
+メンテナンスされている [依存関係互換性レコード](./docs/dependency-compatibility.md) には、変更されていない NSH リリースと保持された plist 検証パッチが記載されています。
+GlossShift はオリジナルのアプリケーションであり、フォークではありません。
+[NSH Effect Platform](./platform/README.md) には、別の NSH プロジェクトで再利用するための、アプリケーションに依存しない明示的な構成 API が用意されています。
 
 ## ライセンス
 
-パッケージメタデータでは MIT を宣言していますが、現在このリポジトリには `LICENSE` ファイルが含まれていません。
-
-_This README was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [README template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/readme/template.md)._
+アプリケーションのメタデータには MIT と宣言されていますが、このリポジトリには現在 `LICENSE` ファイルが含まれていません。
+デフォルトモデルは、PLaMo Community License の下での別個のソフトウェアです。
+PLaMo で構築されています。

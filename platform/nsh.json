@@ -1,0 +1,10 @@
+{
+  "name": "GlossShiftPlatformFixture",
+  "id": "com.totto2727.glossshift.platform-fixture",
+  "capabilities": {
+    "fs": { "read": ["${dataDir}"], "write": ["${dataDir}"] },
+    "process": {
+      "execute": ["coreutils"]
+    }
+  }
+}

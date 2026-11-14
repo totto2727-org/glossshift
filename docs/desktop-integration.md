@@ -10,7 +10,7 @@ The packaged `GlossShift.app` includes its own application icon for Finder, the 
 Both `just package-app` and the Nix package install the icon inside the application bundle.
 Running a bare development executable does not provide Finder with an application bundle icon.
 
-The status item is created on GPUI's main event-loop thread and retained until application shutdown, as required by [tray-icon's macOS integration contract](https://docs.rs/tray-icon/0.24.2/tray_icon/#platform-specific-notes).
+The status item is created on zgui's main event-loop thread and retained until application shutdown, as required by [tray-icon's macOS integration contract](https://docs.rs/tray-icon/0.24.2/tray_icon/#platform-specific-notes).
 
 ## Launch at login
 
@@ -64,3 +64,46 @@ A translation shortcut reveals it normally.
 - [Apple: Manage login items and background tasks](https://support.apple.com/guide/deployment/manage-login-items-and-background-tasks-depdca572563/web)
 
 The implementation uses user LaunchAgents for compatibility with the application's macOS 12 minimum rather than the macOS 13-only `SMAppService` API.
+
+## Contributor reference: native dependencies
+
+macOS is the only supported platform.
+The interfaces in `src/platform.rs` separate selection capture and Accessibility permission checks from the popup.
+`src/main.rs` selects the macOS implementation and injects it into the popup at startup.
+`src/selection.rs` owns Accessibility access, simulated Cmd+C, and the pasteboard fallback.
+The selection is captured before the popup receives focus.
+
+The application clipboard uses the official [zgui clipboard interface](https://zgui.zortax.de/docs/building/clipboard) instead of a native pasteboard API.
+zgui supplies a separate in-memory clipboard for its headless platform.
+`src/popup.rs` owns popup state and translation requests without UI framework dependencies.
+`src/desktop.rs` maps bounded channel events to reactive snapshots on the UI thread.
+It adopts the existing Tokio runtime through the official [Tokio integration](https://zgui.zortax.de/docs/learn/tokio-integration).
+The view uses the standard zgui-ui shadcn-style theme, component variants, and icons.
+Application CSS adds layout, overflow control, and token-based typography without replacing the standard component appearance.
+The official styling API uses CSS rather than a Tailwind utility generator, so the project does not add a separate Tailwind toolchain.
+
+Menu bar installation, global shortcut registration, and autostart commands remain native adapters assembled at the application entry point.
+They do not belong in translation or popup state logic.
+A future platform can supply different adapters without changing the translation worker.
+There is no Linux implementation or runtime platform switch.
+
+### Markdown and plain text
+
+The official zgui-ui Toggle switches both panes between a read-only Markdown preview and plain text without changing popup state or copied content.
+`src/ui_markdown.rs` uses `pulldown-cmark` to render headings, lists, quotes, and code blocks as native text nodes.
+It does not emit HTML, load remote images, open links, or run a syntax highlighter.
+Inline emphasis is flattened to text, images use alternate text, and raw HTML stays literal.
+This is a lightweight CommonMark block preview, not a browser or a complete GitHub-flavored Markdown renderer.
+The original Markdown remains available through the Plain toggle and copy controls.
+
+The supplied [zgui-editor](https://github.com/zortax/zgui-editor/tree/main) repository implements a code editor rather than a Markdown preview, lacks soft wrapping, and depends on Git versions of the framework.
+It is not added as an unused or incompatible dependency.
+The application instead keeps the published zgui stack and its standard component theme.
+
+### Headless popup tests
+
+Run `just test-ui` to exercise the popup on zgui's headless platform.
+The tests use temporary provider files, synthetic keys, injected selection results, and the test clipboard.
+They do not start the production application, register shortcuts, request Accessibility permission, or change login startup.
+`just test` and `just ci` also include these tests.
+These checks do not replace verification of native Accessibility capture, the menu bar, or a signed application bundle.

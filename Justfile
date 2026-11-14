@@ -1,68 +1,43 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-bundle := "target/GlossShift.app"
-
 default:
     @just --list
 
-# Run the application directly with Cargo.
+# Preserve the existing workflow entrypoint without changing CI workflows.
+ci:
+    vp install --frozen-lockfile
+    vp run ci
+
+check:
+    vp run check
+
+fix:
+    vp run fix
+
+typecheck:
+    vp run typecheck
+
 dev:
-    cargo run --bin glossshift
+    vp run dev
 
-# Run the CLI with arguments, for example: just cli README.md --lang ja.
-cli *args:
-    cargo run --bin gshift -- {{args}}
+run:
+    vp run run
 
-# Apply all automatic fixes.
-fix: fix-rustfmt fix-clippy
-
-# Format Rust source files.
-fix-rustfmt:
-    cargo fmt --all
-
-# Apply automatic Clippy fixes.
-fix-clippy:
-    cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features -- -D warnings
-
-# Run all static checks.
-check: check-rustfmt check-clippy
-
-# Check Rust source formatting without changing files.
-check-rustfmt:
-    cargo fmt --all --check
-
-# Run strict Clippy checks for every target and feature.
-check-clippy:
-    cargo clippy --all-targets --all-features -- -D warnings
-
-# Run unit tests.
-test:
-    cargo test
-
-# Build the debug binary.
 build:
-    cargo build
+    vp run build
 
-# Run every local validation gate.
-ci: check test build
+test:
+    vp run test
 
-# Build a local macOS application bundle with a stable identity.
-package-app: build
-    mkdir -p "{{ bundle }}/Contents/MacOS" "{{ bundle }}/Contents/Resources"
-    cp target/debug/glossshift "{{ bundle }}/Contents/MacOS/glossshift"
-    cp packaging/Info.plist "{{ bundle }}/Contents/Info.plist"
-    cp packaging/GlossShift.icns "{{ bundle }}/Contents/Resources/GlossShift.icns"
-    codesign --force --deep --sign - "{{ bundle }}"
-    codesign --verify --deep --strict "{{ bundle }}"
-    @printf '%s\n' "{{ bundle }}"
+package-app:
+    vp run package
 
-# Regenerate original app and tray assets with macOS build-time tools only.
+cli *args:
+    vp run cli -- {{args}}
+
+# Asset generation remains a macOS development operation.
 generate-icons:
     swift scripts/generate-icons.swift
 
-# Verify ICNS representations, preview dimensions, and the raw tray template contract.
 check-icons:
     swift scripts/validate-icons.swift
-
-run: package-app
-  open '{{bundle}}'

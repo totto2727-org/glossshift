@@ -1,0 +1,10 @@
+{
+  "extends": ["@tsconfig/strictest/tsconfig.json", "@tsconfig/node-ts/tsconfig.json"],
+  "compilerOptions": {
+    "target": "ESNext",
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["./**/*.ts", "../runtime/main.ts", "../runtime/cli.test.ts", "../packaging/**/*.test.ts"],
+  "exclude": ["../runtime/settings.test/**", "../runtime/platform.ts", "../node_modules", "../tmp"]
+}

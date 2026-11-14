@@ -15,7 +15,8 @@ just package-app
 
 `just generate-icons` runs `scripts/generate-icons.swift` using AppKit/Core Graphics and the system `iconutil`.
 The Swift file is the canonical vector geometry and palette source, and it also exports editable SVG artwork.
-All generated assets are checked in so ordinary Cargo and Nix builds do not need Swift or regenerate icons.
+All generated assets are checked in so ordinary application builds do not regenerate icons.
+The separate Accessibility helper has its own Swift build.
 Generation is byte-for-byte repeatable on the same macOS toolchain, although Apple renderer or PNG encoder changes may change binary output across OS versions.
 Intermediate iconset PNGs are written under the ignored `target/GlossShift.iconset` directory.
 

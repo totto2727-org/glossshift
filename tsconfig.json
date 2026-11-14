@@ -1,0 +1,21 @@
+{
+  "extends": ["@tsconfig/strictest/tsconfig.json", "@tsconfig/node-ts/tsconfig.json", "./.nsh/tsconfig.json"],
+  "compilerOptions": {
+    "target": "ESNext"
+  },
+  "include": [
+    "App.tsx",
+    "App.test.ts",
+    "Inference.test.ts",
+    "InferencePolicy.test.ts",
+    "InferenceStorage.test.ts",
+    "DesktopConfig.test.ts",
+    "ui.test.fixture.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "platform.ts",
+    "platform/**/*.ts",
+    "platform/**/*.tsx"
+  ],
+  "exclude": ["node_modules", "tmp", "native", ".nsh"]
+}
