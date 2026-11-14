@@ -1,8 +1,8 @@
 # GlossShift
 
 GlossShift translates text locally on an Apple Silicon Mac.
-Its desktop popup and terminal UI use NSH, TypeScript, and Effect.
-The `gshift` batch command uses the same local model and translation service.
+Its desktop popup uses NSH, TypeScript, and Effect.
+The standalone `gshift` command runs on Node.js 26 with Effect 4 CLI and shares the local translation service.
 
 ## Usage
 
@@ -22,19 +22,17 @@ The helper reads the focused application's Accessibility selection before GlossS
 Applications that do not expose selected text through this API report an error.
 GlossShift does not simulate `Cmd+C` or replace clipboard contents to capture a selection.
 
-Run the interactive terminal UI:
+Show command help:
 
 ```bash
 gshift
-# Explicit interactive mode:
-gshift --tui
+gshift --help
 ```
 
-Enter text and a target language, then choose **Translate**.
-The terminal UI does not start desktop hotkeys or tray services and does not need Accessibility permission.
-Both desktop and terminal modes use NSH's official prebuilt hosts and do not compile custom Rust application code.
-Desktop selection capture runs in a separate Swift helper.
-Use **Quit** or `Ctrl+C` to exit.
+The CLI is noninteractive and does not need NSH, Swift, or Accessibility permission.
+`--tui` is rejected.
+Launch the desktop application separately for the interactive popup.
+The desktop uses NSH's official prebuilt host and a separate Swift selection helper without custom Rust application code.
 
 Translate Markdown files in the supplied order:
 
@@ -59,11 +57,11 @@ Text is processed on the Mac, not sent to a hosted inference service.
 
 ## Features
 
-- Native macOS popup with global shortcuts and an official NSH terminal UI.
+- Native macOS popup with global shortcuts and a separate Effect 4 CLI.
 - Local Metal inference through the pinned official llama-server and a real Effect AI `LanguageModel` adapter.
 - Automatic model download, pinned default revision, SHA-256 verification, and offline cache reuse.
 - Configurable larger GGUF models and explicit context and output limits.
-- Shared translation, cancellation, and Markdown/plain behavior across desktop, terminal, and batch modes.
+- Shared translation, cancellation, model selection, and token-budget policy across desktop and CLI.
 - Ordered Markdown file processing with input/output collision checks and safe symbolic-link replacement.
 - TypeScript application, translation, settings, and autostart policy, with a small separate Swift Accessibility helper.
 
@@ -75,8 +73,11 @@ Text is processed on the Mac, not sent to a hosted inference service.
 - Enough available memory for the chosen model and context.
 - Accessibility permission only for desktop selection capture.
 
-The Nix package includes official NSH hosts, the `llama-server` b12110 executable with its Metal libraries, a small Swift helper, and bounded file utilities.
-The application does not require Node at runtime.
+The standalone `gshift` Nix package includes Node.js 26, production JavaScript dependencies, and the pinned inference and file utilities, without NSH or Swift.
+The GUI uses the official NSH host and a small Swift helper, without starting a Node process.
+The combined `glossshift` package includes `GlossShift.app` and links the standalone CLI, so its closure also includes Node.
+Both packages use Nixpkgs unstable's `llama-cpp` 0.9.0 with Metal support.
+The inference dependency has its own exact Nixpkgs pin, without changing the application's main toolchain pin.
 No compiler, native Node addon, or engine download is required on first use.
 Model weights stay in the user's cache rather than the Nix store.
 The inference server is private to the application, listens only on loopback, and uses a new authentication key per launch.
@@ -97,6 +98,11 @@ nix profile add 'github:totto2727-org/glossshift#glossshift'
 ```
 
 The package includes `GlossShift.app` and `gshift`.
+To install only the CLI, without NSH or Swift:
+
+```bash
+nix profile add 'github:totto2727-org/glossshift#gshift'
+```
 
 ### Nix flake
 
@@ -125,22 +131,49 @@ The package includes `GlossShift.app` and `gshift`.
 ### Local translation
 
 No configuration is needed for the default 0.8B model.
+The supported PLaMo 3 translation models have built-in presets in `runtime/models.ts`.
+Selecting a model also selects its immutable GGUF URL, SHA-256 digest, prompt format, language policy, and supported context limit.
+All four built-in presets declare a 262144-token context limit in `runtime/models.ts`, matching the publisher's `max_position_embeddings` metadata.
+The completion budget is calculated from the context remaining after prompt tokenization.
+Explicit settings may reduce the budget but cannot exceed the model's supported context.
+
+| Model selector                     | Quantization | Download size          |
+| ---------------------------------- | ------------ | ---------------------- |
+| `plamo-3-translate-0.8b` (default) | Q4_K_M       | Approximately 573 MB   |
+| `plamo-3-translate-2b`             | Q4_K_M       | Approximately 1.81 GB  |
+| `plamo-3-translate-8b`             | Q4_K_M       | Approximately 5.28 GB  |
+| `plamo-3-translate-31b`            | Q4_K_M       | Approximately 19.53 GB |
+
+Larger models and larger contexts require more disk space and memory, including runtime and context buffers beyond the GGUF file size.
+Set a smaller explicit `contextSize` if the full context does not fit available memory.
+The 31B preset is the largest model in the official PLaMo 3 Translate family.
+Real source and installed CLI checks cover cached 0.8B translation with the configured 262144-token context.
+A production-server startup check at that context verifies Metal and positive GPU layer offload.
+These checks do not validate a 262144-token prompt, larger models, or comparative performance.
+Select a built-in model without creating a settings file:
+
+```sh
+GLOSSSHIFT_MODEL=plamo-3-translate-2b gshift README.md --lang ja
+```
+
+The same environment selection applies to GUI and CLI launches.
+An unknown selector fails instead of silently using another model.
+Alternatively, set `"model": "plamo-3-translate-2b"` in optional local settings.
+`GLOSSSHIFT_MODEL` takes precedence over the file's model, but does not replace explicit cache or token-budget overrides.
+
 Optional settings live in `~/.config/glossshift/local.json`, or `$XDG_CONFIG_HOME/glossshift/local.json`.
 Set `GLOSSSHIFT_CONFIG` to an absolute file path to select another local configuration.
 An explicitly selected file must exist.
 
 ```json
 {
-  "sourceLanguage": "auto",
-  "contextSize": 8192,
-  "maxTokens": 4096
+  "sourceLanguage": "auto"
 }
 ```
 
 `sourceLanguage` defaults to automatic detection.
-`contextSize` includes the input, prompt, and generated translation.
-`maxTokens` limits generated tokens and must be smaller than the context.
-PLaMo configuration cannot exceed the model's 32768-token context.
+For built-in presets, optional `contextSize` includes the input, prompt, and generated translation.
+Optional `maxTokens` further limits generated tokens within the dynamically calculated remaining context.
 An oversized source or incomplete output fails instead of producing a successful truncated file.
 Translate a smaller section when the configured limits are insufficient.
 
@@ -148,27 +181,17 @@ The default cache is `~/.cache/glossshift/models`, or `$XDG_CACHE_HOME/glossshif
 Set `cacheDirectory` to an absolute directory to override it.
 The downloaded file is named with its SHA-256 digest and is verified before loading.
 
-To use the official 2B Q4_K_M model instead, add this model setting:
-
-```json
-{
-  "model": {
-    "uri": "https://huggingface.co/pfnet/plamo-3-translate-2b-GGUF/resolve/4f672106b847200bfdc0f6af6c321cd94eba1aed/plamo-3-translate-2b-Q4_K_M.gguf",
-    "sha256": "1ffd9073afcc70e35ccc942428aa2b73d7aa2b9ea779bf504b775369e0276c13",
-    "prompt": "plamo"
-  }
-}
-```
-
-This model download is approximately 1.81 GB and requires more memory than 0.8B.
 Use `prompt: "plamo"` for PLaMo 3 translation models.
 For another single-file GGUF, use `prompt: "chat"` only if its metadata provides a valid chat template.
-A custom model needs an HTTPS or `file:` URI and its complete SHA-256 digest.
+A custom `model` object needs `uri`, `sha256`, and `prompt`, with an HTTPS or `file:` URI and its complete SHA-256 digest.
+If that digest is not a known built-in artifact, set `contextSize` explicitly to a supported value for that GGUF.
+Unknown custom artifacts do not inherit the default PLaMo context size.
+A known preset artifact retains its full model context default even when selected through a custom `file:` URI with the same digest.
 Multipart GGUFs are not supported.
 A download URL selects model weights, not a hosted inference endpoint.
 Restart the application after changing settings.
 
-The [official default artifact](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/tree/1cf96ae02133958a20074bfdfab76517bb737d00) and its digest are pinned in `runtime/config.ts`.
+The [official default artifact](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/tree/1cf96ae02133958a20074bfdfab76517bb737d00) and all preset digests are pinned in `runtime/models.ts`.
 
 ### Desktop settings
 
@@ -196,7 +219,7 @@ Use `local.json` for the source language and model settings.
 
 ```text
 gshift
-gshift --tui
+gshift --help
 gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]
 ```
 
@@ -216,8 +239,8 @@ Input/output collisions, duplicate outputs, and unapproved overwrites fail befor
 With `--force`, a symbolic-link output is replaced without modifying its target.
 File output and redirected automatic-color stdout contain no ANSI styling.
 Color adds terminal styling only, not Markdown syntax highlighting.
-Batch stdout is buffered in a private temporary directory until the headless NSH application exits.
-This bridge preserves plain pipe output and the command's exit status because NSH 0.5.0 does not expose parent-process standard handles or arguments.
+The CLI receives arguments, the working directory, and standard streams directly through Node's native process environment.
+No shell capture directory or headless NSH bridge is involved.
 An inference failure can still leave output from earlier completed inputs, but an unfinished translation is not published as a completed file.
 File mode writes only completed translations.
 Diagnostics go to stderr with a nonzero exit status on failure.
@@ -225,12 +248,14 @@ Diagnostics go to stderr with a nonzero exit status on failure.
 ## Development
 
 See [AGENTS.md](./AGENTS.md) for repository structure, architecture, toolchain setup, and validation commands.
-Vite+ owns installation, tasks, formatting, and lint.
-NSH owns application type checking, execution, tests, bundling, and native packaging.
-Configuration and translation execute directly inside NSH through the application's Effect Platform layer.
-Node is used by development tools, not by the installed application.
-The [runtime architecture](./docs/runtime-architecture.md) documents NSH's compatibility limits, the batch output bridge, and the separate Accessibility helper.
-The maintained [upstream difference record](./docs/upstream-differences.md) documents the unchanged NSH release and retained plist validation patch.
+Vite+ owns installation, tasks, formatting, lint, and native CLI tests through Vitest.
+NSH owns GUI execution, tests, bundling, and native packaging.
+The CLI runs `cli/main.ts` on Node.js 26 and uses the declarative Effect 4 command in `runtime/main.ts`.
+The GUI executes shared configuration and translation policy directly inside NSH through the extraction-ready Effect Platform layer.
+The [runtime architecture](./docs/runtime-architecture.md) documents these process and packaging boundaries.
+The maintained [dependency compatibility record](./docs/dependency-compatibility.md) documents the unchanged NSH release and retained plist validation patch.
+GlossShift is an original application, not a fork.
+The [NSH Effect Platform](./platform/README.md) has an explicit, application-independent composition API for reuse in another NSH project.
 
 ## License
 
