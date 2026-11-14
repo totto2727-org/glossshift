@@ -4,7 +4,7 @@ import process from 'process'
 import { Config, ConfigProvider, Console, Effect, FileSystem, Path, Stdio, Stream } from 'effect'
 import { mount, signal, Text } from 'nsh'
 
-import { verifyCompositions } from './composition.fixture.ts'
+import { verifyCompositions } from './composition.test.fixture.ts'
 import * as NshConfigProvider from './NshConfigProvider.ts'
 import * as NshFileSystem from './NshFileSystem.ts'
 import * as NshPath from './NshPath.ts'

@@ -6,23 +6,16 @@
   "include": [
     "App.tsx",
     "App.test.ts",
-    "Tui.test.ts",
     "Inference.test.ts",
-    "InferenceModel.test.ts",
     "InferencePolicy.test.ts",
     "InferenceStorage.test.ts",
     "DesktopConfig.test.ts",
-    "terminal/LocalModel.test.ts",
-    "ui.fixture.tsx",
-    "terminal.fixture.tsx",
+    "ui.test.fixture.tsx",
     "src/**/*.ts",
     "src/**/*.tsx",
     "platform.ts",
     "platform/**/*.ts",
-    "platform/**/*.tsx",
-    "packaging/Acceptance.test.ts",
-    "packaging/**/*fixture.ts",
-    "packaging/acceptance.fixture/**/*.tsx"
+    "platform/**/*.tsx"
   ],
   "exclude": ["node_modules", "tmp", "native", ".nsh"]
 }

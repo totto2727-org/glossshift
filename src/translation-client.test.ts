@@ -4,7 +4,7 @@ import { expect, test } from 'nsh/test'
 import { TranslationError } from '../runtime/config'
 import { RequestId } from './domain'
 import { createTranslationClient } from './translation-client'
-import { translationFixture } from './translation-client.fixture'
+import { translationFixture } from './translation-client.test.fixture'
 
 const request = {
   id: Schema.decodeUnknownSync(RequestId)('direct'),

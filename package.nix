@@ -17,6 +17,7 @@
   glossshift-pnpm-deps,
   glossshift-llama-server,
   glossshift-macos-helper,
+  gshift,
 }:
 
 let
@@ -49,14 +50,6 @@ let
     "${coreutils}/bin/coreutils"
     "${curl}/bin/curl"
   ];
-  batchLauncher = import ./nix/batch-launcher.nix {
-    inherit coreutils jq runtimeEnvironment;
-    shell = stdenvNoCC.shell;
-    host = "@out@/libexec/glossshift/gshift-tui-host";
-    tuiBundle = "@out@/share/glossshift/tui/bundle.js";
-    batchBundle = "@out@/share/glossshift/batch/bundle.js";
-    capabilities = "@out@/share/glossshift/batch/capabilities.json";
-  };
 in
 stdenvNoCC.mkDerivation {
   pname = "glossshift";
@@ -77,7 +70,7 @@ stdenvNoCC.mkDerivation {
     runHook preBuild
     export PATH="${bundleSigner}/bin:$PATH"
     # Official prebuilt hosts receive only the exact installed executables.
-    for manifest in nsh.json terminal/nsh.json batch/nsh.json; do
+    for manifest in nsh.json; do
       jq --arg server '${serverCommand}' --arg helper '${helperCommand}' \
         --argjson tools '${builtins.toJSON systemTools}' '
         del(.rust, .icon) |
@@ -86,12 +79,8 @@ stdenvNoCC.mkDerivation {
       mv "$manifest.new" "$manifest"
     done
     nsh build . --release
-    nsh build terminal --release --out terminal/.nsh/out
-    nsh build batch --release --out batch/.nsh/out
     test ! -e .nsh/rust
-    test ! -e terminal/.nsh/rust
-    test ! -e batch/.nsh/rust
-    for bundle in .nsh/out/bundle.js terminal/.nsh/out/bundle.js batch/.nsh/out/bundle.js; do
+    for bundle in .nsh/out/bundle.js; do
       if grep -q 'glossshift/native' "$bundle"; then
         printf '%s\n' 'Official prebuilt bundles must not import a custom native module.' >&2
         exit 1
@@ -151,22 +140,10 @@ stdenvNoCC.mkDerivation {
   '';
   installPhase = ''
     runHook preInstall
-    mkdir -p "$out/Applications" "$out/bin" "$out/libexec/glossshift" "$out/share/glossshift/tui" "$out/share/glossshift/batch"
+    mkdir -p "$out/Applications" "$out/bin"
     cp -R .nsh/out/GlossShift.app "$out/Applications/GlossShift.app"
     ln -s "$out/Applications/GlossShift.app/Contents/MacOS/GlossShift" "$out/bin/glossshift"
-    ln -s ${nsh}/libexec/nsh/runtime/tui/nsh-tui-host "$out/libexec/glossshift/gshift-tui-host"
-    for item in terminal/.nsh/out/bundle.* terminal/.nsh/out/app.json terminal/.nsh/out/capabilities.json terminal/.nsh/out/assets; do
-      if [ -e "$item" ]; then cp -R "$item" "$out/share/glossshift/tui/"; fi
-    done
-    for item in batch/.nsh/out/bundle.* batch/.nsh/out/app.json batch/.nsh/out/capabilities.json batch/.nsh/out/assets; do
-      if [ -e "$item" ]; then cp -R "$item" "$out/share/glossshift/batch/"; fi
-    done
-    # The official TUI host accepts external JS, not external unsigned bytecode.
-    cat > "$out/bin/gshift" <<'EOF'
-    ${batchLauncher}
-    EOF
-    substituteInPlace "$out/bin/gshift" --replace-fail @out@ "$out"
-    chmod +x "$out/bin/gshift"
+    ln -s ${gshift}/bin/gshift "$out/bin/gshift"
     runHook postInstall
   '';
   # Preserve the official runners' signatures and resource layout.

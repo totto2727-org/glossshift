@@ -1,7 +1,7 @@
 import { Effect, Fiber } from 'effect'
 import { cleanup, mount, signal, Text } from 'nsh'
 
-import { verifyDesktopFiles } from '../desktop-fs.fixture.ts'
+import { verifyDesktopFiles } from '../desktop-fs.test.fixture.ts'
 import { layer } from '../platform.ts'
 
 mount(() => {

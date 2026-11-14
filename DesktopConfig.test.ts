@@ -14,7 +14,7 @@ test('plist round trips ordinary XML bundle metadata inside NSH', () => {
 })
 
 test('official NSH desktop filesystem preserves configuration and autostart safety', async () => {
-  const app = await open('./runtime/cli-host.fixture/Desktop.tsx', { width: 180, height: 30 })
+  const app = await open('./runtime/settings.test/Desktop.tsx', { width: 180, height: 30 })
   try {
     await app.waitUntil(() => !app.shows('Running desktop filesystem acceptance'), { timeout: 90_000 })
     expect(app.texts()).toContain('Desktop filesystem acceptance passed')

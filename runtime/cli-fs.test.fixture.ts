@@ -1,7 +1,8 @@
-import { Effect, FileSystem, Path, Result, Sink, Stdio, Stream } from 'effect'
+import { Array, Effect, FileSystem, Path, Result, Sink, Stdio, Stream } from 'effect'
 
 import { prepareBatch, readSource, writeTranslation } from './cli-files.ts'
-import { parseBatchArgs, runBatch } from './cli.ts'
+import { runBatch } from './cli.ts'
+import type { BatchOptions } from './cli.ts'
 import { TranslationError } from './config.ts'
 
 const equal = (actual: unknown, expected: unknown) => {
@@ -17,15 +18,15 @@ const rejects = <A, E, R>(program: Effect.Effect<A, E, R>, pattern: RegExp) =>
     if (!pattern.test(message)) return yield* Effect.die(new Error(`Unexpected rejection: ${message}`))
   })
 
-/** Real NSH filesystem acceptance with synthetic translation, never a model or a Node process. */
+/** Real native filesystem acceptance with synthetic translation, never model inference. */
 export const verifyCliFiles = Effect.scoped(
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
     const directory = yield* fs.makeTempDirectoryScoped({ prefix: 'cli-acceptance-' })
     const file = (name: string) => path.join(directory, name)
-    const options = (names: ReadonlyArray<string>, ...flags: ReadonlyArray<string>) =>
-      parseBatchArgs([...names, '--lang', 'ja', ...flags])
+    const options = (names: Array.NonEmptyReadonlyArray<string>, force = false) =>
+      Effect.succeed<BatchOptions>({ files: names, language: 'ja', output: 'files', force })
     const guide = file('guide.md')
     const output = file('guide.ja.md')
     const target = file('target.md')
@@ -33,7 +34,7 @@ export const verifyCliFiles = Effect.scoped(
     yield* fs.writeFileString(target, 'TARGET-ORIGINAL')
     yield* fs.symlink(target, output)
     yield* rejects(Effect.flatMap(options([guide]), prepareBatch), /symbolic link/)
-    yield* Effect.flatMap(options([guide], '--force'), prepareBatch)
+    yield* Effect.flatMap(options([guide], true), prepareBatch)
     yield* writeTranslation(output, '# RAW **TEXT**\n<raw>', true, [guide])
     equal((yield* fs.lstat(output)).type, 'File')
     equal(yield* readSource(target), 'TARGET-ORIGINAL')
@@ -41,7 +42,7 @@ export const verifyCliFiles = Effect.scoped(
     yield* rejects(writeTranslation(output, 'NO', false), /AlreadyExists/)
     yield* fs.remove(output)
     yield* fs.link(guide, output)
-    yield* rejects(Effect.flatMap(options([guide], '--force'), prepareBatch), /also an input file/)
+    yield* rejects(Effect.flatMap(options([guide], true), prepareBatch), /also an input file/)
     yield* rejects(writeTranslation(output, 'MUST NOT TRUNCATE', true, [guide]), /also an input file/)
     equal(yield* readSource(guide), '# ORIGINAL\n')
     yield* fs.remove(output)
@@ -68,7 +69,7 @@ export const verifyCliFiles = Effect.scoped(
           }),
         ),
     })
-    yield* runBatch(yield* options([first, second], '--stdout', '--color', 'never'), engine, () =>
+    yield* runBatch({ files: [first, second], language: 'ja', output: 'stdout', color: 'never' }, engine, () =>
       Effect.die('plain output must not highlight'),
     ).pipe(Effect.provide(captured))
     equal(stdout, '<raw># FIRST\n</raw><raw># SECOND\n</raw>')
@@ -85,7 +86,7 @@ export const verifyCliFiles = Effect.scoped(
         ),
     })
     yield* rejects(
-      runBatch(yield* options([first], '--force'), failing, Effect.succeed).pipe(Effect.provide(Stdio.layerTest({}))),
+      runBatch(yield* options([first], true), failing, Effect.succeed).pipe(Effect.provide(Stdio.layerTest({}))),
       /synthetic inference failure/,
     )
     equal(yield* readSource(file('first.ja.md')), '<raw># FIRST\n</raw>')
@@ -96,7 +97,7 @@ export const verifyCliFiles = Effect.scoped(
       /synthetic inference failure/,
     )
     equal(yield* fs.exists(file('failed.ja.md')), false)
-    yield* rejects(Effect.flatMap(options([guide, output], '--force'), prepareBatch), /also an input file/)
+    yield* rejects(Effect.flatMap(options([guide, output], true), prepareBatch), /also an input file/)
     const invalid = file('bad.md')
     yield* fs.writeFile(invalid, new Uint8Array([255]))
     yield* rejects(readSource(invalid), /not valid UTF-8/)

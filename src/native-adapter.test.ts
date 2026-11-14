@@ -8,7 +8,7 @@ import { connectDesktopShortcuts } from './desktop-shortcuts'
 import { RequestId } from './domain'
 import { connectDesktop } from './native-adapter'
 import type { DesktopAdapterOptions } from './native-adapter'
-import { translationFixture } from './translation-client.fixture'
+import { translationFixture } from './translation-client.test.fixture'
 
 export const adapterFixture = Effect.gen(function* () {
   const controls = yield* Queue.bounded<NativeCommand>(8)

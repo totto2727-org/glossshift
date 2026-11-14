@@ -1,1 +1,1 @@
-import './secure.fixture.tsx'
+import './secure.test.fixture.tsx'

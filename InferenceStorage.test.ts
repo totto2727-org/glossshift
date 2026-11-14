@@ -2,7 +2,7 @@ import { Array } from 'effect'
 import { expect, open, test } from 'nsh/test'
 
 test('official NSH filesystem preserves verified cache, resumable retries, and scoped cancellation', async () => {
-  const app = await open('./src/inference-storage.fixture.tsx', { width: 800, height: 640 })
+  const app = await open('./src/inference-storage.test.fixture.tsx', { width: 800, height: 640 })
   try {
     await app.waitUntil(
       () =>

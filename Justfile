@@ -23,17 +23,11 @@ dev:
 run:
     vp run run
 
-tui:
-    vp run tui
-
 build:
     vp run build
 
 test:
     vp run test
-
-test-tui:
-    vp run test-tui
 
 package-app:
     vp run package

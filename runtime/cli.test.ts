@@ -1,18 +1,20 @@
+import * as NodeServices from '@effect/platform-node/NodeServices'
 import { Array, Effect, FileSystem, Option, Path, Result, Sink, Stdio, Stream } from 'effect'
 import { ChildProcessSpawner, make as makeSpawner } from 'effect/process/ChildProcessSpawner'
-import { expect, open, test } from 'nsh/test'
+import { expect, test } from 'vite-plus/test'
 
 import { prepareBatch, readSource } from './cli-files.ts'
+import { verifyCliFiles } from './cli-fs.test.fixture.ts'
 import {
   boundedTranslation,
   colorEnabled,
   highlightMarkdown,
   normalizeLanguage,
-  parseBatchArgs,
   planBatch,
   runBatch,
   targetPath,
 } from './cli.ts'
+import type { BatchOptions } from './cli.ts'
 import { runCli, runProgram } from './main.ts'
 
 test('direct batch help and version require only Stdio and do not initialize configuration or models', async () => {
@@ -31,6 +33,7 @@ test('direct batch help and version require only Stdio and do not initialize con
       runProgram.pipe(
         Effect.scoped,
         Effect.provide(stdio),
+        Effect.provide(NodeServices.layer),
         Effect.provideService(FileSystem.FileSystem, FileSystem.makeNoop({})),
         Effect.provide(Path.layer),
         Effect.provideService(
@@ -39,7 +42,7 @@ test('direct batch help and version require only Stdio and do not initialize con
         ),
       ),
     )
-    expect(output).toContain(argument === '--help' || argument === '-h' ? 'Usage: gshift' : 'gshift 0.2.0\n')
+    expect(output).toContain(argument === '--help' || argument === '-h' ? 'gshift [flags]' : 'gshift v0.2.0\n')
   }
   let output = ''
   await Effect.runPromise(
@@ -55,6 +58,7 @@ test('direct batch help and version require only Stdio and do not initialize con
             ),
         }),
       ),
+      Effect.provide(NodeServices.layer),
       Effect.provideService(FileSystem.FileSystem, FileSystem.makeNoop({})),
       Effect.provide(Path.layer),
       Effect.provideService(
@@ -63,10 +67,15 @@ test('direct batch help and version require only Stdio and do not initialize con
       ),
     ),
   )
-  expect(output).toBe('gshift 0.2.0\n')
+  expect(output).toBe('gshift v0.2.0\n')
 })
 
-const parse = (args: ReadonlyArray<string>) => Effect.runSync(parseBatchArgs(args))
+const files = (files: Array.NonEmptyReadonlyArray<string>, language = 'ja', force = false): BatchOptions => ({
+  files,
+  language,
+  output: 'files',
+  force,
+})
 const fails = <A, E>(effect: Effect.Effect<A, E>) => Result.isFailure(Effect.runSync(Effect.result(effect)))
 
 test('ANSI styling preserves every raw Markdown character and empty output', () => {
@@ -107,37 +116,7 @@ test('source decoding rejects malformed UTF-8 and keeps BOM and raw Markdown whi
   expect(Result.isFailure(invalid)).toBe(true)
 })
 
-test('batch arguments preserve ordered files and normalize the required target language', () => {
-  expect(parse(['first.md', 'second.mbt.md', '--lang', ' JA ', '--stdout'])).toEqual({
-    files: ['first.md', 'second.mbt.md'],
-    language: 'ja',
-    output: 'stdout',
-    color: 'auto',
-  })
-  expect(parse(['-lzh-Hant', '-f', '--', '-document.md'])).toEqual({
-    files: ['-document.md'],
-    language: 'zh-hant',
-    output: 'files',
-    force: true,
-  })
-})
-
-test('batch rejects missing, conflicting, duplicate, and invalid options', () => {
-  for (const args of [
-    [],
-    ['a.md'],
-    ['--lang', 'ja'],
-    ['a.md', '--lang'],
-    ['a.md', '--lang', 'ja', '--force', '--stdout'],
-    ['a.md', '--lang', 'ja', '--color', 'never'],
-    ['a.md', '--lang', 'ja', '--stdout', '--color', 'sometimes'],
-    ['a.md', '--lang', 'ja', '--lang', 'en'],
-    ['a.md', '--lang', 'ja', '--unexpected'],
-  ])
-    expect(fails(parseBatchArgs(args))).toBe(true)
-})
-
-test('language validation preserves the actual ASCII Rust contract', () => {
+test('language validation accepts only ASCII language codes', () => {
   for (const language of ['', ' ', '-ja', 'ja-', '../ja', '日本語', 'ja_JP', 'é', 'K', '\ufeffja']) {
     expect(fails(normalizeLanguage(language))).toBe(true)
   }
@@ -160,7 +139,7 @@ test('sibling paths retain compound extensions and replace only known language s
 })
 
 test('stdout plans accept non-Markdown sources without inventing sibling paths', () => {
-  const plan = Effect.runSync(planBatch(parse(['a.txt', 'b.md', '--lang=en', '--stdout', '--color=never'])))
+  const plan = Effect.runSync(planBatch({ files: ['a.txt', 'b.md'], language: 'en', output: 'stdout', color: 'never' }))
   expect(plan).toEqual([
     { input: 'a.txt', output: Option.none() },
     { input: 'b.md', output: Option.none() },
@@ -171,27 +150,25 @@ test('stdout plans accept non-Markdown sources without inventing sibling paths',
   expect(colorEnabled('never', true)).toBe(false)
 })
 
-// Synthetic filesystem checks cover preflight ordering without a Node runtime in NSH.
+// Synthetic filesystem checks isolate preflight ordering from the operating system.
 const missingFs = FileSystem.makeNoop({ realPath: (path) => Effect.succeed(path), exists: () => Effect.succeed(false) })
-const preflight = (args: ReadonlyArray<string>) =>
-  prepareBatch(parse(args)).pipe(Effect.provideService(FileSystem.FileSystem, missingFs), Effect.provide(Path.layer))
+const preflight = (options: BatchOptions) =>
+  prepareBatch(options).pipe(Effect.provideService(FileSystem.FileSystem, missingFs), Effect.provide(Path.layer))
 
 test('preflight rejects case-folded sibling collisions before model initialization', async () => {
-  const result = await Effect.runPromise(Effect.result(preflight(['guide.md', 'GUIDE.en.md', '--lang', 'ja'])))
+  const result = await Effect.runPromise(Effect.result(preflight(files(['guide.md', 'GUIDE.en.md']))))
   expect(Result.isFailure(result)).toBe(true)
   if (Result.isFailure(result)) expect(result.failure.message).toContain('same output file')
 })
 
 test('preflight rejects a later input output collision even with force', async () => {
-  const result = await Effect.runPromise(
-    Effect.result(preflight(['guide.md', './guide.fr.md', '--lang', 'fr', '--force'])),
-  )
+  const result = await Effect.runPromise(Effect.result(preflight(files(['guide.md', './guide.fr.md'], 'fr', true))))
   expect(Result.isFailure(result)).toBe(true)
   if (Result.isFailure(result)) expect(result.failure.message).toContain('is also an input file')
 })
 
 test('preflight accepts distinct ordered outputs with the synthetic filesystem', async () => {
-  const plan = await Effect.runPromise(preflight(['first.md', 'second.mbt.md', '--lang', 'ja']))
+  const plan = await Effect.runPromise(preflight(files(['first.md', 'second.mbt.md'])))
   expect(plan).toEqual([
     { input: 'first.md', output: Option.some('first.ja.md') },
     { input: 'second.mbt.md', output: Option.some('second.ja.mbt.md') },
@@ -213,7 +190,7 @@ test('plain stdout preserves raw deltas and source Markdown in input order witho
     },
   })
   await Effect.runPromise(
-    runBatch(parse(['first.md', 'second.md', '--lang', 'ja', '--stdout', '--color', 'never']), engine, () =>
+    runBatch({ files: ['first.md', 'second.md'], language: 'ja', output: 'stdout', color: 'never' }, engine, () =>
       Effect.die('plain stdout must not invoke a highlighter'),
     ).pipe(
       Effect.provideService(FileSystem.FileSystem, fs),
@@ -239,7 +216,7 @@ test('color stdout buffers each complete file before highlighting', async () => 
   let highlighted: ReadonlyArray<string> = []
   await Effect.runPromise(
     runBatch(
-      parse(['first.md', 'second.md', '--lang', 'ja', '--stdout', '--color', 'always']),
+      { files: ['first.md', 'second.md'], language: 'ja', output: 'stdout', color: 'always' },
       Effect.succeed({
         settings: { sourceLanguage: 'auto', model: 'synthetic' },
         stream: () => Stream.fromIterable(['# A', '\nB']),
@@ -279,7 +256,7 @@ test('preflight failure does not initialize the model', async () => {
   const result = await Effect.runPromise(
     Effect.result(
       runBatch(
-        parse(['guide.md', 'guide.fr.md', '--lang', 'fr', '--force']),
+        files(['guide.md', 'guide.fr.md'], 'fr', true),
         Effect.sync(() => {
           initialized = true
           return { settings: { sourceLanguage: 'auto', model: 'synthetic' }, stream: () => Stream.empty }
@@ -296,12 +273,6 @@ test('preflight failure does not initialize the model', async () => {
   expect(initialized).toBe(false)
 })
 
-test('official NSH filesystem preserves force, hardlink, symlink, raw file, and ordered stdout behavior', async () => {
-  const app = await open('./cli-host.fixture/App.tsx')
-  try {
-    await app.waitUntil(() => !app.shows('Running CLI filesystem acceptance'), { timeout: 35_000 })
-    expect(app.texts()).toContain('CLI filesystem acceptance passed')
-  } finally {
-    app.dispose()
-  }
+test('native Node filesystem preserves force, hardlink, symlink, raw file, and ordered stdout behavior', async () => {
+  await Effect.runPromise(verifyCliFiles.pipe(Effect.provide(NodeServices.layer)))
 })

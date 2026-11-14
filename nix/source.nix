@@ -16,15 +16,9 @@ lib.fileset.toSource {
     ../App.tsx
     ../nsh.json
     (modules ../src)
-    ../terminal/App.tsx
-    ../terminal/nsh.json
-    ../terminal/tsconfig.json
-    ../batch/App.tsx
-    ../batch/nsh.json
-    ../batch/tsconfig.json
     ../platform.ts
     (lib.fileset.difference (modules ../platform) ../platform/App.tsx)
-    (lib.fileset.difference (modules ../runtime) ../runtime/cli-host.fixture)
+    (lib.fileset.difference (lib.fileset.difference (modules ../runtime) ../runtime/settings.test) ../runtime/main.ts)
     ../runtime/tsconfig.json
     ../packaging/app-icon.png
     ../packaging/GlossShift.icns

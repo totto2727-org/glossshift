@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1";
+    nixpkgs-llama.url = "github:NixOS/nixpkgs/d4f25a3e562008648d45bcf2d70bcc7422cad84e";
     vite-plus = {
       url = "github:ryoppippi/nix-vite-plus";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -10,7 +11,12 @@
   };
 
   outputs =
-    { nixpkgs, vite-plus, ... }:
+    {
+      nixpkgs,
+      nixpkgs-llama,
+      vite-plus,
+      ...
+    }:
     let
       appSystems = [ "aarch64-darwin" ];
       shellSystems = appSystems ++ [ "x86_64-linux" ];
@@ -21,8 +27,10 @@
         };
         nsh = final.callPackage ./nix/nsh.nix { };
         glossshift-source = final.callPackage ./nix/source.nix { };
+        glossshift-cli-source = final.callPackage ./nix/cli-source.nix { };
         glossshift-pnpm-deps = final.callPackage ./nix/pnpm-deps.nix { };
-        glossshift-llama-server = final.callPackage ./nix/llama-server.nix { };
+        glossshift-llama-server =
+          nixpkgs-llama.legacyPackages.${final.stdenv.hostPlatform.system}.llama-cpp;
         glossshift-macos-helper = final.callPackage ./nix/macos-helper.nix { };
         glossshift = final.callPackage ./package.nix { };
         gshift = final.callPackage ./nix/gshift.nix { };
@@ -75,34 +83,12 @@
                 pkgs.glossshift-llama-server
                 pkgs.glossshift-macos-helper
               ];
-              batchLauncher = pkgs.writeTextFile {
-                name = "glossshift-source-batch";
-                executable = true;
-                text = import ./nix/batch-launcher.nix {
-                  inherit (pkgs) coreutils jq;
-                  shell = pkgs.stdenvNoCC.shell;
-                  host = "${pkgs.nsh}/libexec/nsh/runtime/tui/nsh-tui-host";
-                  tuiBundle = ''"$PWD/terminal/.nsh/out/bundle.js"'';
-                  batchBundle = ''"$PWD/batch/.nsh/out/bundle.js"'';
-                  capabilities = ''"$PWD/batch/.nsh/out/capabilities.json"'';
-                  runtimeEnvironment = ''
-                    export GLOSSSHIFT_COREUTILS='${pkgs.coreutils}/bin/coreutils'
-                    export GLOSSSHIFT_CURL='${pkgs.curl}/bin/curl'
-                    export GLOSSSHIFT_LLAMA_SERVER='${pkgs.glossshift-llama-server}/bin/llama-server'
-                    export SSL_CERT_FILE='${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt'
-                  '';
-                };
-              };
             in
             pkgs.mkShell {
               GLOSSSHIFT_LLAMA_SERVER = "llama-server";
               GLOSSSHIFT_MACOS_HELPER = "glossshift-macos-helper";
               GLOSSSHIFT_COREUTILS = "coreutils";
               GLOSSSHIFT_CURL = "curl";
-              GLOSSSHIFT_BATCH_LAUNCHER = "${batchLauncher}";
-              GLOSSSHIFT_TEST_TUI_HOST = "${pkgs.nsh}/libexec/nsh/runtime/tui/nsh-tui-host";
-              GLOSSSHIFT_TEST_COREUTILS = "${pkgs.coreutils}/bin/coreutils";
-              GLOSSSHIFT_TEST_JQ = "${pkgs.jq}/bin/jq";
               SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
               packages =
                 tooling

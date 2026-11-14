@@ -16,86 +16,13 @@ export type BatchOptions = {
 } & ({ readonly output: 'files'; readonly force: boolean } | { readonly output: 'stdout'; readonly color: ColorChoice })
 
 export const normalizeLanguage = (language: string) => {
-  // Lowercase only ASCII, as the retained Rust CLI does.
+  // Language suffixes accept ASCII codes only and normalize them to lowercase.
   const trimmed = String.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '')(language)
   const normalized = String.toLowerCase(trimmed)
   return /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(trimmed)
     ? Effect.succeed(normalized)
     : Effect.fail(cliError('target language must be a non-empty language code'))
 }
-
-/** Parse batch arguments only. The launcher owns no-argument and --tui dispatch. */
-export const parseBatchArgs = (args: ReadonlyArray<string>) =>
-  Effect.gen(function* () {
-    let files: ReadonlyArray<string> = []
-    let language: string | undefined
-    let force = false
-    let stdout = false
-    let color: ColorChoice = 'auto'
-    let colorSpecified = false
-    let positional = false
-    for (let index = 0; index < args.length; index += 1) {
-      const argument = yield* Array.get(args, index).pipe(
-        Option.match({ onNone: () => Effect.fail(cliError('missing argument')), onSome: Effect.succeed }),
-      )
-      if (positional || !String.startsWith('-')(argument) || argument === '-') {
-        files = Array.append(files, argument)
-      } else if (argument === '--') {
-        positional = true
-      } else if (argument === '--force' || argument === '-f') {
-        if (force) return yield* Effect.fail(cliError('--force cannot be used multiple times'))
-        force = true
-      } else if (argument === '--stdout') {
-        if (stdout) return yield* Effect.fail(cliError('--stdout cannot be used multiple times'))
-        stdout = true
-      } else if (
-        argument === '--lang' ||
-        argument === '-l' ||
-        argument === '--color' ||
-        String.startsWith('--lang=')(argument) ||
-        String.startsWith('--color=')(argument) ||
-        (String.startsWith('-l')(argument) && argument.length > 2)
-      ) {
-        const isLanguage =
-          argument === '-l' || String.startsWith('--lang')(argument) || String.startsWith('-l')(argument)
-        const equals = argument.indexOf('=')
-        let value: string
-        if (equals >= 0) value = String.slice(equals + 1)(argument)
-        else if (String.startsWith('-l')(argument) && argument.length > 2) value = String.slice(2)(argument)
-        else {
-          index += 1
-          value = yield* Array.get(args, index).pipe(
-            Option.match({
-              onNone: () => Effect.fail(cliError(`missing value for ${argument}`)),
-              onSome: Effect.succeed,
-            }),
-          )
-          if (String.startsWith('-')(value)) return yield* Effect.fail(cliError(`missing value for ${argument}`))
-        }
-        if (isLanguage) {
-          if (language !== undefined) return yield* Effect.fail(cliError('--lang cannot be used multiple times'))
-          language = value
-        } else {
-          if (colorSpecified) return yield* Effect.fail(cliError('--color cannot be used multiple times'))
-          if (value !== 'auto' && value !== 'always' && value !== 'never') {
-            return yield* Effect.fail(cliError('--color must be auto, always, or never'))
-          }
-          color = value
-          colorSpecified = true
-        }
-      } else return yield* Effect.fail(cliError(`unexpected argument '${argument}'`))
-    }
-    if (!Array.isReadonlyArrayNonEmpty(files))
-      return yield* Effect.fail(cliError('at least one input file is required'))
-    if (language === undefined) return yield* Effect.fail(cliError('--lang is required'))
-    if (force && stdout) return yield* Effect.fail(cliError('--force cannot be used with --stdout'))
-    if (colorSpecified && !stdout) return yield* Effect.fail(cliError('--color requires --stdout'))
-    const normalized = yield* normalizeLanguage(language)
-    const options: BatchOptions = stdout
-      ? { files, language: normalized, output: 'stdout', color }
-      : { files, language: normalized, output: 'files', force }
-    return options
-  })
 
 export const colorEnabled = (color: ColorChoice, stdoutIsTerminal: boolean): boolean =>
   color === 'always' || (color === 'auto' && stdoutIsTerminal)

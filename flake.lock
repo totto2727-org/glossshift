@@ -3,7 +3,10 @@
     "bun2nix": {
       "inputs": {
         "flake-parts": "flake-parts",
-        "nixpkgs": ["vite-plus", "nixpkgs"],
+        "nixpkgs": [
+          "vite-plus",
+          "nixpkgs"
+        ],
         "systems": "systems",
         "treefmt-nix": "treefmt-nix"
       },
@@ -15,10 +18,20 @@
         "rev": "0f2a1f0b6f42cebe3b149bf62d38754c5e0e9729",
         "type": "github"
       },
-      "original": { "owner": "nix-community", "repo": "bun2nix", "type": "github" }
+      "original": {
+        "owner": "nix-community",
+        "repo": "bun2nix",
+        "type": "github"
+      }
     },
     "flake-parts": {
-      "inputs": { "nixpkgs-lib": ["vite-plus", "bun2nix", "nixpkgs"] },
+      "inputs": {
+        "nixpkgs-lib": [
+          "vite-plus",
+          "bun2nix",
+          "nixpkgs"
+        ]
+      },
       "locked": {
         "lastModified": 1782949081,
         "narHash": "sha256-vp6Y/Grm98ESt6ceOkWiHWyZRDV3J1RID4w+6NWK9yA=",
@@ -27,7 +40,11 @@
         "rev": "17c9d6cdfc60c64f4ee8d306f9bc0b4ccb51481e",
         "type": "github"
       },
-      "original": { "owner": "hercules-ci", "repo": "flake-parts", "type": "github" }
+      "original": {
+        "owner": "hercules-ci",
+        "repo": "flake-parts",
+        "type": "github"
+      }
     },
     "nixpkgs": {
       "locked": {
@@ -43,9 +60,26 @@
         "url": "https://flakehub.com/f/NixOS/nixpkgs/0.1"
       }
     },
+    "nixpkgs-llama": {
+      "locked": {
+        "lastModified": 1794386569,
+        "narHash": "sha256-x9sADJvoVG0L6RejZB+/BB4YiGZFBZrfTlhF4uBq1tQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d4f25a3e562008648d45bcf2d70bcc7422cad84e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d4f25a3e562008648d45bcf2d70bcc7422cad84e",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "nixpkgs": "nixpkgs",
+        "nixpkgs-llama": "nixpkgs-llama",
         "vite-plus": "vite-plus"
       }
     },
@@ -58,10 +92,20 @@
         "rev": "6de7bc09397911ce03636afbcf6118745ab2cda0",
         "type": "github"
       },
-      "original": { "owner": "nix-systems", "repo": "triplet", "type": "github" }
+      "original": {
+        "owner": "nix-systems",
+        "repo": "triplet",
+        "type": "github"
+      }
     },
     "treefmt-nix": {
-      "inputs": { "nixpkgs": ["vite-plus", "bun2nix", "nixpkgs"] },
+      "inputs": {
+        "nixpkgs": [
+          "vite-plus",
+          "bun2nix",
+          "nixpkgs"
+        ]
+      },
       "locked": {
         "lastModified": 1784369104,
         "narHash": "sha256-47cxbcZODibHv3rELFQ9vZly0vUNkND/atn/U7HLeb0=",
@@ -70,10 +114,19 @@
         "rev": "df3c0640565d04a0261253cdd89fce78ec50168a",
         "type": "github"
       },
-      "original": { "owner": "numtide", "repo": "treefmt-nix", "type": "github" }
+      "original": {
+        "owner": "numtide",
+        "repo": "treefmt-nix",
+        "type": "github"
+      }
     },
     "vite-plus": {
-      "inputs": { "bun2nix": "bun2nix", "nixpkgs": ["nixpkgs"] },
+      "inputs": {
+        "bun2nix": "bun2nix",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
       "locked": {
         "lastModified": 1793011318,
         "narHash": "sha256-NcOOBVBBIUI2u0bVH5ffRwnAJIg0RqgbgLz9M63r1yQ=",
@@ -82,7 +135,11 @@
         "rev": "bfaa3bc030a46de05e7243fb105e2d5b51f7a254",
         "type": "github"
       },
-      "original": { "owner": "ryoppippi", "repo": "nix-vite-plus", "type": "github" }
+      "original": {
+        "owner": "ryoppippi",
+        "repo": "nix-vite-plus",
+        "type": "github"
+      }
     }
   },
   "root": "root",
