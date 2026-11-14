@@ -1,91 +1,112 @@
 # Runtime architecture
 
-This explanation is for contributors who maintain launchers, process adapters, or Nix packaging.
+This explanation is for contributors who maintain launchers, platform services, or Nix packaging.
 
 ## Process ownership
 
-GlossShift uses official NSH 0.5.0 prebuilt hosts for both desktop and terminal interfaces.
-The TypeScript application does not register a custom Rust module.
-The only application-native code is a small, separate Swift Accessibility helper.
+GlossShift uses unmodified official NSH 0.5.0 prebuilt hosts for desktop, terminal, and noninteractive batch execution.
+Configuration and translation run inside those hosts as TypeScript through an Effect Platform layer.
+The application registers no custom Rust module and does not start a Node runtime.
+The only application-owned native code is a separate Swift Accessibility helper.
 
-| Launch mode | Long-lived processes after the first translation                                       | Additional short-lived processes                        |
-| ----------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Desktop     | Official NSH macOS host, Node TypeScript translation process, official llama-server    | Node configuration bootstrap and Swift selection helper |
-| Terminal UI | Official NSH terminal host, Node TypeScript translation process, official llama-server | Node configuration bootstrap                            |
-| Batch CLI   | Node TypeScript batch process and official llama-server                                | None for Accessibility                                  |
+| Launch mode | Long-lived processes after the first translation                                | Additional processes                                       |
+| ----------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Desktop     | Official NSH macOS host and official llama-server                               | One-shot Swift selection helper and bounded file utilities |
+| Terminal UI | Official NSH terminal host and official llama-server                            | Bounded file utilities                                     |
+| Batch CLI   | Small shell wrapper, official headless terminal host, and official llama-server | Bounded file utilities                                     |
 
-The inference server starts lazily, after the first translation request.
-An idle UI does not load model weights merely to display its initial state.
-Each launch owns its server rather than connecting to a shared background daemon.
+The inference server starts lazily after a translation request.
+An idle UI does not load model weights merely to show its initial state.
+Each launch owns its server instead of connecting to a shared daemon.
 Separate desktop, terminal, and batch launches can therefore load separate model instances and consume additional memory.
+All modes share the Effect AI `LanguageModel`, configuration, prompt policy, and output limits directly.
+There is no translation sidecar or acknowledged JSON transport between UI and translation policy.
 
-The UI and batch modes share the Effect AI `LanguageModel` implementation, model configuration, prompt policy, and output limits.
-The UI process communicates with its translation child through private, acknowledged NDJSON pipes.
-The batch command calls the same translation service directly in its Node process.
+## Effect Platform boundary
+
+`platform/` provides Effect filesystem, path, configuration, standard I/O, and subprocess services using NSH APIs.
+Application policy depends on those services rather than a specific operating-system implementation.
+NSH Promise APIs are confined to adapters and lifted into scoped Effects.
+The controller interrupts the active translation stream on cancellation or replacement.
+The translation scope releases its HTTP request and child resources without waiting for a consumer to acknowledge a delta.
+
+NSH 0.5.0 exposes a subset of Node-compatible modules, not a complete Node process environment.
+Compatibility was checked against the pinned official host, not inferred from generated types alone.
+The matching upstream implementations are [filesystem operations](https://github.com/longbridge/nsh/blob/f4d68f7f9f31eb7b3ecc8a4cbc31096d5c6238a1/crates/nsh-core/src/runtime/fs.rs), [process operations](https://github.com/longbridge/nsh/blob/f4d68f7f9f31eb7b3ecc8a4cbc31096d5c6238a1/crates/nsh-core/src/runtime/process.rs), and the [terminal host](https://github.com/longbridge/nsh/blob/f4d68f7f9f31eb7b3ecc8a4cbc31096d5c6238a1/crates/nsh-tui-host/src/main.rs).
+
+| Capability                           | Observed NSH behavior                                                                                                  | Application boundary                                                                                      |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Incremental SHA-256 and random bytes | Compatible `crypto` operations execute in the official host                                                            | Small authentication values use the compatible module                                                     |
+| HTTP and SSE                         | Fetch body streams support incremental decoding and cancellation                                                       | Direct authenticated loopback HTTP with Effect AI                                                         |
+| Filesystem                           | Whole-file reads are limited to 64 MiB and writes to 8 MiB; streaming handles and secure exclusive creation are absent | Ordinary small files use NSH; packaged curl and coreutils handle model bytes and narrow atomic operations |
+| Child processes                      | Explicit command and environment capabilities, scoped event-based process API                                          | Effect subprocess adapter with bounded streams and cleanup                                                |
+| Parent CLI handles                   | No parent `argv`, `cwd`, `stdout`, or `stderr` handles                                                                 | Explicit argument, working-directory, and output bridge                                                   |
+| Exit status                          | A headless `process.exit(7)` did not produce OS exit status 7                                                          | The wrapper validates an explicit completion status                                                       |
+| Browser XML parser                   | The `plist` browser export expects `DOMParser`, which the official QuickJS host does not provide                       | A narrow package patch routes parsing through its already-declared XML parser dependency                  |
+
+The curl and coreutils adapters execute only configured packaged tools with argument arrays.
+Model bytes never enter the JavaScript heap as a complete GGUF file.
+Executable capabilities are exact strings, so installed manifests and launchers use the same immutable paths.
+Desktop and terminal configuration and cache overrides must also remain inside their manifest's filesystem grants.
+An absolute path does not itself grant access outside the home, application-data, or private temporary roots.
+External utilities do not inherit NSH filesystem enforcement automatically.
+Their adapters must preserve private temporary directories, atomic publication, source-file safety, and bounded output.
+Unsupported Effect operations fail explicitly instead of pretending to supply a complete Node filesystem.
+NSH controls child environments through manifest grants rather than per-spawn overrides.
+The process adapter accepts only compatible inherited values and rejects unsupported overrides, descriptor redirection, and pipelines.
+
+## Batch CLI bridge
+
+The installed `gshift` wrapper sends no-argument and `--tui` invocations to the official interactive host.
+File and option invocations run the same TypeScript policy in the official host's headless mode.
+A private per-invocation directory holds output and completion files.
+The wrapper passes arguments as JSON and the original physical working directory explicitly.
+It forwards captured stdout and stderr after the headless process finishes, then returns the validated application status.
+Thus batch stdout is buffered rather than live-streamed to its parent pipe.
+Host diagnostics and terminal control sequences are not translation stdout.
+Signals terminate the owned host and cleanup removes the wrapper's temporary directory.
 
 ## Accessibility boundary
 
-The desktop TypeScript adapter registers global shortcuts through standard NSH APIs.
-It requests the selected text from `glossshift-macos-helper --selection` before revealing the popup.
-The helper reads the focused application's selection through Apple's ApplicationServices framework, emits one bounded JSON response, and exits.
+The desktop adapter registers shortcuts through standard NSH APIs.
+It requests text from `glossshift-macos-helper --selection` before revealing the popup.
+The helper uses Apple's ApplicationServices framework, emits one bounded JSON response, and exits.
 Its `--permission` command checks permission without requesting it or reading a selection.
-The launcher and response decoder are injected at the TypeScript boundary.
-Another OS can replace this boundary without changing popup state or translation policy.
+The injected launcher and response decoder can be replaced for another operating system without changing translation policy.
 
-The helper does not own a GUI event loop, register shortcuts, simulate copy keystrokes, or modify the clipboard.
-An application that does not expose `AXSelectedText` produces a public failure instead of falling back to simulated `Cmd+C`.
-The terminal and batch modes never start the Accessibility helper.
+The helper does not own a GUI loop, register shortcuts, simulate copy keystrokes, or modify the clipboard.
+An application without `AXSelectedText` produces a public failure instead of a simulated `Cmd+C` fallback.
+Terminal and batch modes never start this helper.
+Swift uses Apple's supported APIs directly without a third-party Objective-C bridge or a custom NSH host rebuild.
+Nix compiles the helper separately, so TypeScript-only changes do not rebuild it.
 
-Swift keeps this layer small because it can use Apple's supported APIs directly.
-It avoids a third-party Objective-C bridge, manually maintained Go FFI structures, and a full NSH Rust host rebuild.
-Nix supplies the Swift build environment and compiles the helper as a separate derivation.
-A TypeScript-only change does not rebuild that derivation.
+## Local inference and model storage
 
-## Local inference boundary
-
-The translation service starts the exact packaged `llama-server` b12110 executable and its matching Metal libraries.
+The translation service starts packaged `llama-server` b12110 and matching Metal libraries.
 Nix fetches the official macOS arm64 archive by hash rather than compiling llama.cpp.
 There is no gollama fork, direct llama FFI, or native Node addon.
-
-The server listens only on `127.0.0.1` with a kernel-selected port.
-A random per-launch authentication key is stored in a private temporary file, not passed as a secret command-line argument.
-The TypeScript adapter waits for readiness and uses authenticated HTTP and SSE.
-Cancellation aborts the active HTTP request, and the owning scope terminates the server at shutdown.
-Server diagnostics do not enter translation stdout or public error messages.
-
-PLaMo translation uses trusted PFML special tokens and separately tokenized source text.
-The service rejects unsupported languages, input context overflow, and incomplete output caused by token limits.
-It does not report a partial file as a completed translation.
-
-## Model storage and network
+The server binds only to `127.0.0.1` on a kernel-selected port.
+A per-launch random authentication key is stored in a private temporary file, not a secret command-line argument.
+Server diagnostics do not enter translation stdout or public errors.
 
 The first translation downloads the pinned official PLaMo 3 Translate 0.8B GGUF into the user's cache.
-The complete file must match its configured SHA-256 before inference.
+The complete artifact must match its configured SHA-256 before inference.
 A verified cache hit does not contact the model host.
-The download endpoint supplies weights only, not hosted inference.
-Selected text and translation prompts stay on the Mac.
+The endpoint supplies weights only, not hosted inference; source text and prompts stay on the Mac.
 Larger single-file GGUF models can be selected in `local.json` with an explicit URI, digest, and prompt format.
-
-## Why Node remains
-
-Node executes the shared TypeScript translation and batch application code.
-It provides incremental file hashing, large-file streams, subprocess control, and ordinary CLI arguments and output.
-NSH's UI runtime is QuickJS, not Node, so it does not load Node APIs in the UI process.
-Its pinned public APIs do not provide a drop-in noninteractive batch host with the same file and stdio contract.
-Replacing Node with a new application-owned JS host would add a runtime to maintain.
-Moving the translation policy into Go or Swift would also discard the TypeScript and Effect boundary.
-Node therefore remains an explicit packaging dependency, without native inference bindings.
+PFML trusted tokens and untrusted source are tokenized separately.
+Unsupported languages, context overflow, and incomplete output fail instead of publishing successful truncated files.
 
 ## Build boundaries
 
-- Vite+ installs dependencies, checks format and lint, and dispatches tasks.
-- Official NSH commands perform application checking, execution, tests, bundling, and packaging.
-- Nix builds the Swift helper independently and fetches official NSH and llama.cpp binaries by hash.
+- Vite+ installs dependencies, checks formatting and lint, and dispatches tasks.
+- Official NSH commands check, run, test, bundle, and package the application.
+- Nix builds the small Swift helper separately and fetches official NSH and llama.cpp binaries by hash.
 - Application packaging does not run Cargo or compile C++ inference code.
-- Model weights remain outside the Nix store and are not part of build-time network access.
+- Node remains a development-tool dependency, not an application runtime dependency.
+- Model weights remain outside the Nix store and are not fetched during a build.
 
-Nix also generates a small native executable wrapper so the macOS app has a signable Mach-O entry point.
-The wrapper executes the audited launch script, which replaces itself with the official NSH host.
-It adds no long-lived process or custom UI runtime.
-
-See [Upstream differences](./upstream-differences.md) for exact upstream pins and the retained plist parser patch.
+Nix also generates a tiny native wrapper to provide a signable Mach-O macOS entry point.
+It runs the audited launch script, which replaces itself with the official NSH host.
+The script lives under Resources to preserve the macOS bundle resource seal.
+See [Upstream differences](./upstream-differences.md) for exact release pins and the retained plist validation patch.

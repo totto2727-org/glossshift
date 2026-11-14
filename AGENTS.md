@@ -10,22 +10,23 @@ src/ports.ts                Injectable native services and public settings
 src/                        NSH views, process adapters, and application tests
 terminal/App.tsx            Rust-free entry with its own NSH manifest and generated types
 src/desktop-controls.ts     Standard NSH clipboard, window, application, and tray APIs
-src/terminal-adapter.ts     Node settings and local translation without a native module
+src/terminal-adapter.ts     Direct Effect translation without desktop services
 helper/Selection.swift      Injectable macOS Accessibility selection boundary
 helper/main.swift           One-shot JSON command entry
 nix/macos-helper.nix        Small Swift helper build and synthetic contract tests
 nix/llama-server.nix        Fixed official inference executable and sibling libraries
-node/main.ts                Node batch, private sidecar, and settings entry
-node/desktop-config.ts      Non-destructive TOML settings and validation
-node/autostart.ts           Safe macOS LaunchAgent file operations
-node/translation.ts         Scoped Effect AI local translation service
-node/model.ts               Verified automatic GGUF download and cache reuse
-node/server.ts              Private llama-server process lifetime and authentication
-node/server-api.ts          Validated loopback HTTP and bounded SSE
-node/generation.ts          Bounded generation and prompt tokenization
-node/prompt.ts              PFML3 prompt and supported-language validation
-node/config.ts              Local model settings and pinned default artifact
-node/sidecar.ts             Acknowledged private NDJSON transport
+runtime/main.ts             Shared batch and desktop command policy
+batch/App.tsx               Official headless batch entry and explicit completion status
+platform/                   Effect services backed by NSH and bounded file utilities
+runtime/desktop-config.ts      Non-destructive TOML settings and validation
+runtime/autostart.ts           Safe macOS LaunchAgent file operations
+runtime/translation.ts         Scoped Effect AI local translation service
+runtime/model.ts               Verified automatic GGUF download and cache reuse
+runtime/server.ts              Private llama-server process lifetime and authentication
+runtime/server-api.ts          Validated loopback HTTP and bounded SSE
+runtime/generation.ts          Bounded generation and prompt tokenization
+runtime/prompt.ts              PFML3 prompt and supported-language validation
+runtime/config.ts              Local model settings and pinned default artifact
 nsh.json                    Application identity, narrow capabilities, and window defaults
 vite.config.ts              Vite+ formatting, lint, and delegated task definitions
 pnpm-workspace.yaml         Catalog, package-manager policy, and release-age safeguards
@@ -39,31 +40,32 @@ Justfile                    Compatibility aliases into Vite+ tasks
 ## Development commands
 
 Run commands from the repository root.
-Enter `nix develop` to prepare the pinned official NSH 0.5.0 CLI and terminal component, Node, the Swift helper, the official llama-server, and Vite+.
+Enter `nix develop` to prepare the pinned official NSH 0.5.0 CLI and terminal component, development tools, the Swift helper, the official llama-server, curl, coreutils, and Vite+.
 Keep the CLI and terminal component on the same exact release revision with content hashes.
 Then install JavaScript dependencies with `vp install --frozen-lockfile`.
-Both application manifests omit `rust`, so NSH uses its official prebuilt hosts.
+All application manifests omit `rust`, so NSH uses its official prebuilt hosts.
 Do not add custom Rust host dependencies or generated source checkouts to restore an API that a separate helper or the standard JS API can provide.
 
-| Command                                  | Responsibility                                                                            |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                                           |
-| `vp run check`                           | Check formatting and lint without a second typechecker.                                   |
-| `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                                    |
-| `vp run typecheck`                       | Check desktop, independent terminal, and Node projects through NSH's TypeScript compiler. |
-| `vp run dev`                             | Delegate development and reload to NSH's macOS host.                                      |
-| `vp run run`                             | Run the application through NSH.                                                          |
-| `vp run build-tui`                       | Bundle the independent terminal application without compiling custom Rust.                |
-| `vp run build`                           | Produce the NSH release bundle, not an installable application.                           |
-| `vp run package`                         | Package the native macOS application through NSH.                                         |
-| `vp run test`                            | Run application tests through the official NSH test host.                                 |
-| `vp run tui`                             | Run the shared TS application through NSH's official terminal host.                       |
-| `vp run test-tui`                        | Run the dedicated terminal interaction suite through NSH's official TestBackend.          |
-| `vp run test-node`                       | Run isolated Node engine tests through an official NSH process fixture.                   |
-| `vp run test-cli`                        | Check batch contracts and real filesystem behavior through NSH.                           |
-| `vp run test-local-model`                | Opt in to production TUI translation with real model weights and isolated configuration.  |
-| `vp run cli -- FILES... --lang LANGUAGE` | Run the Node TypeScript batch CLI.                                                        |
-| `vp run ci`                              | Run the minimal formatting and lint gate.                                                 |
+| Command                                  | Responsibility                                                                           |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                                          |
+| `vp run check`                           | Check formatting and lint without a second typechecker.                                  |
+| `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                                   |
+| `vp run typecheck`                       | Check desktop, terminal, runtime, and batch projects through NSH's TypeScript compiler.  |
+| `vp run dev`                             | Delegate development and reload to NSH's macOS host.                                     |
+| `vp run run`                             | Run the application through NSH.                                                         |
+| `vp run build-tui`                       | Bundle the independent terminal application without compiling custom Rust.               |
+| `vp run build`                           | Produce the NSH release bundle, not an installable application.                          |
+| `vp run package`                         | Package the native macOS application through NSH.                                        |
+| `vp run test`                            | Run application tests through the official NSH test host.                                |
+| `vp run tui`                             | Run the shared TS application through NSH's official terminal host.                      |
+| `vp run test-tui`                        | Run the dedicated terminal interaction suite through NSH's official TestBackend.         |
+| `vp run test-platform`                   | Exercise isolated filesystem, configuration, process, and capture boundaries in NSH.     |
+| `vp run test-inference`                  | Check compatible crypto and direct HTTP/SSE behavior in NSH.                             |
+| `vp run test-cli`                        | Check batch contracts and real filesystem behavior through NSH.                          |
+| `vp run test-local-model`                | Opt in to production TUI translation with real model weights and isolated configuration. |
+| `vp run cli -- FILES... --lang LANGUAGE` | Run the shared batch policy in the official headless NSH host.                           |
+| `vp run ci`                              | Run the minimal formatting and lint gate.                                                |
 
 Vite+ owns installation, task orchestration, formatting, and lint only.
 Do not introduce Vite bundling, `vp pack`, Vitest, or a standalone TypeScript compiler as an alternative application toolchain.
@@ -97,14 +99,16 @@ Do not reintroduce an application CSS stylesheet, a custom Markdown parser, or a
 
 TypeScript owns translation, model selection, automatic download, prompt formatting, streaming, cancellation, and the batch CLI.
 Use the real `effect/ai` `LanguageModel` adapter for the packaged official llama-server instead of a decorative AI dependency.
-NSH runs QuickJS, so Node APIs stay in a dedicated TypeScript process.
-The Node runtime remains necessary for the current shared batch interface, file streams, and incremental model hashing.
-Do not add a custom JavaScript host solely to remove Node.
-Keep Node imports out of the NSH application dependency graph.
-Connect that process with private, schema-validated NDJSON over stdin and stdout.
-Acknowledge started and delta frames only after the consumer takes them, and keep cancellation independent of a full stream queue.
+Run configuration and translation directly in NSH through the reusable Effect Platform layer.
+Use compatible NSH modules only where their behavior has been verified in the official host.
+NSH 0.5.0 is not a complete Node runtime: large-file streams, secure exclusive filesystem creation, and parent CLI handles are missing.
+Use fixed packaged curl/coreutils commands for bounded model I/O and narrow atomic file operations.
+Do not load a complete GGUF into the JS heap or emulate streaming by reading the whole file.
+Unsupported Platform methods must fail explicitly.
+No runtime Node process, custom JavaScript host, or custom Rust module is required.
+Preserve scoped stream backpressure and independent cancellation without a JSON sidecar protocol.
 Write download notices and diagnostics to stderr, never to the protocol or batch translation stdout.
-Application teardown must release the private translation process, active HTTP request, and owned inference server.
+Application teardown must release the active HTTP request and owned inference server.
 The server binds only to `127.0.0.1` on a kernel-selected port.
 Use a new random authentication key for each server, stored in a private temporary file rather than a command-line argument.
 Keep server diagnostics out of protocol stdout and public failures.
@@ -129,7 +133,7 @@ Return stable public error codes rather than native error details.
 Capture the previous application's selection before showing or activating the popup.
 Keep the process launcher injectable so another OS implementation can replace it.
 
-Node owns desktop configuration parsing, validation, default-file creation, and autostart file operations.
+TypeScript owns desktop configuration parsing, validation, default-file creation, and autostart file operations inside NSH.
 Standard clipboard, window, application, shortcut, and tray controls use NSH's JavaScript APIs.
 The installed launchers set immutable executable paths rather than depending on the caller's working directory.
 Grant only the required executables in NSH's process capabilities.
@@ -142,9 +146,9 @@ A delayed old scope must not unregister a newer scope's resources.
 
 Use the official NSH TUI backend, not a second terminal renderer.
 Use the separate `terminal/App.tsx` entry and `terminal/nsh.json` without a `rust` declaration.
-Do not import `glossshift/native`, a Node builtin, or a native Node addon into the terminal dependency graph.
+Do not import `glossshift/native`, unsupported Node APIs, or a native Node addon into the terminal dependency graph.
 The terminal entry uses NSH's official prebuilt host and must not generate a `terminal/.nsh/rust` workspace.
-Pass the Node command and absolute entry through the narrowly granted `GLOSSSHIFT_NODE_COMMAND` and `GLOSSSHIFT_NODE_ENTRY` environment variables.
+Use the same injected NSH Platform services as the desktop entry.
 The installed launcher sets immutable paths and overrides caller-supplied values.
 Share the Effect controller, local translation transport, Markdown/plain behavior, and raw-copy semantics with the desktop app.
 Inject typed terminal input instead of capturing another application's selection.
@@ -168,9 +172,9 @@ Background startup must not briefly activate and hide a window.
 
 ## Configuration
 
-Node reads `~/.config/glossshift/config.toml`, honoring `XDG_CONFIG_HOME`, for window and shortcut settings.
+TypeScript in NSH reads `~/.config/glossshift/config.toml`, honoring `XDG_CONFIG_HOME`, for window and shortcut settings.
 The desktop TypeScript adapter converts configured shortcuts to NSH's standard shortcut notation before registration.
-Node reads local translation settings from `~/.config/glossshift/local.json`, honoring `XDG_CONFIG_HOME` or the explicit absolute `GLOSSSHIFT_CONFIG` path.
+TypeScript in NSH reads local translation settings from `~/.config/glossshift/local.json`, honoring `XDG_CONFIG_HOME` or the explicit absolute `GLOSSSHIFT_CONFIG` path.
 The local model cache honors `XDG_CACHE_HOME` and can be changed in local settings.
 Do not read or modify `~/.agents` or legacy provider credentials.
 Treat configuration, shortcuts, native selection, process frames, model metadata, and model output as untrusted boundary input.
@@ -180,12 +184,17 @@ Real default-model tests must disclose the network download and distinguish infe
 ## CLI contract
 
 `gshift` without arguments, or with `--tui`, starts the official NSH terminal host in the installed package.
-The wrapper forwards file and option invocations to the Node TypeScript batch entry.
+The wrapper forwards file and option invocations to the official headless host and shared TypeScript batch entry.
+Pass arguments as JSON and the original working directory explicitly.
+Resolve relative inputs through the injected Path service before filesystem calls.
+Capture stdout, stderr, and completion status in a private wrapper-owned directory, then validate and return the status.
+Never forward host diagnostics or terminal control sequences as translation stdout.
 `gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]` retains its existing behavior.
 Resolve every sibling output and reject input/output collisions before loading configuration or a model.
 Preserve ordered `.md` and `.mbt.md` processing, normalized language suffixes, and safe forced replacement of symlinks without changing their targets.
 File outputs and redirected automatic-color stdout must remain free of ANSI escapes.
-Plain stdout streams local model deltas without inserted separators.
+Batch stdout is buffered until the headless process completes; do not describe it as parent-pipe streaming.
+The captured plain translations contain no inserted separators.
 Terminal automatic color and forced color buffer each completed translation before rendering.
 Color styles the complete output without parsing Markdown or adding syntax highlighting.
 Desktop, terminal UI, and batch CLI share the same local model, source language, prompt format, and token limits.
@@ -195,7 +204,7 @@ Desktop, terminal UI, and batch CLI share the same local model, source language,
 - Run application behavior tests through NSH, not Node or a copied controller harness.
 - Check real Vite+ task delegation, official prebuilt host selection, native packaging, and the retained CLI independently.
 - A successful NSH bundle is not proof that the native application, CLI package, or Nix derivation works.
-- Use protocol fixtures for deterministic cancellation and backpressure checks, then exercise real GGUF inference through the actual Node entry.
+- Use injected stream fixtures for deterministic cancellation and backpressure checks, then exercise real GGUF inference through installed NSH batch and TUI entries.
 - Verify installed Nix executables start the packaged server and translate with the real model, not just that packaging completes.
 - Distinguish synthetic protocol tests from actual model inference and headless layout from native visual review.
 - If Accessibility or screen permissions block an end-user check, report the boundary and stop attempts to bypass it.

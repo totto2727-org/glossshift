@@ -40,7 +40,7 @@ Translate Markdown files in the supplied order:
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
-# Stream plain output without creating sibling files:
+# Write plain output without creating sibling files:
 gshift document.md --lang en --stdout --color never
 ```
 
@@ -75,7 +75,8 @@ Text is processed on the Mac, not sent to a hosted inference service.
 - Enough available memory for the chosen model and context.
 - Accessibility permission only for desktop selection capture.
 
-The Nix package includes Node, the official `llama-server` b12110 executable with its Metal libraries, and the Swift helper.
+The Nix package includes official NSH hosts, the `llama-server` b12110 executable with its Metal libraries, a small Swift helper, and bounded file utilities.
+The application does not require Node at runtime.
 No compiler, native Node addon, or engine download is required on first use.
 Model weights stay in the user's cache rather than the Nix store.
 The inference server is private to the application, listens only on loopback, and uses a new authentication key per launch.
@@ -167,7 +168,7 @@ Multipart GGUFs are not supported.
 A download URL selects model weights, not a hosted inference endpoint.
 Restart the application after changing settings.
 
-The [official default artifact](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/tree/1cf96ae02133958a20074bfdfab76517bb737d00) and its digest are pinned in `node/config.ts`.
+The [official default artifact](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/tree/1cf96ae02133958a20074bfdfab76517bb737d00) and its digest are pinned in `runtime/config.ts`.
 
 ### Desktop settings
 
@@ -215,7 +216,9 @@ Input/output collisions, duplicate outputs, and unapproved overwrites fail befor
 With `--force`, a symbolic-link output is replaced without modifying its target.
 File output and redirected automatic-color stdout contain no ANSI styling.
 Color adds terminal styling only, not Markdown syntax highlighting.
-Plain stdout streams deltas, so an inference failure can leave partial text in a pipeline.
+Batch stdout is buffered in a private temporary directory until the headless NSH application exits.
+This bridge preserves plain pipe output and the command's exit status because NSH 0.5.0 does not expose parent-process standard handles or arguments.
+An inference failure can still leave output from earlier completed inputs, but an unfinished translation is not published as a completed file.
 File mode writes only completed translations.
 Diagnostics go to stderr with a nonzero exit status on failure.
 
@@ -224,8 +227,9 @@ Diagnostics go to stderr with a nonzero exit status on failure.
 See [AGENTS.md](./AGENTS.md) for repository structure, architecture, toolchain setup, and validation commands.
 Vite+ owns installation, tasks, formatting, and lint.
 NSH owns application type checking, execution, tests, bundling, and native packaging.
-The Node translation process runs TypeScript directly and shares its service with the batch CLI.
-The [runtime architecture](./docs/runtime-architecture.md) describes process ownership and the separate Accessibility helper.
+Configuration and translation execute directly inside NSH through the application's Effect Platform layer.
+Node is used by development tools, not by the installed application.
+The [runtime architecture](./docs/runtime-architecture.md) documents NSH's compatibility limits, the batch output bridge, and the separate Accessibility helper.
 The maintained [upstream difference record](./docs/upstream-differences.md) documents the unchanged NSH release and retained plist validation patch.
 
 ## License
