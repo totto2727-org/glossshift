@@ -50,6 +50,16 @@ export default defineConfig({
       'test-tui': { command: nsh('test terminal/Tui.test.ts --target tui'), cache: false },
       'test-local-model': { command: nsh('test InferenceModel.test.ts --target tui'), cache: false },
       'test-cli': { command: nsh('test runtime/cli.test.ts --target tui'), cache: false },
+      'test-helper': {
+        command:
+          'mkdir -p tmp/helper-tests && swiftc -module-cache-path "$PWD/tmp/helper-tests/module-cache" helper/Selection.swift helper/tests/SelectionTests.swift -o tmp/helper-tests/selection-tests && tmp/helper-tests/selection-tests',
+        cache: false,
+      },
+      'test-packaging': {
+        command: `GLOSSSHIFT_TEST_ROOT="$PWD" GLOSSSHIFT_TEST_BATCH_BUNDLE="$PWD/batch/.nsh/out/bundle.js" ${nsh('test packaging/Acceptance.test.ts --target tui')}`,
+        dependsOn: ['build-batch'],
+        cache: false,
+      },
       package: { command: nsh('package . --target macos'), cache: false },
       cli: {
         command: `sh -c 'if [ "$1" = "--" ]; then shift; fi; if [ "$#" -eq 0 ] || [ "$1" = "--tui" ]; then [ "$#" -eq 0 ] || shift; exec nsh run terminal --target tui "$@"; else nsh build batch --release --out batch/.nsh/out >&2 && exec "\${GLOSSSHIFT_BATCH_LAUNCHER:?Run nix develop to prepare the batch launcher}" "$@"; fi' --`,

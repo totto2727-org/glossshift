@@ -17,8 +17,12 @@
     "terminal.fixture.tsx",
     "src/**/*.ts",
     "src/**/*.tsx",
+    "platform.ts",
     "platform/**/*.ts",
-    "platform/**/*.tsx"
+    "platform/**/*.tsx",
+    "packaging/Acceptance.test.ts",
+    "packaging/**/*fixture.ts",
+    "packaging/acceptance.fixture/**/*.tsx"
   ],
   "exclude": ["node_modules", "tmp", "native", ".nsh"]
 }

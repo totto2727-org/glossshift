@@ -1,0 +1,17 @@
+{
+  "name": "GlossShiftLauncherAcceptance",
+  "id": "com.totto2727.glossshift.launcher-acceptance",
+  "capabilities": {
+    "fs": { "read": ["${homeDir}", "${dataDir}", "/nix/store"], "write": ["${dataDir}"] },
+    "process": {
+      "execute": ["/bin/sh"],
+      "env": [
+        "GLOSSSHIFT_TEST_ROOT",
+        "GLOSSSHIFT_TEST_BATCH_BUNDLE",
+        "GLOSSSHIFT_TEST_TUI_HOST",
+        "GLOSSSHIFT_TEST_COREUTILS",
+        "GLOSSSHIFT_TEST_JQ"
+      ]
+    }
+  }
+}

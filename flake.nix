@@ -100,12 +100,16 @@
               GLOSSSHIFT_COREUTILS = "coreutils";
               GLOSSSHIFT_CURL = "curl";
               GLOSSSHIFT_BATCH_LAUNCHER = "${batchLauncher}";
+              GLOSSSHIFT_TEST_TUI_HOST = "${pkgs.nsh}/libexec/nsh/runtime/tui/nsh-tui-host";
+              GLOSSSHIFT_TEST_COREUTILS = "${pkgs.coreutils}/bin/coreutils";
+              GLOSSSHIFT_TEST_JQ = "${pkgs.jq}/bin/jq";
               SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
               packages =
                 tooling
                 ++ [
                   pkgs.nodejs_26
                   pkgs.nsh
+                  pkgs.swift
                 ]
                 ++ runtimeTools;
               shellHook = ''

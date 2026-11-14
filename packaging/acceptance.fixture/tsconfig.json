@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["App.tsx", "../Acceptance.test.ts", "../*.fixture.ts", "../../batch/entry-acceptance.fixture.ts"],
+  "exclude": []
+}
