@@ -3,8 +3,8 @@ import process from 'process'
 
 import { Cause, Effect, FileSystem, Option, Stdio, Stream } from 'effect'
 
-import { layer } from '../platform/index.ts'
 import { runProgram } from '../runtime/main.ts'
+import { layer } from '../runtime/platform.ts'
 
 /** The wrapper owns capture paths and publishes output only after this process finishes. */
 const program = Effect.gen(function* () {

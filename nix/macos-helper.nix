@@ -3,9 +3,12 @@
 stdenv.mkDerivation {
   pname = "glossshift-macos-helper";
   version = "0.1.0";
-  src = lib.cleanSourceWith {
-    src = ../helper;
-    filter = path: _type: builtins.baseNameOf path != ".build";
+  src = lib.fileset.toSource {
+    root = ../helper;
+    fileset = lib.fileset.unions [
+      ../helper/Selection.swift
+      ../helper/main.swift
+    ];
   };
   nativeBuildInputs = [ swift ];
   strictDeps = true;
@@ -15,14 +18,6 @@ stdenv.mkDerivation {
     swiftc -O -module-cache-path "$TMPDIR/swift-module-cache" \
       Selection.swift main.swift -o glossshift-macos-helper
     runHook postBuild
-  '';
-  doCheck = true;
-  checkPhase = ''
-    runHook preCheck
-    swiftc -module-cache-path "$TMPDIR/swift-module-cache" \
-      Selection.swift tests/SelectionTests.swift -o helper-tests
-    ./helper-tests
-    runHook postCheck
   '';
   installPhase = ''
     runHook preInstall

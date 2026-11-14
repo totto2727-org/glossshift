@@ -1,8 +1,8 @@
 import { Effect } from 'effect'
 
-import { layer } from '../platform'
 import { loadConfig } from '../runtime/config'
 import { loadDesktopConfig } from '../runtime/desktop-config'
+import { layer } from '../runtime/platform.ts'
 import { makeTranslation } from '../runtime/translation'
 import type { Fault } from './ports'
 
@@ -18,7 +18,7 @@ export const loadApplicationServices = Effect.gen(function* () {
     Effect.flatMap(makeTranslation),
     Effect.mapError((): Fault => ({
       _tag: 'ActionRequired',
-      message: 'Local model settings could not be loaded. Check local.json.',
+      message: 'Local model settings could not be loaded. Check model selection and optional local.json.',
     })),
   )
   return { configuration, translation }

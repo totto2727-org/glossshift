@@ -4,8 +4,14 @@ import { Deferred, Effect, Fiber, FileSystem, Option, Stdio, Stream } from 'effe
 import { ChildProcess } from 'effect/process'
 import { mount, signal, Text } from 'nsh'
 
+import { layer, NshStdio } from '../platform.ts'
 import { append } from './capture-output.ts'
-import { layer, NshStdio } from './index.ts'
+
+const platform = layer({
+  cwd: process.dataDir ?? '/',
+  coreutils: 'coreutils',
+  temporaryDirectory: process.dataDir ?? undefined,
+})
 
 const checkDelayedCaptureRelease = (writeFails: boolean) =>
   Effect.gen(function* () {
@@ -14,7 +20,7 @@ const checkDelayedCaptureRelease = (writeFails: boolean) =>
     let onExit: (result: import('process').ExitResult) => void = () => {
       throw new Error('Missing exit listener')
     }
-    const task = yield* append('/synthetic-capture', 'synthetic', () => ({
+    const task = yield* append('/synthetic-capture', 'synthetic', 'coreutils', () => ({
       on: (_event, handler) => {
         onExit = handler
       },
@@ -48,13 +54,25 @@ mount(() => {
         yield* checkDelayedCaptureRelease(false)
         yield* checkDelayedCaptureRelease(true)
         const fs = yield* FileSystem.FileSystem
-        const executable = process.env['GLOSSSHIFT_COREUTILS']
-        if (executable === undefined) return yield* Effect.die('Packaged executable missing')
+        const executable = 'coreutils'
+        for (const options of [
+          { stdin: 'ignore' as const, env: {} },
+          { stdin: 'ignore' as const, killSignal: 'SIGKILL' as const },
+          { stdin: 'ignore' as const, detached: false },
+          { stdin: 'ignore' as const, detached: true },
+          { stdin: 'ignore' as const, env: { STANDALONE_OVERRIDE: 'ungranted' }, extendEnv: true },
+        ]) {
+          const unsupported = yield* Effect.result(
+            Effect.scoped(ChildProcess.make(executable, ['--coreutils-prog=true'], options)),
+          )
+          if (unsupported._tag !== 'Failure') return yield* Effect.die('Unsupported child semantics were ignored')
+        }
         const child = yield* ChildProcess.make(executable, ['--coreutils-prog=printf', '%s', 'synthetic-child'], {
           stdin: 'ignore',
           stdout: 'pipe',
           stderr: 'pipe',
           env: {},
+          extendEnv: true,
         })
         const [childOutput, , code] = yield* Effect.all(
           [
@@ -155,12 +173,43 @@ mount(() => {
           if (yield* io.stdoutIsTerminal) return yield* Effect.die('Redirected capture reported a terminal')
           yield* Stream.run(Stream.make('first ', 'こんにちは\n'), io.stdout())
           yield* Stream.run(Stream.make('diagnostic'), io.stderr())
-        }).pipe(Effect.provide(NshStdio.capture({ args: ['synthetic'], stdout, stderr, stdoutIsTerminal: false })))
+        }).pipe(
+          Effect.provide(
+            NshStdio.capture({ args: ['synthetic'], stdout, stderr, stdoutIsTerminal: false, coreutils: executable }),
+          ),
+        )
         yield* Effect.gen(function* () {
           const io = yield* Stdio.Stdio
           if (!(yield* io.stdoutIsTerminal)) return yield* Effect.die('Explicit terminal capture lost TTY status')
-        }).pipe(Effect.provide(NshStdio.capture({ args: [], stdout, stderr, stdoutIsTerminal: true })))
-        if ((yield* fs.readFileString(stdout)) !== 'first こんにちは\n')
+        }).pipe(
+          Effect.provide(NshStdio.capture({ args: [], stdout, stderr, stdoutIsTerminal: true, coreutils: executable })),
+        )
+        const encoded = new TextEncoder().encode('分割')
+        yield* Effect.gen(function* () {
+          const io = yield* Stdio.Stdio
+          yield* Stream.run(Stream.make(encoded.slice(0, 1), encoded.slice(1, 4), encoded.slice(4)), io.stdout())
+          const input = yield* io.stdin.pipe(Stream.decodeText(), Stream.runCollect)
+          if (input.length !== 1 || input[0] !== 'synthetic こんにちは')
+            return yield* Effect.die('Explicit capture stdin lost bytes')
+        }).pipe(Effect.provide(NshStdio.capture({ args: [], stdout, stderr, stdin: file, coreutils: executable })))
+        const missingInput = yield* Effect.gen(function* () {
+          const io = yield* Stdio.Stdio
+          return yield* Effect.result(Stream.runDrain(io.stdin))
+        }).pipe(Effect.provide(NshStdio.capture({ args: [], stdout, stderr, stdin: `${directory}/missing-input` })))
+        if (missingInput._tag !== 'Failure' || missingInput.failure.reason.module !== 'Stdio')
+          return yield* Effect.die('Missing capture stdin reported the wrong service')
+        const failedOutput = yield* Effect.gen(function* () {
+          const io = yield* Stdio.Stdio
+          return yield* Effect.result(Stream.run(Stream.succeed('must fail'), io.stdout()))
+        }).pipe(Effect.provide(NshStdio.capture({ args: [], stdout: directory, stderr, coreutils: executable })))
+        if (failedOutput._tag !== 'Failure' || failedOutput.failure.reason.module !== 'Stdio')
+          return yield* Effect.die('Failed capture writer reported the wrong service')
+        const missingTool = yield* Effect.gen(function* () {
+          const io = yield* Stdio.Stdio
+          return yield* Effect.result(Stream.run(Stream.succeed('must fail'), io.stdout()))
+        }).pipe(Effect.provide(NshStdio.capture({ args: [], stdout, stderr })))
+        if (missingTool._tag !== 'Failure') return yield* Effect.die('Capture silently selected an executable')
+        if ((yield* fs.readFileString(stdout)) !== 'first こんにちは\n分割')
           return yield* Effect.die('Capture append mismatch')
         if ((yield* fs.readFileString(stderr)) !== 'diagnostic') return yield* Effect.die('Capture stderr mismatch')
         const scoped = yield* Effect.scoped(fs.makeTempDirectoryScoped({ directory }))
@@ -168,13 +217,13 @@ mount(() => {
         return directory
       }),
     ).pipe(
-      Effect.provide(layer),
+      Effect.provide(platform),
       Effect.flatMap((directory) =>
         Effect.gen(function* () {
           const fs = yield* FileSystem.FileSystem
           if (yield* fs.exists(directory)) return yield* Effect.die('Root scoped cleanup failed')
           status.set('Secure filesystem and capture acceptance passed')
-        }).pipe(Effect.provide(layer)),
+        }).pipe(Effect.provide(platform)),
       ),
       Effect.catchCause((cause) => Effect.sync(() => status.set(`Secure filesystem probe failed: ${cause}`))),
     ),

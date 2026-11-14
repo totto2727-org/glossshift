@@ -63,6 +63,7 @@ export const startServer = (modelPath: string, config: LocalConfig) =>
           ...(Option.isSome(home) ? { HOME: home.value } : {}),
           ...(Option.isSome(temporary) ? { TMPDIR: temporary.value } : {}),
         },
+        extendEnv: true,
       },
     ).pipe(Effect.mapError(unavailable))
     // Never forward diagnostics. Keep only a bounded fragment to discover the assigned port.

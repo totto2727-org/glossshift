@@ -1,3 +1,4 @@
+import path from 'path'
 import process from 'process'
 
 import { Deferred, Effect, String } from 'effect'
@@ -14,16 +15,17 @@ interface Writer {
 type Launch = (...args: Parameters<typeof process.spawn>) => Writer
 
 /** dd appends a bounded UTF-8 chunk without buffering the complete capture file. */
-export const append = (file: string, text: string, launch: Launch = process.spawn) =>
+export const append = (file: string, text: string, executable?: string, launch: Launch = process.spawn) =>
   Effect.gen(function* () {
-    const executable = process.env['GLOSSSHIFT_COREUTILS']
     if (
       typeof executable !== 'string' ||
-      (executable !== 'coreutils' && !String.startsWith('/nix/store/')(executable)) ||
-      String.includes('..')(executable)
+      (executable !== 'coreutils' && !path.isAbsolute(executable)) ||
+      String.includes('\0')(executable)
     ) {
-      return yield* Effect.fail(unsupported('Stdio', 'packaged dd is unavailable'))
+      return yield* Effect.fail(unsupported('Stdio', 'capture requires an explicit coreutils executable'))
     }
+    if (!path.isAbsolute(file) || String.includes('\0')(file))
+      return yield* Effect.fail(unsupported('Stdio', 'capture requires an absolute file path'))
     const actualExit = yield* Deferred.make<import('process').ExitResult>()
     let exited = false
     const child = yield* Effect.acquireRelease(
@@ -40,14 +42,14 @@ export const append = (file: string, text: string, launch: Launch = process.spaw
           })
           return child
         },
-        catch: (cause) => failure('append', file, cause),
+        catch: (cause) => failure('append', file, cause, 'Stdio'),
       }),
       (child) =>
         Effect.try({
           try: () => {
             if (!exited) child.kill()
           },
-          catch: (cause) => failure('kill capture writer', file, cause),
+          catch: (cause) => failure('kill capture writer', file, cause, 'Stdio'),
         }).pipe(
           Effect.orDie,
           // Native exit is delivered only after its writer task is finished. Never dispose early on interruption.
@@ -59,8 +61,8 @@ export const append = (file: string, text: string, launch: Launch = process.spaw
         child.write(text)
         child.end()
       },
-      catch: (cause) => failure('append', file, cause),
+      catch: (cause) => failure('append', file, cause, 'Stdio'),
     })
     const result = yield* Deferred.await(actualExit)
-    if (result.code !== 0) return yield* Effect.fail(failure('append', file, result))
+    if (result.code !== 0) return yield* Effect.fail(failure('append', file, result, 'Stdio'))
   }).pipe(Effect.scoped)

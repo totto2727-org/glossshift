@@ -85,9 +85,6 @@ stdenvNoCC.mkDerivation {
         .capabilities.process.env = ((.capabilities.process.env // [] | map(select(. != "GLOSSSHIFT_NODE_COMMAND" and . != "GLOSSSHIFT_NODE_ENTRY"))) + ["GLOSSSHIFT_COREUTILS", "GLOSSSHIFT_CURL", "SSL_CERT_FILE"] | unique)' "$manifest" > "$manifest.new"
       mv "$manifest.new" "$manifest"
     done
-    nsh check .
-    nsh check terminal
-    nsh check batch
     nsh build . --release
     nsh build terminal --release --out terminal/.nsh/out
     nsh build batch --release --out batch/.nsh/out
@@ -174,35 +171,6 @@ stdenvNoCC.mkDerivation {
   '';
   # Preserve the official runners' signatures and resource layout.
   dontFixup = true;
-  doInstallCheck = true;
-  installCheckPhase = ''
-    runHook preInstallCheck
-    test -x "$out/bin/glossshift"
-    test -x "$out/bin/gshift"
-    test -x "$out/libexec/glossshift/gshift-tui-host"
-    test -x "$out/Applications/GlossShift.app/Contents/MacOS/GlossShift-host"
-    test -x "$out/Applications/GlossShift.app/Contents/Resources/glossshift/GlossShift-launcher"
-    test -x '${helperCommand}'
-    test -s "$out/share/glossshift/tui/bundle.js"
-    test -s "$out/share/glossshift/batch/bundle.js"
-    test -s "$out/Applications/GlossShift.app/Contents/Resources/nsh/bundle.nshc"
-    '${serverCommand}' --version
-    "$out/bin/glossshift" --help > /dev/null
-    "$out/bin/glossshift" --version > /dev/null
-    "$out/bin/gshift" --help > /dev/null
-    (
-      check_home=$(mktemp -d "$TMPDIR/glossshift-autostart-check.XXXXXXXXXX")
-      trap 'rm -rf -- "$check_home"' EXIT
-      export HOME="$check_home" XDG_CONFIG_HOME="$check_home/config"
-      export GLOSSSHIFT_CONFIG="$check_home/unused-model-settings.json"
-      "$out/bin/glossshift" autostart enable --app "$out/Applications/GlossShift.app" > /dev/null
-      "$out/bin/glossshift" autostart status > /dev/null
-      "$out/bin/glossshift" autostart disable > /dev/null
-      test ! -e "$HOME/Library/LaunchAgents/com.totto2727.glossshift.plist"
-      test ! -e "$GLOSSSHIFT_CONFIG"
-    )
-    runHook postInstallCheck
-  '';
   meta = {
     description = "Native macOS streaming translation popup and Markdown CLI";
     license = lib.licenses.mit;

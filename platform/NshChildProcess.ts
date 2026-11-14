@@ -10,6 +10,12 @@ export const service = ChildProcessSpawner.make((command) =>
   Effect.gen(function* () {
     if (command._tag !== 'StandardCommand' || command.options.shell || command.options.additionalFds !== undefined)
       return yield* Effect.fail(unsupported('ChildProcess', 'pipelines, shell, or extra descriptors'))
+    if (command.options.killSignal !== undefined || command.options.forceKillAfter !== undefined)
+      return yield* Effect.fail(unsupported('ChildProcess', 'custom termination signals or deadlines'))
+    if (command.options.detached !== undefined)
+      return yield* Effect.fail(unsupported('ChildProcess', 'custom process detachment'))
+    if (command.options.env !== undefined && command.options.extendEnv !== true)
+      return yield* Effect.fail(unsupported('ChildProcess', 'replacing the inherited environment'))
     if (command.options.stdin !== undefined && command.options.stdin !== 'ignore')
       return yield* Effect.fail(unsupported('ChildProcess', 'binary process stdin'))
     const inherited = process.env
@@ -47,16 +53,16 @@ export const service = ChildProcessSpawner.make((command) =>
               stdin: 'null',
             },
           ),
-        catch: (cause) => failure('spawn', command.command, cause),
+        catch: (cause) => failure('spawn', command.command, cause, 'ChildProcess'),
       }),
       (child) =>
         Effect.gen(function* () {
           if (running)
             yield* Effect.try({
               try: () => child.kill(),
-              catch: (cause) => failure('kill', command.command, cause),
+              catch: (cause) => failure('kill', command.command, cause, 'ChildProcess'),
             }).pipe(Effect.ignore)
-          yield* Deferred.await(actualExit).pipe(Effect.timeoutOption(1000), Effect.ignore)
+          yield* Deferred.await(actualExit)
           yield* Effect.sync(() => child.dispose())
         }),
     )
@@ -90,7 +96,7 @@ export const service = ChildProcessSpawner.make((command) =>
       running = false
       Deferred.doneUnsafe(actualExit, Effect.void)
       if (result.error !== undefined && result.error !== null) {
-        const error = failure('exit', command.command, result.error)
+        const error = failure('exit', command.command, result.error, 'ChildProcess')
         Queue.failCauseUnsafe(stdout, Cause.fail(error))
         Queue.failCauseUnsafe(stderr, Cause.fail(error))
         Deferred.doneUnsafe(exited, Effect.fail(error))
@@ -118,13 +124,15 @@ export const service = ChildProcessSpawner.make((command) =>
       pid: ChildProcessSpawner.ProcessId(child.pid),
       exitCode: Deferred.await(exited),
       isRunning: Effect.sync(() => running),
-      kill: () =>
-        Effect.try({
-          try: () => {
-            if (running) child.kill()
-          },
-          catch: (cause) => failure('kill', command.command, cause),
-        }),
+      kill: (options) =>
+        options?.killSignal !== undefined || options?.forceKillAfter !== undefined
+          ? Effect.fail(unsupported('ChildProcess', 'custom termination signals or deadlines'))
+          : Effect.try({
+              try: () => {
+                if (running) child.kill()
+              },
+              catch: (cause) => failure('kill', command.command, cause, 'ChildProcess'),
+            }),
       stdin: Sink.forEach(() => Effect.fail(unsupported('ChildProcess', 'binary process stdin'))),
       stdout: out,
       stderr: err,

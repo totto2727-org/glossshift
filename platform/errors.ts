@@ -8,7 +8,7 @@ export const unsupported = (module: string, method: string) =>
     description: `Unsupported by the official NSH 0.5 host: ${method}`,
   })
 
-export const failure = (method: string, path: string, cause: unknown) => {
+export const failure = (method: string, path: string, cause: unknown, module = 'FileSystem') => {
   const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined
   return PlatformError.systemError({
     _tag:
@@ -19,7 +19,7 @@ export const failure = (method: string, path: string, cause: unknown) => {
           : code === 'EACCES' || code === 'ERR_ACCESS_DENIED'
             ? 'PermissionDenied'
             : 'Unknown',
-    module: 'FileSystem',
+    module,
     method,
     pathOrDescriptor: path,
     cause,

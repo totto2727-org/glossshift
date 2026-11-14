@@ -4,9 +4,9 @@ import { Array, Config, Deferred, Effect, Fiber, FileSystem, Path, Sink, Stream 
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 import { mount, signal, Text } from 'nsh'
 
-import { layer } from '../platform'
 import { defaultModel } from '../runtime/config'
 import { resolveModel } from '../runtime/model'
+import { layer } from '../runtime/platform.ts'
 
 type Reply = { readonly code: number; readonly status: string; readonly content?: string; readonly pending?: boolean }
 

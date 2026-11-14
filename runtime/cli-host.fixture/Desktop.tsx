@@ -1,8 +1,8 @@
 import { Effect, Fiber } from 'effect'
 import { cleanup, mount, signal, Text } from 'nsh'
 
-import { layer } from '../../platform/index.ts'
 import { verifyDesktopFiles } from '../desktop-fs.fixture.ts'
+import { layer } from '../platform.ts'
 
 mount(() => {
   const status = signal('Running desktop filesystem acceptance')

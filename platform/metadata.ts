@@ -3,7 +3,7 @@ import * as native from 'fs/promises'
 import { ByteSize, Effect, FileSystem, Option, Schema } from 'effect'
 
 import { failure } from './errors.ts'
-import { runTool } from './tools.ts'
+import type { RunTool } from './tools.ts'
 
 const Metadata = Schema.Struct({
   dev: Schema.String,
@@ -38,7 +38,7 @@ const date = (value: string) => {
 }
 
 /** GNU stat supplies inode and ownership metadata absent from NSH's native Stats. */
-export const stat = (path: string, follow: boolean) =>
+export const make = (runTool: RunTool) => (path: string, follow: boolean) =>
   Effect.gen(function* () {
     // Native access validation also retains NSH's stable ENOENT and capability errors.
     yield* Effect.tryPromise({

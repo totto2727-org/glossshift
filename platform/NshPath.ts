@@ -6,7 +6,7 @@ export const make = (directory: string) =>
     Path.Path,
     Effect.gen(function* () {
       const posix = yield* Path.Path
-      if (!posix.isAbsolute(directory))
+      if (!posix.isAbsolute(directory) || directory.includes('\0'))
         return yield* Effect.die(new Error('NSH Path requires an absolute base directory'))
       const resolve = (...segments: ReadonlyArray<string>) => posix.resolve(directory, ...segments)
       return Path.make({

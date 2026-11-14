@@ -4,18 +4,20 @@ import process from 'process'
 import { Config, ConfigProvider, Console, Effect, FileSystem, Path, Stdio, Stream } from 'effect'
 import { mount, signal, Text } from 'nsh'
 
-import { modelNotice } from '../runtime/config.ts'
+import { verifyCompositions } from './composition.fixture.ts'
 import * as NshConfigProvider from './NshConfigProvider.ts'
 import * as NshFileSystem from './NshFileSystem.ts'
 import * as NshPath from './NshPath.ts'
 import * as NshStdio from './NshStdio.ts'
 
 const importProvider = ConfigProvider.fromEnvRecord({ PLATFORM_PROBE: 'synthetic' })
+const diagnosticNotice = 'Standalone platform diagnostic'
 
 mount(() => {
   const status = signal('Platform probe running')
   Effect.runFork(
     Effect.gen(function* () {
+      yield* verifyCompositions
       const fs = yield* FileSystem.FileSystem
       const path = yield* Path.Path
       const stdio = yield* Stdio.Stdio
@@ -46,7 +48,7 @@ mount(() => {
       if (stdout._tag !== 'Failure') return yield* Effect.die('Unsupported stdout succeeded')
       const hostConsole = yield* Console.Console
       let diagnostic = ''
-      yield* Stream.succeed(`${modelNotice}\n`).pipe(
+      yield* Stream.succeed(`${diagnosticNotice}\n`).pipe(
         Stream.run(stdio.stderr({ endOnDone: false })),
         Effect.provideService(Console.Console, {
           ...hostConsole,
@@ -56,18 +58,26 @@ mount(() => {
           },
         }),
       )
-      if (diagnostic !== `${modelNotice}\n`)
-        return yield* Effect.die('Model notice was not delivered to host diagnostic logger')
+      if (diagnostic !== `${diagnosticNotice}\n`)
+        return yield* Effect.die('Diagnostic was not delivered to host logger')
       yield* Stream.succeed(new TextEncoder().encode('Synthetic host diagnostic')).pipe(Stream.run(stdio.stderr()))
       const invalidDiagnostic = yield* Effect.result(
         Stream.succeed(new Uint8Array([0xff])).pipe(Stream.run(stdio.stderr())),
       )
       if (invalidDiagnostic._tag !== 'Failure') return yield* Effect.die('Invalid UTF-8 diagnostic did not fail')
+      if (invalidDiagnostic.failure.reason.module !== 'Stdio')
+        return yield* Effect.die('Invalid UTF-8 diagnostic reported the wrong service')
+      const partialDiagnostic = yield* Effect.result(
+        Stream.succeed(new Uint8Array([0xe3])).pipe(Stream.run(stdio.stderr())),
+      )
+      if (partialDiagnostic._tag !== 'Failure') return yield* Effect.die('Incomplete UTF-8 diagnostic did not fail')
+      if (partialDiagnostic.failure.reason.module !== 'Stdio')
+        return yield* Effect.die('Incomplete UTF-8 diagnostic reported the wrong service')
       const nativeKeys = Object.keys(native).sort().join(',')
       const processKeys = Object.keys(process).sort().join(',')
       status.set(`Platform probe passed\nfs:${nativeKeys}\nprocess:${processKeys}`)
     }).pipe(
-      Effect.provide(NshFileSystem.layer),
+      Effect.provide(NshFileSystem.layer()),
       Effect.provide(NshPath.make('/synthetic')),
       Effect.provide(NshConfigProvider.layer),
       Effect.provide(NshStdio.unavailable([])),

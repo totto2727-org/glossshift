@@ -23,6 +23,7 @@ export const runModelUtility = (tool: 'sha256sum' | 'curl', args: ReadonlyArray<
         stdout: 'pipe',
         stderr: 'pipe',
         env: {},
+        extendEnv: true,
       })
       const [stdout, , code] = yield* Effect.all(
         [
