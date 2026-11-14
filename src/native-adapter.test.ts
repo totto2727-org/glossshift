@@ -1,31 +1,23 @@
 import { Effect, Fiber, Option, Queue, Schema, Stream } from 'effect'
-import type { BridgeEvent, BridgeModule } from 'glossshift/native'
 import { expect, test } from 'nsh/test'
 
+import type { NativeCommand } from './application'
 import { createController } from './controller'
 import { createDesktopControls } from './desktop-controls'
+import { connectDesktopShortcuts } from './desktop-shortcuts'
 import { RequestId } from './domain'
 import { localFixture } from './local-client.fixture'
-import { connectNative } from './native-adapter'
+import { connectDesktop } from './native-adapter'
+import type { DesktopAdapterOptions } from './native-adapter'
 import './local-client.test'
 
 export const adapterFixture = Effect.gen(function* () {
-  const controls = yield* Queue.bounded<BridgeEvent>(8)
-  const closed = yield* Queue.bounded<string>(8)
+  const controls = yield* Queue.bounded<NativeCommand>(8)
   const local = yield* localFixture
-  const promise = <A>(effect: Effect.Effect<A>) => Effect.runPromise(effect)
-  const bootstrap = {
-    schemaVersion: 2,
-    runtime: { command: 'fixture', entry: '/fixture/main.ts' },
-    status: 'Synthetic native services',
-    accessibilityGranted: true,
-    shortcuts: [],
-    window: { width: 560, height: 360, minWidth: 320, minHeight: 180 },
-  }
   const desktopEvents: string[] = []
   const desktop = createDesktopControls({
     writeText: (text) =>
-      promise(
+      Effect.runPromise(
         Effect.sync(() => {
           desktopEvents.push(`copy:${text}`)
         }),
@@ -45,17 +37,80 @@ export const adapterFixture = Effect.gen(function* () {
       desktopEvents.push(options === null ? 'tray:remove' : 'tray:install')
     },
   })
-  const bridge: BridgeModule = {
-    initialize: () => promise(Effect.succeed(bootstrap)),
-    openTransport: () => promise(Effect.succeed('native-session')),
-    closeTransport: (id) =>
-      promise(Queue.offer(closed, id).pipe(Effect.andThen(Queue.shutdown(controls)), Effect.asVoid)),
-    nextControl: () => promise(Queue.take(controls)),
-    selection: () => promise(Effect.die('Unexpected recapture')),
+  const options: DesktopAdapterOptions = {
+    runtime: { command: 'node', entry: '/fixture/main.ts' },
+    selection: { permission: Effect.succeed(true), capture: Effect.die('Unexpected recapture') },
+    background: true,
+    launcher: local.launcher,
+    loadSettings: () =>
+      Effect.succeed({
+        shortcuts: [{ keys: 'Ctrl+Super+KeyJ', target_language: 'Japanese' }],
+        directory: '/fixture/config',
+        created_files: false,
+        window: { width: 560, height: 360, min_width: 320, min_height: 180 },
+      }),
+    installControls: desktop.install,
+    installWindow: () => Effect.succeed(undefined),
+    connectShortcuts: () =>
+      Effect.acquireRelease(Effect.succeed(Stream.fromQueue(controls)), () => Queue.shutdown(controls)),
   }
-  return { bridge, controls, closed, local, desktop, desktopEvents }
+  return { options, controls, local, desktop, desktopEvents }
 })
 const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect.pipe(Effect.timeout('5 seconds')))
+
+test('global shortcut finishes separate selection capture before revealing the retained popup', async () => {
+  await run(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const f = yield* adapterFixture
+        const focused = yield* Queue.bounded<void>(1)
+        let press = Option.none<() => void>()
+        const connection = yield* connectDesktop({
+          ...f.options,
+          selection: {
+            permission: Effect.succeed(true),
+            capture: Effect.sync(() => {
+              f.desktopEvents.push('capture')
+              return '# selected before focus'
+            }),
+          },
+          installControls: f.desktop.install.pipe(
+            Effect.map((controls) => ({
+              ...controls,
+              reveal: controls.reveal.pipe(Effect.andThen(Queue.offer(focused, undefined)), Effect.asVoid),
+            })),
+          ),
+          connectShortcuts: (configuration, capture) =>
+            connectDesktopShortcuts(configuration, capture, {
+              register: (_key, callback) =>
+                Effect.runPromise(
+                  Effect.sync(() => {
+                    press = Option.some(callback)
+                    return true
+                  }),
+                ),
+              unregister: () => {
+                press = Option.none()
+              },
+            }),
+        })
+        const controller = yield* createController(connection.ports)
+        yield* connection.commands.pipe(
+          Stream.runForEach((command) =>
+            command._tag === 'Captured' ? controller.requestCaptured(command) : Effect.void,
+          ),
+          Effect.forkScoped,
+        )
+        Option.getOrThrow(press)()
+        yield* Queue.take(focused)
+        expect(f.desktopEvents).toEqual(['tray:install', 'capture', 'focus'])
+        const request = yield* Queue.take(f.local.written)
+        if (request.kind !== 'translate') return yield* Effect.die('Expected translation')
+        expect(request.text).toBe('# selected before focus')
+      }),
+    ),
+  )
+})
 
 test('desktop adapter owns the injected tray scope and routes raw copy and window controls', async () => {
   await run(
@@ -64,7 +119,7 @@ test('desktop adapter owns the injected tray scope and routes raw copy and windo
         const f = yield* adapterFixture
         yield* Effect.scoped(
           Effect.gen(function* () {
-            const { ports } = yield* connectNative(f.bridge, f.local.launcher, f.desktop.install)
+            const { ports } = yield* connectDesktop(f.options)
             expect(f.desktopEvents).toEqual(['tray:install'])
             yield* ports.copy('# raw\n<literal>')
             yield* ports.reveal
@@ -85,17 +140,16 @@ test('desktop adapter owns the injected tray scope and routes raw copy and windo
   )
 })
 
-test('schema2 native controls preserve captured text while local process translates', async () => {
+test('standard desktop controls preserve helper-captured text while the Node process translates', async () => {
   await run(
     Effect.scoped(
       Effect.gen(function* () {
         const f = yield* adapterFixture
-        const connection = yield* connectNative(f.bridge, f.local.launcher, f.desktop.install)
+        const connection = yield* connectDesktop(f.options)
         const controller = yield* createController(connection.ports)
         yield* Queue.offer(f.controls, {
-          kind: 'capture',
-          requestId: 'native-71',
-          seq: 0,
+          _tag: 'Captured',
+          id: Schema.decodeUnknownSync(RequestId)('desktop-71'),
           text: '# selection',
           targetLanguage: 'Japanese',
         })
@@ -122,12 +176,12 @@ test('schema2 native controls preserve captured text while local process transla
   )
 })
 
-test('native controls bypass a blocked local translation consumer', async () => {
+test('desktop controls bypass a blocked local translation consumer', async () => {
   await run(
     Effect.scoped(
       Effect.gen(function* () {
         const f = yield* adapterFixture
-        const connection = yield* connectNative(f.bridge, f.local.launcher, f.desktop.install)
+        const connection = yield* connectDesktop(f.options)
         const consumed = yield* Queue.bounded<void>(1)
         yield* connection.ports
           .translate({
@@ -146,14 +200,12 @@ test('native controls bypass a blocked local translation consumer', async () => 
         yield* Queue.take(consumed)
         const commands = yield* connection.commands.pipe(Stream.runHead, Effect.forkScoped)
         yield* Queue.offer(f.controls, {
-          kind: 'capture',
-          requestId: 'fresh',
-          seq: 0,
+          _tag: 'Captured',
+          id: Schema.decodeUnknownSync(RequestId)('fresh'),
           text: 'fresh source',
           targetLanguage: 'ja',
         })
-        const command = Option.getOrThrow(yield* Fiber.join(commands))
-        expect(command._tag).toBe('Captured')
+        expect(Option.getOrThrow(yield* Fiber.join(commands))._tag).toBe('Captured')
         expect(Option.isNone(yield* Queue.poll(f.local.written))).toBe(true)
       }),
     ),

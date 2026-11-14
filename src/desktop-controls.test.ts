@@ -40,7 +40,7 @@ test('desktop ports copy raw text and focus or hide the retained main window onl
   expect(f.events).toEqual(['copy:# raw\n<literal>\u001b[0m', 'focus', 'hide', 'quit'])
 })
 
-test('tray offers the GlossShift quit action and is removed when its scope ends', async () => {
+test('tray offers reopen and quit actions and is removed when its scope ends', async () => {
   const f = fixture()
   await run(
     Effect.scoped(
@@ -49,6 +49,7 @@ test('tray offers the GlossShift quit action and is removed when its scope ends'
         const tray = f.tray()
         if (tray === null) return yield* Effect.die('Missing tray')
         expect(tray.tooltip).toBe('GlossShift')
+        tray.onClick?.({ bounds: null })
         const item = tray.menu?.[0]
         if (!item || !('label' in item)) return yield* Effect.die('Missing Quit item')
         expect(item.label).toBe('Quit GlossShift')
@@ -56,7 +57,7 @@ test('tray offers the GlossShift quit action and is removed when its scope ends'
       }),
     ),
   )
-  expect(f.events).toEqual(['tray:install', 'quit', 'tray:remove'])
+  expect(f.events).toEqual(['tray:install', 'focus', 'quit', 'tray:remove'])
 })
 
 test('closing an old desktop scope cannot remove a replacement tray', async () => {

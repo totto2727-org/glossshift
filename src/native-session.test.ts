@@ -1,15 +1,15 @@
-import { Effect, Fiber, Queue, Schema, Stream } from 'effect'
+import { Effect, Exit, Fiber, Queue, Schema, Stream } from 'effect'
 import { expect, test } from 'nsh/test'
 
 import { RequestId } from './domain'
 import { connectLocal } from './local-client'
 import { localFixture } from './local-client.fixture'
-import { connectNative } from './native-adapter'
+import { connectDesktop } from './native-adapter'
 import { adapterFixture } from './native-adapter.test'
 
 const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect.pipe(Effect.timeout('5 seconds')))
 
-test('native adapter closes pending native control receive and application-owned child on teardown', async () => {
+test('desktop adapter releases pending control receive and application-owned child on teardown', async () => {
   await run(
     Effect.scoped(
       Effect.gen(function* () {
@@ -17,7 +17,7 @@ test('native adapter closes pending native control receive and application-owned
         const opened = yield* Queue.bounded<void>(1)
         const connection = yield* Effect.scoped(
           Effect.gen(function* () {
-            const connected = yield* connectNative(f.bridge, f.local.launcher, f.desktop.install)
+            const connected = yield* connectDesktop(f.options)
             yield* connected.commands.pipe(Stream.runDrain, Effect.forkScoped)
             yield* Queue.offer(opened, undefined)
             yield* Effect.never
@@ -25,7 +25,7 @@ test('native adapter closes pending native control receive and application-owned
         ).pipe(Effect.forkScoped)
         yield* Queue.take(opened)
         yield* Fiber.interrupt(connection)
-        expect(yield* Queue.take(f.closed)).toBe('native-session')
+        expect(Exit.isFailure(yield* Effect.exit(Queue.take(f.controls)))).toBe(true)
         expect(yield* Queue.take(f.local.lifecycle)).toBe('end')
         expect(yield* Queue.take(f.local.lifecycle)).toBe('kill')
       }),

@@ -46,6 +46,7 @@ export const createDesktopControls = (native: DesktopBoundary = boundary) => {
       native.setTray({
         icon,
         tooltip: 'GlossShift',
+        onClick: () => native.mainWindow()?.focus(),
         menu: [{ label: 'Quit GlossShift', onSelect: () => native.quit() }],
       })
       owner = lease

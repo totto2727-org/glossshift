@@ -1,5 +1,6 @@
 import { Effect, Schema, Stream } from 'effect'
 import { mount } from 'nsh'
+import { Window } from 'nsh/desktop'
 
 import { Application } from './application'
 import { RequestId } from './domain'
@@ -25,7 +26,7 @@ const ports: NativePorts = {
   copy: () => Effect.void,
   hide: Effect.void,
   quit: Effect.void,
-  reveal: Effect.void,
+  reveal: Effect.sync(() => Window.get('main')?.show()),
   shortcuts: Stream.empty,
 }
 
