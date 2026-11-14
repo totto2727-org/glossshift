@@ -16,6 +16,7 @@
     "process": {
       "execute": ["coreutils", "curl", "llama-server", "glossshift-macos-helper"],
       "env": [
+        "HOME",
         "XDG_CONFIG_HOME",
         "XDG_CACHE_HOME",
         "GLOSSSHIFT_CONFIG",

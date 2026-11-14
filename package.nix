@@ -190,6 +190,17 @@ stdenvNoCC.mkDerivation {
     "$out/bin/glossshift" --help > /dev/null
     "$out/bin/glossshift" --version > /dev/null
     "$out/bin/gshift" --help > /dev/null
+    (
+      check_home=$(mktemp -d "$TMPDIR/glossshift-autostart-check.XXXXXXXXXX")
+      trap 'rm -rf -- "$check_home"' EXIT
+      export HOME="$check_home" XDG_CONFIG_HOME="$check_home/config"
+      export GLOSSSHIFT_CONFIG="$check_home/unused-model-settings.json"
+      "$out/bin/glossshift" autostart enable --app "$out/Applications/GlossShift.app" > /dev/null
+      "$out/bin/glossshift" autostart status > /dev/null
+      "$out/bin/glossshift" autostart disable > /dev/null
+      test ! -e "$HOME/Library/LaunchAgents/com.totto2727.glossshift.plist"
+      test ! -e "$GLOSSSHIFT_CONFIG"
+    )
     runHook postInstallCheck
   '';
   meta = {

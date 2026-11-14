@@ -6,7 +6,7 @@ import { expect, open, test } from 'nsh/test'
 test('the official terminal runtime translates the cached GGUF in both directions without Node', async () => {
   const app = await open('./terminal/App.tsx', { width: 800, height: 640, network: 'live' })
   try {
-    await app.waitFor('Ready', { timeout: 20_000 })
+    await app.waitUntil(() => app.shows('Ready') || app.shows('Created application configuration'), { timeout: 20_000 })
     await app.type('label:Source text', 'Hello, world.')
     await app.clear('label:Target language')
     await app.type('label:Target language', 'ja')

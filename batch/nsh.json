@@ -15,6 +15,7 @@
       "exit": true,
       "execute": [],
       "env": [
+        "HOME",
         "TMPDIR",
         "XDG_CONFIG_HOME",
         "XDG_CACHE_HOME",
