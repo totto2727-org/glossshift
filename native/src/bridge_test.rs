@@ -6,11 +6,7 @@ fn bridge_declarations_match_the_typescript_transport_without_credentials() {
         .iter()
         .find(|module| module.name == "Bridge")
         .unwrap_or_else(|| panic!("missing Bridge module"));
-    for (name, returns) in [
-        ("initializeTerminal", "Bootstrap"),
-        ("openTransport", "string"),
-        ("closeTransport", "void"),
-    ] {
+    for (name, returns) in [("openTransport", "string"), ("closeTransport", "void")] {
         let function = bridge
             .functions
             .iter()
@@ -22,15 +18,10 @@ fn bridge_declarations_match_the_typescript_transport_without_credentials() {
     let declarations = nsh_core::element::declarations(&registry, &[]);
     for signature in [
         "initialize(): Promise<Bootstrap>",
-        "initializeTerminal(): Promise<Bootstrap>",
         "openTransport(): Promise<string>",
         "closeTransport(sessionId: string): Promise<void>",
         "nextControl(sessionId: string): Promise<BridgeEvent>",
         "selection(): Promise<string>",
-        "copy(text: string): Promise<void>",
-        "hide(): Promise<void>",
-        "reveal(): Promise<void>",
-        "quit(): Promise<void>",
     ] {
         assert!(
             declarations.contains(signature),
@@ -57,10 +48,15 @@ fn bridge_declarations_match_the_typescript_transport_without_credentials() {
         "cancel(",
         "nextEvent(",
         "providerName",
+        "initializeTerminal(",
+        "copy(",
+        "hide(",
+        "reveal(",
+        "quit(",
     ] {
         assert!(
             !declarations.contains(private),
-            "private setting in generated declarations: {private}"
+            "obsolete or private API in generated declarations: {private}"
         );
     }
     assert!(

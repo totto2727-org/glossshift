@@ -8,6 +8,9 @@ src/domain.ts               Pure popup states, messages, and transitions
 src/controller.ts           Effect-owned request lifetimes and bounded event processing
 src/ports.ts                Injectable native services and public settings
 src/                        NSH views, native-module adapters, and application tests
+terminal/App.tsx            Rust-free entry with its own NSH manifest and generated types
+src/desktop-controls.ts     Standard NSH clipboard, window, application, and tray APIs
+src/terminal-adapter.ts     Node settings and local translation without a native module
 native/Cargo.toml           Rust macOS service bridge
 native/Cargo.lock           Locked native dependencies
 native/src/bridge.rs        Typed NSH module exports
@@ -15,9 +18,11 @@ native/src/bridge_types.rs  Non-secret values crossing the TS/Rust boundary
 native/src/desktop.rs       macOS service startup and shutdown
 native/src/selection.rs     Accessibility and clipboard selection capture
 native/src/platform.rs      Selection and permission interfaces
-native/src/config.rs        Non-destructive XDG shortcut and window settings
+native/src/config.rs        Pre-engine Node settings adapter and native hotkey conversion
 native/src/runtime.rs       Installed Node runtime location
-node/main.ts                Node batch and private sidecar entry
+node/main.ts                Node batch, private sidecar, and settings entry
+node/desktop-config.ts      Non-destructive TOML settings and validation
+node/autostart.ts           Safe macOS LaunchAgent file operations
 node/translation.ts         Scoped Effect AI local translation service
 node/model.ts               Verified automatic GGUF download and native model lifetime
 node/generation.ts          Bounded token generation and prompt tokenization
@@ -48,9 +53,10 @@ The generated `.nsh/upstream` dependency is prepared from the pinned source and 
 | `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                                                   |
 | `vp run check`                           | Check formatting and lint without a second typechecker.                                           |
 | `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                                            |
-| `vp run typecheck`                       | Check the NSH application and Node project through NSH's TypeScript compiler.                     |
+| `vp run typecheck`                       | Check desktop, independent terminal, and Node projects through NSH's TypeScript compiler.         |
 | `vp run dev`                             | Delegate development and reload to NSH's macOS host.                                              |
 | `vp run run`                             | Run the application through NSH.                                                                  |
+| `vp run build-tui`                       | Bundle the independent terminal application without compiling custom Rust.                        |
 | `vp run build`                           | Produce the NSH release bundle, not an installable application.                                   |
 | `vp run package`                         | Package the native macOS application through NSH.                                                 |
 | `vp run test`                            | Run application tests through the official NSH test host.                                         |
@@ -114,7 +120,10 @@ Use the publisher's model license notice without registering the user or accepti
 
 ### Rust boundary
 
-Rust owns only macOS integration, window and shortcut settings, typed OS controls, and locating the installed Node runtime.
+Rust retains Accessibility selection capture, released-hotkey handling, startup hooks, native hotkey conversion, and locating the installed Node runtime.
+Node owns desktop configuration parsing, validation, default-file creation, and autostart file operations.
+Small Rust adapters call the private Node entry before the NSH engine starts to preserve initial window bounds and launch flags.
+Standard clipboard, window, application, and tray controls use NSH's JavaScript APIs.
 Keep translation, shared provider credentials, remote API clients, model inference, and the batch CLI out of Rust.
 The runtime locator reads immutable installed metadata rather than depending on the caller's current directory.
 Grant the exact packaged Node executable in NSH's process capabilities.
@@ -133,7 +142,11 @@ Native selection and permission interfaces remain injectable for another OS impl
 ### Terminal UI
 
 Use the official NSH TUI backend, not a second terminal renderer.
-Select terminal behavior with `platform.idiom === 'terminal'`; the operating system remains macOS and `nsh/desktop.isAvailable` alone does not distinguish a terminal host.
+Use the separate `terminal/App.tsx` entry and `terminal/nsh.json` without a `rust` declaration.
+Do not import `glossshift/native`, a Node builtin, or a native Node addon into the terminal dependency graph.
+The terminal entry uses NSH's official prebuilt host and must not generate a `terminal/.nsh/rust` workspace.
+Pass the Node command and absolute entry through the narrowly granted `GLOSSSHIFT_NODE_COMMAND` and `GLOSSSHIFT_NODE_ENTRY` environment variables.
+The installed launcher sets immutable paths and overrides caller-supplied values.
 Share the Effect controller, local translation transport, Markdown/plain behavior, and raw-copy semantics with the desktop app.
 Inject typed terminal input instead of capturing another application's selection.
 Do not initialize AppKit, global hotkeys, tray resources, or desktop menus from terminal startup.
@@ -157,7 +170,8 @@ Background startup must not briefly activate and hide a window.
 
 ## Configuration
 
-Rust reads only `~/.config/glossshift/config.toml`, honoring `XDG_CONFIG_HOME`, for OS settings.
+Node reads `~/.config/glossshift/config.toml`, honoring `XDG_CONFIG_HOME`, for window and shortcut settings.
+The desktop Rust adapter converts validated shortcut strings to native hotkeys before registration.
 Node reads local translation settings from `~/.config/glossshift/local.json`, honoring `XDG_CONFIG_HOME` or the explicit absolute `GLOSSSHIFT_CONFIG` path.
 The local model cache honors `XDG_CACHE_HOME` and can be changed in local settings.
 Do not read or modify `~/.agents` or legacy provider credentials.

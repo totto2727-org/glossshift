@@ -6,12 +6,13 @@ import { connectLocal } from './local-client'
 import { localFixture } from './local-client.fixture'
 
 const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect.pipe(Effect.timeout('5 seconds')))
-test('official NSH process pipes carry acknowledged NDJSON without network or native translation', async () => {
-  const app = await open('./src/local-process.fixture/App.tsx', { platform: 'macos' })
-  await app.waitFor('Complete: local process translated')
-  expect(app.requests()).toEqual([])
-  app.dispose()
-})
+export const registerProcessPipeTest = (entry: string) =>
+  test('official NSH process pipes carry acknowledged NDJSON without network or native translation', async () => {
+    const app = await open(entry, { platform: 'macos' })
+    await app.waitFor('Complete: local process translated')
+    expect(app.requests()).toEqual([])
+    app.dispose()
+  })
 
 const request = (id: string) => ({
   id: Schema.decodeUnknownSync(RequestId)(id),

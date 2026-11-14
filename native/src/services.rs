@@ -60,16 +60,11 @@ impl Services {
 
     pub fn bootstrap(&self) -> Result<Bootstrap, String> {
         use crate::platform::AccessibilityPermission as _;
-        self.bootstrap_for_host(Some(crate::selection::MacOsSelection.is_granted()))
+        self.bootstrap_for_permission(crate::selection::MacOsSelection.is_granted())
     }
 
-    pub fn terminal_bootstrap(&self) -> Result<Bootstrap, String> {
-        self.bootstrap_for_host(None)
-    }
-
-    fn bootstrap_for_host(&self, accessibility: Option<bool>) -> Result<Bootstrap, String> {
+    fn bootstrap_for_permission(&self, accessibility_granted: bool) -> Result<Bootstrap, String> {
         let window = &self.loaded.app.window;
-        let accessibility_granted = accessibility.unwrap_or(false);
         Ok(Bootstrap {
             schema_version: 2,
             shortcuts: self
@@ -91,7 +86,7 @@ impl Services {
             accessibility_granted,
             status: if self.loaded.created_files {
                 "Created application configuration"
-            } else if accessibility.is_none() || accessibility_granted {
+            } else if accessibility_granted {
                 "Ready"
             } else {
                 "Ready · Accessibility permission required"

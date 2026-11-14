@@ -27,18 +27,14 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = [
   "NSPasteboard",
 ] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSString", "NSArray"] }
-plist = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tempfile = "3"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7"
-toml = "0.9"
-tray-icon = { version = "0.24.2", default-features = false }
 uuid = { version = "1", features = ["v4"] }
-xdg = "3.0.0"
 
 [dev-dependencies]
+tempfile = "3"
 nsh-core = { path = "../.nsh/upstream/crates/nsh-core", version = "0.5.0", features = ["declarations"] }
 
 [profile.release]

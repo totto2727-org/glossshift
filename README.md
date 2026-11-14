@@ -29,6 +29,8 @@ gshift --tui
 
 Enter text and a target language, then choose **Translate**.
 The terminal UI does not start desktop hotkeys or tray services and does not need Accessibility permission.
+The terminal UI uses NSH's official prebuilt host and does not compile custom Rust application code.
+The desktop app still builds its native selection and startup integration.
 Use **Quit** or `Ctrl+C` to exit.
 
 Translate Markdown files in the supplied order:
@@ -60,7 +62,7 @@ Text is processed on the Mac, not sent to a hosted inference service.
 - Configurable larger GGUF models and explicit context and output limits.
 - Shared translation, cancellation, and Markdown/plain behavior across desktop, terminal, and batch modes.
 - Ordered Markdown file processing with input/output collision checks and safe symbolic-link replacement.
-- TypeScript translation and application code, with Rust limited to macOS integration.
+- TypeScript application, translation, settings, and autostart policy, with Rust retained for desktop selection and startup integration.
 
 ## Prerequisites
 

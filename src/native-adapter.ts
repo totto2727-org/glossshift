@@ -1,9 +1,8 @@
 import { Effect, Schema, Stream } from 'effect'
 import type { BridgeModule } from 'glossshift/native'
-import { Clipboard } from 'nsh'
-import { Application as NativeApplication } from 'nsh/desktop'
 
 import type { NativeCommand, NativeConnection } from './application'
+import { desktopControls } from './desktop-controls'
 import { RequestId } from './domain'
 import { connectLocal } from './local-client'
 import type { LocalLauncher } from './local-client'
@@ -28,14 +27,11 @@ const decode = <A>(schema: Schema.Decoder<A>, value: unknown) =>
 /** Native control and local translation have independent application-scoped transports. */
 export const connectNative = (
   bridge: BridgeModule,
-  mode: 'desktop' | 'terminal' = 'desktop',
   launcher?: LocalLauncher,
+  installDesktop: typeof desktopControls.install = desktopControls.install,
 ) =>
   Effect.gen(function* () {
-    const bootstrap = yield* call(
-      () => (mode === 'terminal' ? bridge.initializeTerminal() : bridge.initialize()),
-      'GlossShift could not initialize its native services.',
-    )
+    const bootstrap = yield* call(() => bridge.initialize(), 'GlossShift could not initialize its native services.')
     if (bootstrap.schemaVersion !== 2) return yield* Effect.fail(fault('Unsupported native service protocol.'))
     const local = yield* connectLocal(bootstrap.runtime, launcher)
     const settings = yield* decode(PublicSettings, {
@@ -48,42 +44,26 @@ export const connectNative = (
       (id) =>
         call(() => bridge.closeTransport(id), 'The native control transport could not close.').pipe(Effect.ignore),
     )
+    const desktop = yield* installDesktop
     const ports: NativePorts = {
       settings: Effect.succeed(settings),
-      capture:
-        mode === 'terminal'
-          ? Effect.fail(fault('Enter source text in the terminal input.'))
-          : call(
-              () => bridge.selection(),
-              'Selection capture failed. Check Accessibility permission and select text again.',
-            ),
+      capture: call(
+        () => bridge.selection(),
+        'Selection capture failed. Check Accessibility permission and select text again.',
+      ),
       translate: local.translate,
       cancel: local.cancel,
-      copy: (text) =>
-        call(
-          () => (mode === 'terminal' ? Clipboard.writeText(text) : bridge.copy(text)),
-          'The text could not be copied.',
-        ),
-      reveal:
-        mode === 'terminal'
-          ? Effect.void
-          : call(() => bridge.reveal(), 'The translation window could not be revealed.'),
-      hide:
-        mode === 'terminal' ? Effect.void : call(() => bridge.hide(), 'The translation window could not be hidden.'),
-      quit:
-        mode === 'terminal'
-          ? Effect.sync(() => NativeApplication.quit())
-          : call(() => bridge.quit(), 'GlossShift could not quit.'),
+      copy: desktop.copy,
+      reveal: desktop.reveal,
+      hide: desktop.hide,
+      quit: desktop.quit,
       shortcuts: Stream.empty,
     }
-    const controls =
-      mode === 'terminal'
-        ? Stream.never
-        : Stream.fromEffectRepeat(
-            call(() => bridge.nextControl(session), 'The native control transport closed.').pipe(
-              Effect.flatMap((event) => decode(ControlEvent, event)),
-            ),
-          )
+    const controls = Stream.fromEffectRepeat(
+      call(() => bridge.nextControl(session), 'The native control transport closed.').pipe(
+        Effect.flatMap((event) => decode(ControlEvent, event)),
+      ),
+    )
     const commands = controls.pipe(
       Stream.mapEffect((event): Effect.Effect<NativeCommand, Fault> => {
         switch (event.kind) {

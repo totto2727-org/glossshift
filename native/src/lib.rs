@@ -12,7 +12,6 @@ mod services;
 mod shortcuts;
 mod startup;
 mod transport;
-mod tray;
 
 pub use bridge::Bridge;
 use nsh_core::prelude::*;

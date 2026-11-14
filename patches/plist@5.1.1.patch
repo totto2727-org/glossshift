@@ -1,0 +1,24 @@
+diff --git a/dist/parse-binary.js b/dist/parse-binary.js
+index b5e2c2a475eee9388e8ab65baf8511d0e327f56c..5f63b932c4c18509dee49d488fa9f05a1d709e77 100644
+--- a/dist/parse-binary.js
++++ b/dist/parse-binary.js
+@@ -168,6 +168,7 @@ export function parseBinary(data) {
+                     const valRef = readRef(offset + (size + i) * objectRefSize);
+                     const key = parseObject(keyRef);
+                     assertSafeKey(key);
++                    if (Object.hasOwn(dict, key)) throw new Error('Duplicate plist dictionary key.');
+                     dict[key] = parseObject(valRef);
+                 }
+                 return dict;
+diff --git a/dist/parse.js b/dist/parse.js
+index 5721498663cd164e1dd38c6a61d756b3ef5e6472..303b6e4770d2c622d12732ec6930cbe0e926ad0a 100644
+--- a/dist/parse.js
++++ b/dist/parse.js
+@@ -119,6 +119,7 @@ function parsePlistXML(node) {
+             if (counter % 2 === 0) {
+                 invariant(node.childNodes[i].nodeName === "key", "Missing key while parsing <dict/>.");
+                 key = parsePlistXML(node.childNodes[i]);
++                invariant(!Object.hasOwn(new_obj, key), "Duplicate plist dictionary key.");
+             }
+             else {
+                 invariant(node.childNodes[i].nodeName !== "key", "Unexpected <key> while parsing <dict/>. Keys and values must alternate.");

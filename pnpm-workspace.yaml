@@ -16,3 +16,6 @@ minimumReleaseAgeStrict: true
 allowBuilds:
   node-llama-cpp: false
   vite-plus: false
+
+patchedDependencies:
+  plist@5.1.1: patches/plist@5.1.1.patch

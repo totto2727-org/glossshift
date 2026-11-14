@@ -2,7 +2,7 @@ import { Array } from 'effect'
 import { expect, open, test } from 'nsh/test'
 
 // Opt in explicitly with isolated settings. This uses the real GGUF and may download model weights.
-test('the production terminal app translates through its private Node process and local model', async () => {
+test('the production prebuilt terminal app translates through its private Node process and local model', async () => {
   const app = await open('./App.tsx', { width: 800, height: 640 })
   await app.waitFor('Ready', { timeout: 10_000 })
   await app.type('label:Source text', 'Hello, world.')

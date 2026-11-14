@@ -10,9 +10,13 @@ mount(() => {
       try: () => {
         const root = process.env['PWD']
         if (typeof root !== 'string' || !String.startsWith('/')(root)) throw new Error('Repository PWD is unavailable')
-        return run('node', ['--test', '--test-reporter=tap', `${root}/node/local.test.ts`], {
-          timeoutMs: 45_000,
-        })
+        return run(
+          'node',
+          ['--test', '--test-reporter=tap', `${root}/node/local.test.ts`, `${root}/node/desktop.test.ts`],
+          {
+            timeoutMs: 45_000,
+          },
+        )
       },
       catch: () => 'Node regression process could not run',
     }).pipe(

@@ -5,7 +5,18 @@ use tempfile::TempDir;
 fn fixture() -> anyhow::Result<(TempDir, Arc<Services>)> {
     let directory = TempDir::new()?;
     let loaded = config::LoadedConfig {
-        app: config::parse_config(config::DEFAULT_CONFIG)?,
+        app: config::AppConfig {
+            shortcuts: vec![config::ShortcutConfig {
+                keys: "Ctrl+Super+KeyJ".parse().map_err(anyhow::Error::msg)?,
+                target_language: "Japanese".into(),
+            }],
+            window: config::WindowConfig {
+                width: 560.0,
+                height: 360.0,
+                min_width: 320.0,
+                min_height: 180.0,
+            },
+        },
         directory: directory.path().into(),
         created_files: false,
     };
@@ -14,11 +25,17 @@ fn fixture() -> anyhow::Result<(TempDir, Arc<Services>)> {
 }
 
 #[test]
-fn terminal_initialization_needs_no_provider_credentials_or_accessibility() -> anyhow::Result<()> {
+fn denied_permission_bootstrap_returns_public_settings_without_requesting_access()
+-> anyhow::Result<()> {
     let (_directory, service) = fixture()?;
-    let bootstrap = service.terminal_bootstrap().map_err(anyhow::Error::msg)?;
+    let bootstrap = service
+        .bootstrap_for_permission(false)
+        .map_err(anyhow::Error::msg)?;
     assert_eq!(bootstrap.schema_version, 2);
-    assert_eq!(bootstrap.status, "Ready");
+    assert_eq!(
+        bootstrap.status,
+        "Ready · Accessibility permission required"
+    );
     assert!(!bootstrap.accessibility_granted);
     assert_eq!(bootstrap.shortcuts.len(), 1);
     assert!(!bootstrap.runtime.command.is_empty());

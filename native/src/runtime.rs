@@ -1,6 +1,10 @@
 //! Locate application-owned Node assets. No model or translation policy lives here.
 
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    os::unix::fs::PermissionsExt as _,
+    path::{Path, PathBuf},
+};
 
 use serde::Deserialize;
 
@@ -52,7 +56,7 @@ fn locate_at(executable: &Path, development: &Path) -> Result<RuntimeSettings, S
         });
     }
     Ok(RuntimeSettings {
-        command: "node".into(),
+        command: development_node(std::env::var_os("PATH").as_deref())?,
         entry: development
             .join("node/main.ts")
             .to_string_lossy()
@@ -60,9 +64,46 @@ fn locate_at(executable: &Path, development: &Path) -> Result<RuntimeSettings, S
     })
 }
 
+fn development_node(search: Option<&OsStr>) -> Result<String, String> {
+    let search = search.ok_or("Unable to locate the development Node runtime.")?;
+    for directory in std::env::split_paths(search) {
+        if !directory.is_absolute() {
+            continue;
+        }
+        let candidate = directory.join("node");
+        if std::fs::metadata(&candidate)
+            .is_ok_and(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
+        {
+            // Preserve argv[0]-sensitive shims. Canonicalizing a Vite+ Node shim runs the wrong command.
+            return candidate
+                .to_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "The development Node path must contain valid Unicode.".into());
+        }
+    }
+    Err("Unable to locate the development Node runtime.".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn development_node_is_absolute_and_preserves_executable_shims() -> anyhow::Result<()> {
+        let directory = tempfile::TempDir::new()?;
+        let executable = directory.path().join("actual-runtime");
+        std::fs::write(&executable, "synthetic runtime, never execute")?;
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755))?;
+        let shim = directory.path().join("node");
+        std::os::unix::fs::symlink(executable, &shim)?;
+        assert_eq!(
+            development_node(Some(directory.path().as_os_str())).map_err(anyhow::Error::msg)?,
+            shim.to_string_lossy()
+        );
+        assert!(development_node(Some(OsStr::new("relative/path"))).is_err());
+        assert!(development_node(None).is_err());
+        Ok(())
+    }
 
     #[test]
     fn installed_bundle_uses_its_manifest_not_the_launch_directory() -> anyhow::Result<()> {

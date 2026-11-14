@@ -5,8 +5,6 @@ use crate::{
     services::services, shortcuts::Shortcuts,
 };
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
-use objc2_app_kit::NSPasteboard;
-use objc2_foundation::NSString;
 use std::{cell::RefCell, collections::HashMap};
 use tokio_util::sync::CancellationToken;
 
@@ -15,9 +13,7 @@ thread_local! {
 }
 struct NativeServices {
     _hotkeys: GlobalHotKeyManager,
-    _tray: crate::tray::MenuBarIcon,
     shortcuts: Shortcuts,
-    quit: async_channel::Sender<()>,
 }
 
 pub async fn initialize() -> Result<(), String> {
@@ -43,8 +39,6 @@ fn install_main() -> Result<(), String> {
                 .register(shortcut.keys)
                 .map_err(|error| error.to_string())?;
         }
-        let (quit, quit_receiver) = async_channel::bounded(1);
-        let tray = crate::tray::install(quit.clone()).map_err(|error| format!("{error:#}"))?;
         let (shortcuts, receiver) = Shortcuts::new();
         let current = shortcuts.clone();
         GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
@@ -59,16 +53,9 @@ fn install_main() -> Result<(), String> {
             shortcuts.stopped.clone(),
             service.clone(),
         ));
-        service.runtime.spawn(async move {
-            if quit_receiver.recv().await.is_ok() {
-                let _ = quit_app().await;
-            }
-        });
         *native.borrow_mut() = Some(NativeServices {
             _hotkeys: hotkeys,
-            _tray: tray,
             shortcuts,
-            quit,
         });
         Ok(())
     })
@@ -99,7 +86,6 @@ pub fn shutdown() {
     NATIVE.with(|native| {
         if let Some(native) = native.borrow_mut().take() {
             native.shortcuts.close();
-            native.quit.close();
         }
     });
     if let Some(service) = crate::services::started_services() {
@@ -123,51 +109,11 @@ pub async fn capture_current(token: CancellationToken) -> Result<String, String>
     .await
 }
 
-pub async fn copy(text: String) -> Result<(), String> {
-    on_main(move |_| {
-        let board = NSPasteboard::generalPasteboard();
-        board.clearContents();
-        if board.setString_forType(
-            &NSString::from_str(&text),
-            &NSString::from_str("public.utf8-plain-text"),
-        ) {
-            Ok(())
-        } else {
-            Err("failed to write the system clipboard".into())
-        }
-    })
-    .await
-}
-
-pub async fn hide() -> Result<(), String> {
-    on_main(|_| {
-        nsh_platform_macos::hide_app();
-        Ok(())
-    })
-    .await
-}
-
-pub async fn reveal() -> Result<(), String> {
-    reveal_current(CancellationToken::new()).await
-}
-
 pub async fn reveal_current(token: CancellationToken) -> Result<(), String> {
     on_main(move |_| {
         if !token.is_cancelled() {
             nsh_platform_macos::show_app();
         }
-        Ok(())
-    })
-    .await
-}
-
-pub async fn quit() -> Result<(), String> {
-    quit_app().await
-}
-async fn quit_app() -> Result<(), String> {
-    services()?.close();
-    on_main(|_| {
-        nsh_platform_macos::quit_app();
         Ok(())
     })
     .await

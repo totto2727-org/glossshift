@@ -22,14 +22,6 @@ impl Bridge {
         services()?.bootstrap()
     }
 
-    /// Load native settings for the terminal without starting desktop services.
-    ///
-    /// # Errors
-    /// Returns application configuration errors.
-    pub fn initialize_terminal(_cx: &mut ModuleCx) -> Result<Bootstrap, String> {
-        services()?.terminal_bootstrap()
-    }
-
     /// Receive one capture or control event independently of translation work.
     ///
     /// # Errors
@@ -62,37 +54,5 @@ impl Bridge {
     /// Returns permission, selection, or main-thread transport errors.
     pub async fn selection() -> Result<String, String> {
         crate::desktop::capture().await
-    }
-
-    /// Copy plain text without exposing native clipboard objects.
-    ///
-    /// # Errors
-    /// Returns clipboard or main-thread transport errors.
-    pub async fn copy(text: String) -> Result<(), String> {
-        crate::desktop::copy(text).await
-    }
-
-    /// Hide the retained window without stopping its engine.
-    ///
-    /// # Errors
-    /// Returns native transport errors.
-    pub async fn hide() -> Result<(), String> {
-        crate::desktop::hide().await
-    }
-
-    /// Reveal and focus the retained translation window.
-    ///
-    /// # Errors
-    /// Returns native transport errors.
-    pub async fn reveal() -> Result<(), String> {
-        crate::desktop::reveal().await
-    }
-
-    /// Ask NSH to stop the application and its owned children.
-    ///
-    /// # Errors
-    /// Returns native transport errors.
-    pub async fn quit() -> Result<(), String> {
-        crate::desktop::quit().await
     }
 }

@@ -17,7 +17,7 @@ test('native adapter closes pending native control receive and application-owned
         const opened = yield* Queue.bounded<void>(1)
         const connection = yield* Effect.scoped(
           Effect.gen(function* () {
-            const connected = yield* connectNative(f.bridge, 'desktop', f.local.launcher)
+            const connected = yield* connectNative(f.bridge, f.local.launcher, f.desktop.install)
             yield* connected.commands.pipe(Stream.runDrain, Effect.forkScoped)
             yield* Queue.offer(opened, undefined)
             yield* Effect.never

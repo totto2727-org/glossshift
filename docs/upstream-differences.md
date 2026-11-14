@@ -12,7 +12,8 @@ The CLI remains unchanged.
 Upstream 0.5.0 supports hidden initial startup through `nsh.json` `window.defaultVisible: false`, minimum sizes through window attributes, explicit window focus, and engine-owned cleanup through `on_app_quit`.
 Its `background` host option still shows a non-activating window and prohibits application activation, so it is not the application's hidden-startup flag.
 The generated JavaScript application runner does not expose a native setup hook before window construction and activation.
-GlossShift still needs that hook to parse packaged launch flags, complete help or autostart commands without opening a window, load configured window bounds, and initialize native shortcut and tray services on the main thread.
+GlossShift still needs that hook to parse packaged launch flags, complete help or autostart commands without opening a window, load configured window bounds, and initialize native shortcut services on the main thread.
+The application creates its tray and performs ordinary clipboard, window, and quit operations through NSH's standard JavaScript APIs.
 Its shutdown guard also runs after setup failure and successful early exit, before an engine or an engine-owned quit listener exists.
 Upstream `on_app_quit` is therefore not a replacement for this guard: its listeners belong to a running engine and their futures have a shared 200 ms deadline.
 
@@ -34,7 +35,8 @@ With no hooks installed, `min_size` remains `None` and `initially_hidden` remain
 The terminal host is unchanged and does not invoke the macOS hooks.
 
 The retained explicit show request uses AppKit's public `activateIgnoringOtherApps(true)` method because cooperative `activate()` does not guarantee activation unless the foreground application yields it.
-Upstream 0.5.0 also uses this method for explicit window focus, but the existing native adapter remains unchanged in this compatibility port.
+Upstream 0.5.0 also uses this method for explicit window focus.
+Ordinary application controls now use the upstream JavaScript APIs, while capture-before-focus on global shortcut release still uses the native reveal request.
 A global translation shortcut cannot require changes to another application, and showing an inactive popup does not meet the focus requirement.
 This deprecated API is allowed only at that call site in the patch, not for background startup.
 It does not grant Accessibility permission or change system privacy settings.
@@ -46,7 +48,9 @@ Application Rust code continues to forbid unsafe code.
 Provider resolution, credentials, and translation protocol behavior are not changed by this patch.
 The standard NSH typecheck, development, test, build, and macOS package commands remain the entry points.
 Official 0.5.0 includes the terminal host but does not provide a `nsh package --target tui` target.
-The installed terminal command therefore still uses the generated terminal host and the external JavaScript bundle rather than an invented terminal package target.
+The installed terminal command uses the unchanged official prebuilt terminal host and a separate Rust-free TypeScript bundle rather than an invented terminal package target.
+Its manifest has no custom Rust dependency, and terminal-only build tasks do not generate a Rust workspace.
+Desktop packaging still builds the patched native host.
 
 The pinned, patched source is made available at the reproducible development dependency path `.nsh/upstream`.
 This generated path is not committed and is not an arbitrary sibling checkout or a benchmark fixture.
@@ -55,3 +59,15 @@ A fresh checkout must prepare the pinned development environment before invoking
 
 When upgrading NSH, compare against the exact replacement upstream revision, remove any superseded patch, and update this record and the source pin together.
 Prefer an upstream lifecycle API if it provides the same behavior.
+
+## plist dictionary validation
+
+The npm dependency [`plist` 5.1.1](https://www.npmjs.com/package/plist/v/5.1.1) has a separate compatibility patch at `patches/plist@5.1.1.patch`.
+The lockfile pins the published archive by its integrity digest and records the patch hash.
+This patch is not part of the NSH source patch.
+
+The upstream XML and binary dictionary parsers replace an earlier value when the same key appears again.
+GlossShift must reject ambiguous LaunchAgent registrations before deciding that it owns a file and may replace or remove it.
+The patch adds duplicate-key rejection to `dist/parse.js` and `dist/parse-binary.js` without changing serialization or valid plist handling.
+Isolated filesystem regressions cover XML and binary registrations with duplicate keys and verify that status, enable, and disable leave their bytes unchanged.
+Review this patch when updating `plist` and remove it if upstream rejects duplicate dictionary keys.

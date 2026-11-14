@@ -9,9 +9,10 @@ fetchPnpmDeps {
       ../package.json
       ../pnpm-lock.yaml
       ../pnpm-workspace.yaml
+      (../patches + "/plist@5.1.1.patch")
     ];
   };
   inherit pnpm;
   fetcherVersion = 4;
-  hash = "sha256-qh4E48I+7JqvLjzwyIg4ksAyO99CJuNPxspmEpMudXE=";
+  hash = "sha256-Z/aGCZIGOx0hxKwlR1Mrly11KKloJf7oPMN6F8MkQoc=";
 }

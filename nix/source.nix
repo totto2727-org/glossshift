@@ -8,17 +8,18 @@ let
       ../App.test.ts
       ../Tui.test.ts
       ../Node.test.ts
-      ../LocalModel.test.ts
       ../terminal.fixture.tsx
       ../ui.fixture.tsx
       ../nsh.json
       ../src
+      ../terminal
       ../node
       ../native/Cargo.toml
       ../native/Cargo.lock
       ../native/src
       ../native/examples
       ../packaging
+      ../patches
       ../package.json
       ../pnpm-lock.yaml
       ../pnpm-workspace.yaml
@@ -27,7 +28,6 @@ let
       ../vite.config.ts
       ../tsconfig.json
       ./nsh-host-Cargo.lock
-      ./nsh-tui-Cargo.lock
     ];
   };
 in

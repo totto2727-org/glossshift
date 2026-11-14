@@ -38,7 +38,6 @@ stdenv.mkDerivation {
     paths = [
       # cargoSetupHook validates cargoRoot against this lock, not the batch CLI lock.
       (lib.hiPrio (rustPlatform.importCargoLock { lockFile = ./nix/nsh-host-Cargo.lock; }))
-      (rustPlatform.importCargoLock { lockFile = ./nix/nsh-tui-Cargo.lock; })
       (rustPlatform.importCargoLock { lockFile = ./native/Cargo.lock; })
     ];
     pathsToLink = [ "/" ];
@@ -58,9 +57,8 @@ stdenv.mkDerivation {
   ];
   CARGO_NET_OFFLINE = "true";
   prePatch = ''
-    mkdir -p .nsh/rust/tui
+    mkdir -p .nsh/rust
     cp nix/nsh-host-Cargo.lock .nsh/rust/Cargo.lock
-    cp nix/nsh-tui-Cargo.lock .nsh/rust/tui/Cargo.lock
   '';
   buildPhase = ''
     runHook preBuild
@@ -68,15 +66,21 @@ stdenv.mkDerivation {
     # Reuse the checked-in ICNS instead of invoking host-only sips/iconutil.
     jq --arg node '${nodejs_26}/bin/node' 'del(.icon) | .capabilities.process.execute = [$node]' nsh.json > nsh.json.new
     mv nsh.json.new nsh.json
+    jq --arg node '${nodejs_26}/bin/node' '.capabilities.process.execute = [$node]' terminal/nsh.json > terminal/nsh.json.new
+    mv terminal/nsh.json.new terminal/nsh.json
     export CARGO_TARGET_DIR="$PWD/target"
-    nsh test Tui.test.ts --target tui
     nsh build . --release
+    nsh build terminal --release --out terminal/.nsh/out
+    test ! -e terminal/.nsh/rust
+    if grep -q 'glossshift/native' terminal/.nsh/out/bundle.js; then
+      printf '%s\n' 'Terminal bundle must not import the desktop native module.' >&2
+      exit 1
+    fi
     node --input-type=module -e '
       const { getLlama } = await import("node-llama-cpp");
       const llama = await getLlama({ build: "never", skipDownload: true, usePrebuiltBinaries: true, gpu: "metal", dryRun: true });
       await llama.dispose();
     '
-    cargo build --manifest-path .nsh/rust/tui/Cargo.toml --release --bin nsh-app-glossshift-tui-host --locked
     nsh package . --target macos
     app=.nsh/out/GlossShift.app
     cp packaging/GlossShift.icns "$app/Contents/Resources/GlossShift.icns"
@@ -104,9 +108,9 @@ stdenv.mkDerivation {
       case "$source" in *.test.ts) continue ;; esac
       cp "$source" "$out/libexec/glossshift/node/"
     done
-    cp src/local-protocol.ts "$out/libexec/glossshift/src/local-protocol.ts"
-    cp target/release/nsh-app-glossshift-tui-host "$out/libexec/glossshift/gshift-tui-host"
-    for item in .nsh/out/bundle.* .nsh/out/app.json .nsh/out/capabilities.json .nsh/out/assets; do
+    cp src/local-protocol.ts src/desktop-settings.ts "$out/libexec/glossshift/src/"
+    ln -s ${nsh}/libexec/nsh/runtime/tui/nsh-tui-host "$out/libexec/glossshift/gshift-tui-host"
+    for item in terminal/.nsh/out/bundle.* terminal/.nsh/out/app.json terminal/.nsh/out/capabilities.json terminal/.nsh/out/assets; do
       if [ -e "$item" ]; then cp -R "$item" "$out/share/glossshift/tui/"; fi
     done
     # The TUI host only accepts external JS. Bytecode is restricted to its own
@@ -115,6 +119,8 @@ stdenv.mkDerivation {
     #!${stdenv.shell}
     if [ "$#" -eq 0 ] || [ "$1" = "--tui" ]; then
       [ "$#" -eq 0 ] || shift
+      export GLOSSSHIFT_NODE_COMMAND='${nodejs_26}/bin/node'
+      export GLOSSSHIFT_NODE_ENTRY='@out@/libexec/glossshift/node/main.ts'
       exec @out@/libexec/glossshift/gshift-tui-host --bundle @out@/share/glossshift/tui/bundle.js "$@"
     else
       exec ${nodejs_26}/bin/node @out@/libexec/glossshift/node/main.ts "$@"
@@ -131,6 +137,7 @@ stdenv.mkDerivation {
     runHook preInstallCheck
     test -x "$out/bin/glossshift"
     test -x "$out/bin/gshift"
+    test -x "$out/libexec/glossshift/gshift-tui-host"
     test -s "$out/share/glossshift/tui/bundle.js"
     test -s "$out/Applications/GlossShift.app/Contents/Resources/nsh/bundle.nshc"
     test -s "$out/libexec/glossshift/runtime.json"

@@ -1,0 +1,19 @@
+{
+  "name": "GlossShiftTerminal",
+  "id": "com.totto2727.glossshift.terminal",
+  "version": "0.2.0",
+  "build": 1,
+  "capabilities": {
+    "clipboard": true,
+    "process": {
+      "execute": ["node"],
+      "env": [
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "GLOSSSHIFT_CONFIG",
+        "GLOSSSHIFT_NODE_COMMAND",
+        "GLOSSSHIFT_NODE_ENTRY"
+      ]
+    }
+  }
+}
