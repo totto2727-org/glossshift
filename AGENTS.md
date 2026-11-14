@@ -34,9 +34,8 @@ Justfile                    Compatibility aliases into Vite+ tasks
 ## Development commands
 
 Run commands from the repository root.
-Enter `nix develop` to prepare the pinned NSH nightly distribution, matching terminal component, Rust tools, Vite+, and patched NSH source dependency.
-Nightly refers to the NSH distribution channel, not the Rust compiler channel.
-Keep the source, CLI, and terminal component on the same exact revision with content hashes.
+Enter `nix develop` to prepare the pinned NSH 0.5.0 release, matching terminal component, Rust tools, Vite+, and patched NSH source dependency.
+Keep the source, CLI, and terminal component on the same exact release revision with content hashes.
 Then install JavaScript dependencies with `vp install --frozen-lockfile`.
 Do not point committed manifests at benchmark fixtures, arbitrary sibling checkouts, or developer-specific absolute paths.
 The generated `.nsh/upstream` dependency is prepared from the pinned source and maintained patch, not from a mutable sibling repository.
@@ -169,7 +168,9 @@ Desktop and CLI share configuration, credentials, prompts, parameters, and timeo
 - Preserve the template's package-manager pin, release-age waiting period, strict age checking, and denied lifecycle builds.
 - Do not commit credentials or generated `.nsh`, `node_modules`, target directories, benchmark fixtures, or temporary reports.
 - Keep source, configuration, commit messages, and canonical documentation in English.
-- Regenerate Japanese documents with `mdt --lang ja --force README.md` and `mdt --lang ja --force AGENTS.md`.
+- Regenerate Japanese documents with the GlossShift CLI: `gshift README.md AGENTS.md --lang ja --force`.
+- If the CLI is not installed, use the project task: `vp run cli -- README.md AGENTS.md --lang ja --force`.
+- Do not use `mdt` for this repository's translations.
 - If generation is blocked, record it instead of manually fabricating generated output.
 - Keep `AGENTS.md` canonical and do not create a separate `CLAUDE.md`.
 

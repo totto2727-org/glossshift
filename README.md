@@ -45,7 +45,7 @@ On its first invocation, `gshift` creates its application settings under the Glo
 
 - Native macOS popup with global shortcuts, a resizable window, official NSH components, native Tailwind classes, and raw-text copy controls.
 - Official NSH terminal backend for interactive translation, sharing TypeScript/Effect state and provider transport without initializing desktop hotkeys, tray, or selection capture.
-- A pinned NSH nightly distribution and matching source and terminal component, not a Rust nightly toolchain requirement.
+- The pinned NSH 0.5.0 release and its matching source and terminal component.
 - TypeScript/Effect application state with injected native services, while Rust retains macOS integration, shared credential resolution, and the existing translation transport.
 - Read-only Markdown preview with a plain-text toggle, no syntax highlighting, and no automatic external content loading.
 - Streaming translations through servers that implement the OpenAI Chat Completions API, including custom base URLs and request parameters.
@@ -206,7 +206,7 @@ The supported end-user interfaces are the packaged `GlossShift.app` and `gshift`
 
 The installed `gshift` wrapper selects the official NSH terminal host when called without arguments or with `--tui`.
 File and option invocations continue to use the batch interface below.
-The pinned upstream nightly does not provide `nsh package --target tui`, so the Nix package installs NSH's generated terminal host together with its application bundle.
+NSH 0.5.0 does not provide `nsh package --target tui`, so the Nix package installs NSH's generated terminal host together with its application bundle.
 
 ```text
 gshift

@@ -3,111 +3,175 @@
 ## リポジトリ構成
 
 ```text
-src/lib.rs            Shared public library modules
-src/config.rs         XDG configuration and credential loading
-src/prompt.rs         Translation prompt construction
-src/llm.rs            Rig streaming worker and request events
-src/cli.rs            Public CLI path, language, and Markdown rendering helpers
-src/bin/gshift.rs     Markdown translation CLI binary
-src/main.rs           GPUI desktop binary wiring
-src/selection.rs      macOS Accessibility and clipboard fallback
-src/ui.rs             GPUI popup view and actions
-examples/              Starter TOML configuration and credentials
-packaging/             macOS application metadata
-Justfile               Local development and packaging recipes
-flake.nix              Darwin packages, overlay, and development shell
-package.nix            Nix Rust package definition
+App.tsx                     nsh.json と同じディレクトリにある NSH エントリ
+src/domain.ts               純粋なポップアップ状態、メッセージ、遷移
+src/controller.ts           エフェクトが所有するリクエストのライフタイムと境界付きイベント処理
+src/ports.ts                注入可能なネイティブサービスと公開設定
+src/                        NSH ビュー、ネイティブモジュールアダプタ、アプリケーションテスト
+native/Cargo.toml           Rust ネイティブブリッジと gshift パッケージ
+native/Cargo.lock           ロックされた Rust 依存関係
+native/src/bridge.rs        型付き NSH モジュールエクスポート
+native/src/bridge_types.rs  TS/Rust 境界を越える非秘密の値
+native/src/desktop.rs       macOS サービスの起動と停止
+native/src/selection.rs     アクセシビリティとクリップボードによる選択範囲の取得
+native/src/platform.rs      選択範囲と権限のインターフェース
+native/src/llm.rs           Rig の翻訳ストリームとキャンセル
+native/src/config.rs        XDG 設定と非破壊的なプロバイダ移行
+native/src/prompt.rs        共有翻訳プロンプト
+native/src/cli.rs           CLI の言語、パス、ANSI Markdown ヘルパー
+native/src/bin/gshift.rs    順序を保つ Markdown 翻訳 CLI
+native/tests/               実 CLI と HTTP 境界の回帰テスト
+nsh.json                    ネイティブモジュール、アプリケーション識別子、エントリメタデータ
+vite.config.ts              Vite+ のフォーマット、lint、委譲タスク定義
+pnpm-workspace.yaml         カタログ、パッケージマネージャポリシー、リリース経過期間の保護
+patches/                    最小限の NSH 動作互換パッチ
+packaging/                  macOS アプリケーションメタデータとアセット
+flake.nix                   固定された開発ツールと Darwin パッケージ出力
+package.nix                 ネイティブアプリケーションのパッケージング
+Justfile                    Vite+ タスクへの互換エイリアス
 ```
 
 ## 開発コマンド
 
-### 実行ルール
+リポジトリルートからコマンドを実行します。
+`nix develop` を実行して、固定された NSH 0.5.0 リリース、対応するターミナルコンポーネント、Rust ツール、Vite+、パッチ適用済み NSH ソース依存関係を準備します。
+ソース、CLI、ターミナルコンポーネントは、コンテンツハッシュ付きの同一の正確なリリースリビジョンに保ちます。
+次に `vp install --frozen-lockfile` で JavaScript 依存関係をインストールします。
+コミットされたマニフェストをベンチマーク用フィクスチャ、任意の兄弟チェックアウト、開発者固有の絶対パスに向けないでください。
+生成される `.nsh/upstream` 依存関係は、可変の兄弟リポジトリではなく、固定されたソースと保守されたパッチから準備されます。
 
-- リポジトリのルートからコマンドを実行する。
-- プロジェクトで対応範囲を明示的に拡張するまで、macOS のみをサポートする。
-- アドホックなシェルワークフローではなく、以下で指定された Just レシピを使用する。レシピで必要なターゲットを表現できない場合のみ、Cargo を直接使用する。
-- ソースコード、設定例、コミットメッセージ、ソースドキュメントは英語で記述する。`README.md` と `AGENTS.md` は正規ファイルであり、日本語訳は `mdt` で生成する。
-- 個別の `CLAUDE.md` は作成せず、`AGENTS.md` を正規のエージェントドキュメントとして維持する。
-- 実際の認証情報をコミットしたり、API キーをログ出力したり、失敗したテストや lint を弱体化したりしない。
+| コマンド                                  | 責務                                                                                    |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `vp install --frozen-lockfile`           | Vite+ 経由でロックされたパッケージグラフをインストールします。                                                   |
+| `vp run check`                           | 2 つ目の型チェッカーなしでフォーマットと lint をチェックします。                                           |
+| `vp run fix`                             | Vite+ のフォーマットと lint の修正を適用します。                                                            |
+| `vp run typecheck`                       | ネイティブ宣言と NSH の TypeScript コンパイラを含め、`nsh check .` に委譲します。           |
+| `vp run dev`                             | 開発とリロードを NSH の macOS ホストに委譲します。                                              |
+| `vp run run`                             | NSH 経由でアプリケーションを実行します。                                                                  |
+| `vp run build`                           | インストール可能なアプリケーションではなく、NSH リリースバンドルを生成します。                                   |
+| `vp run package`                         | NSH 経由でネイティブ macOS アプリケーションをパッケージ化します。                                                 |
+| `vp run test`                            | 公式 NSH テストホスト経由でアプリケーションテストを実行します。                                         |
+| `vp run tui`                             | 共有 TS アプリケーションを NSH の公式ターミナルホスト経由で実行します。                               |
+| `vp run test-tui`                        | 専用のターミナル操作スイートを NSH の公式 TestBackend 経由で実行します。                  |
+| `vp run test-native`                     | Rust ライブラリ、CLI、ローカル HTTP トランスポートの回帰テストを実行します。                                      |
+| `vp run test-lifecycle`                  | 認証情報や他のアプリケーションを読み取らずに、実際の AppKit ウィンドウライフサイクルチェックをオプトインします。 |
+| `vp run cli -- FILES... --lang LANGUAGE` | 保持された Rust CLI を実行します。                                                                        |
+| `vp run ci`                              | 最小限のフォーマットと lint ゲートを実行します。                                                         |
 
-### 標準タスク
+Vite+ はインストール、タスクオーケストレーション、フォーマット、lint のみを所有します。
+代替のアプリケーションツールチェーンとして、Vite バンドリング、`vp pack`、Vitest、またはスタンドアロンの TypeScript コンパイラを導入しないでください。
+テンプレートの最も厳格なプリセットと Node-TS 設定プリセットは維持され、NSH の生成設定が最後に配置されるため、アプリケーションの型は Node グローバルではなく NSH から取得されます。
+Just エイリアスは互換性のために存在し、既存のワークフローの `just ci` エントリポイントも含みます。
+ネイティブ Cargo タスクは、`native/target` の下に 2 つ目のビルドキャッシュを作成するのではなく、NSH の生成ホストとリポジトリルートの `target` ディレクトリを共有します。
+ライフサイクルチェックは、独自の検証ウィンドウを短時間表示してアクティブ化し、その後クローズ、再オープン、シャットダウンをチェックします。
+これはローカルでのオプトインチェックであり、CI の一部ではありません。
+ワークフローの変更は、ユーザーが明示的に承認したランナーとタイムアウトの変更の範囲内に保ってください。
+新しいリクエストなしに、GitHub Actions に macOS ジョブ、アプリケーションビルド、全システム評価、flake チェックを追加しないでください。
 
-- `just fix` — フォーマットと Clippy の修正を適用する。
-- `just fix-format` — すべての Rust ソースを `cargo fmt --all` でフォーマットする。
-- `just fix-lint` — すべてのターゲット、機能、警告を deny する設定で Clippy の修正を適用する。
-- `just check` — フォーマットと Clippy のチェックを実行する。
-- `just check-format` — Rust のフォーマットを変更せずにチェックする。
-- `just check-lint` — すべてのターゲットと機能に対して厳格な Clippy チェックを実行する。
-- `just test` — Rust のユニットテストを実行する。
-- `just build` — デバッグバイナリをビルドする。
-- `just ci` — ローカルの完全なチェック、テスト、ビルドゲートを実行する。
-- `just dev` — Cargo からデスクトップバイナリを直接実行する。
-- `just run` — ビルド、アドホック署名、検証を行い、`target/GlossShift.app` を開く。
-- `just package-app` — ローカルアプリケーションバンドルを開かずにビルドして検証する。
-- `mdt --lang ja --force README.md` — 日本語の README ソース出力を再生成する。
-- `mdt --lang ja --force AGENTS.md` — 日本語の AGENTS ソース出力を再生成する。
+## アプリケーションアーキテクチャ
 
-### CLI リファレンス
+### TS アプリケーション境界
 
-リポジトリのルートから `just cli FILES... --lang LANGUAGE [OPTIONS]` で CLI を実行する。対応する直接コマンドは `cargo run --bin gshift -- FILES... --lang LANGUAGE [OPTIONS]` である。`gshift` バイナリは常にデスクトップアプリケーションの XDG 設定、アクティブなプロバイダー、ソース言語、タイムアウト値、名前付き認証情報を再利用する。個別のモデル、プロンプト、トークン設定は存在しない。
+TypeScript は、ポップアップ状態、表示モード、リクエストの置き換え、古いイベントと終端イベントの処理、コピーアクション、ビューのレンダリングを所有します。
+手動の Promise オーケストレーションや JavaScript 標準ライブラリのコレクションヘルパーの代わりに、Effect サービス、スコープ付きファイバー、検証済みスキーマ、Effect のコレクションおよび文字列ユーティリティを使用してください。
+避けられない NSH の Promise と UI API は境界アダプタに保ってください。
+アプリケーションのライフタイムに 1 つのランタイムを使用し、ティアダウン時にそのスコープを破棄し、レンダリングごとにランタイムを作成しないでください。
+プロバイダのデルタは、境界付きでロスレスなトランスポートを使用します。
+完全なビュースナップショットは合流してもかまいませんが、キャンセルと置き換えは完全なデルタキューを待ってはなりません。
 
-位置引数の `FILES...` は `.md` または `.mbt.md` 拡張子を持つ 1 つ以上の Markdown ファイルを受け付け、入力順を維持する。`--lang`/`-l` は必須であり、空でない ASCII 言語コードを受け付ける。言語コードには英数字と内部ハイフンのみを使用でき、使用前にトリミングして小文字化する。`--force`/`-f` は既存の兄弟出力の置き換えを許可し、`--stdout` と競合する。`--stdout` は翻訳をファイルではなく標準出力に書き込む。`--color auto|always|never` は ANSI Markdown ハイライトを制御し、`--stdout` が必要で、デフォルトは `auto` である。
+公式 NSH コンポーネントとネイティブ Tailwind の `class` サポートを使用してください。
+ブラウザのオーバーフロー動作ではなく、NSH の `Scroll` を使用してください。
+Markdown は標準の NSH `TextView` を使用し、リテラル HTML、数式無効、リンクを開かない、alt のみの画像、シンタックスハイライトなしのプレーンなコードブロックレンダリングを設定します。
+プレーンモードは、保存されたソースや翻訳テキストを変更せずに両方のペインを切り替えます。
+コピーは常にレンダリングされた Markdown ではなく、生のドメインテキストを使用します。
+アプリケーションの CSS スタイルシート、カスタム Markdown パーサー、ブラウザレンダラーを再導入しないでください。
 
-CLI は設定の読み込みや翻訳の前に、すべての兄弟出力を解決し、出力がいずれかの入力または別の出力と衝突するバッチを拒否する。`--stdout` なしの場合、入力ごとに `.md` の前へ `.<language>` を挿入して兄弟パスを作成し、複合拡張子 `.mbt.md` を保持し、末尾に既存の `.ja` または `.en` セグメントがある場合は置き換える。`--force` が指定されていない限り、シンボリックリンクを含む既存の出力を拒否する。`--force` を指定した場合、シンボリックリンクは削除され、リンク先を変更せずに通常の出力ファイルへ置き換えられる。ファイルには ANSI エスケープを書き込まない。
+### Rust 境界
 
-入力はコマンドライン上の順序で逐次翻訳される。`--stdout` では翻訳本文を同じ順序で連結し、区切りは挿入しない。`--stdout --color auto` の場合、リダイレクトされた stdout はバイト単位でプレーンなままとなり、各プロバイダーデルタは直ちに flush される。一方、ターミナル stdout は翻訳ごとに完了までバッファリングされ、その後 Tree-sitter Markdown の ANSI スタイルでレンダリングされる。`--color never` はターミナル上でも出力をプレーンなままストリーミングする。`--color always` は完了した各翻訳をバッファリングし、stdout がリダイレクトされている場合でも ANSI スタイルを出力する。
+公開されている [`llm-profiles`](https://crates.io/crates/llm-profiles) クレートは、共有プロバイダの読み込み、検証、名前付き認証情報、およびそのオプションの Rig アダプタを所有します。
+Rust は、設定の移行、プロバイダ固有のヘッダーとパラメータ、翻訳プロンプトとトランスポート、ネイティブ選択範囲、ホットキー、トレイ、自動起動、`gshift` CLI を保持します。
+認証情報と秘密ヘッダーは、ビュー状態やネイティブモジュールのブートストラップデータに決して渡されません。
+Rig は、NSH にストリーミング HTTP プリミティブがないからではなく、プロバイダと CLI の同等性のために保持されます。
+これを Effect AI に置き換えるには、まず互換性のあるベース URL、パラメータ、ヘッダー置換、キャンセル、両方のタイムアウトクラス、CLI 動作を証明する必要があります。
 
-例:
+NSH モジュールは、型付きデータと境界付きのプルベースイベントをエクスポートします。
+TS 境界で未知のデータをデコードし、すべてのストリームイベントにリクエスト ID を付加し、古い世代や終端世代を拒否してください。
+ネイティブの非同期関数は、JS エンジンスレッドをブロックしたり、JS コールバックをスレッド間で移動したりしてはなりません。
+保留中のネイティブ受信は明示的なトランスポートセッションに属し、リロードやシャットダウン中に解放または無効化する必要があります。
+新しいセッションを開くと古い保留中のレシーバーがキャンセルされ、古いセッションを閉じても新しいセッションを閉じてはなりません。
+翻訳リクエスト ID をセッションで名前空間化し、リロードされたコントローラが以前のリクエストに別名を付けられないようにしてください。
+プロバイダの失敗は、生のエラー、レスポンスボディ、ヘッダー、設定解析コンテキストを UI に返すのではなく、許可リストに載った公開メッセージに投影してください。
+ポップアップを表示またはアクティブ化する前に、前のアプリケーションの選択範囲を取得してください。
+ネイティブの選択範囲と権限のインターフェースは、別の GUI イベントループを導入せずに、別の OS 実装に注入可能なままにしてください。
 
-```bash
-just cli README.md AGENTS.md --lang ja --force
-just cli README.md AGENTS.md --lang ja --stdout
-just cli README.md AGENTS.md --lang ja --stdout --color never
-just cli README.md --lang ja --stdout --color always
-```
+### ターミナル UI
 
-### 設定と認証情報
+2 つ目のターミナルレンダラーではなく、公式 NSH TUI バックエンドを使用してください。
+`platform.idiom === 'terminal'` でターミナル動作を選択します。オペレーティングシステムは macOS のままであり、`nsh/desktop.isAvailable` だけではターミナルホストを区別できません。
+Effect コントローラ、プロバイダトランスポート、Markdown/プレーン動作、生コピーセマンティクスをデスクトップアプリと共有してください。
+別のアプリケーションの選択範囲をキャプチャするのではなく、型付きターミナル入力を注入してください。
+ターミナル起動から AppKit、グローバルホットキー、トレイリソース、デスクトップメニューを初期化しないでください。
+公式のターミナルクリップボードとライフサイクル API を使用してください。
+バッチ `gshift` 出力は既存のファイルとパイプラインと互換性を保ってください。
+ターミナル操作テストは `nsh test --target tui` 経由で実行し、公式 TestBackend を検証します。
+そのバックエンドに `setViewport` を渡さないでください。初期ディメンションは `open` で選択してください。
+ターミナルスクリーンショット形式はピクセル画像ではなくセル JSON です。
+固定されたアップストリームリリースが提供しない場合、NSH ターミナルパッケージターゲットを発明しないでください。
 
-共有設定ルートは `xdg::BaseDirectories` を通じて解決され、デフォルトは `~/.config/glossshift` であり、`XDG_CONFIG_HOME` を尊重する。`config.toml` は `active_provider` を名前付きプロバイダーに、各プロバイダーを `credentials.toml` 内の名前付き認証情報にリンクする。認証情報の権限は常に `0600` にリセットされる。ショートカット文字列、TOML コンテンツ、Accessibility の値、HTTP レスポンスは、信頼できない境界入力として扱う。
+### macOS ライフサイクル
 
-アクティブなプロバイダーには空でない `base_url` と `model` が必要である。タイムアウトのデフォルト値は、最初のチャンクが 30 秒、ストリームのアイドル期間が 60 秒である。オプションの `[providers.<name>.request_parameters]` JSON フィールドは、変更せずに Rig 経由で転送される。ショートカットには一意のホットキーと空でない対象言語が必要であり、ウィンドウの寸法は正の値で、設定された最小値以上でなければならない。
+プラットフォームスコープが明示的に拡大するまで、Apple Silicon macOS のみをサポートしてください。
+NSH の AppKit イベントループとデリゲートを維持してください。
+保守されている [NSH アップストリーム差分記録](docs/upstream-differences.md)は、正確なソースリビジョンと、狭いセットアップ、シャットダウン、可視性、ウィンドウ境界のパッチを説明しています。
+ネイティブモジュールの登録は、型とライフサイクル関数ポインタを登録するだけにしてください。
+NSH がエクスポートを説明したりヘッドレステストを実行したりしている間に、開発者の設定にアクセスしたり、権限を要求したり、ホットキーを登録したり、トレイリソースを作成したりしてはなりません。
+メインスレッドのスタンドアロンセットアップフックでネイティブサービスを初期化し、シャットダウン時に解放してください。
+ポップアップを閉じると、エンジンを破棄せずに非表示になり、再オープンすると保持された状態が再表示されます。
+バックグラウンド起動は、ウィンドウを短時間アクティブ化して非表示にしてはなりません。
 
-## アーキテクチャ
+## 設定と認証情報
 
-### 共有ライブラリ境界
+アプリケーション設定ルートは `xdg::BaseDirectories` を使用し、デフォルトは `~/.config/glossshift` で、`XDG_CONFIG_HOME` を尊重します。
+共有プロバイダは `~/.agents/config.toml` にあり、名前付きキーは `~/.agents/credentials.toml` にパーミッション `0600` であります。
+`AGENTS_CONFIG` は絶対共有設定パスを選択し、認証情報はその隣にあります。
+認証情報を探して現在のディレクトリを検索しないでください。
+レガシー移行は元の GlossShift ファイルを保持し、既存の共有ファイルを決して上書きしません。
 
-再利用可能なライブラリは XDG 設定、プロンプト構築、プロバイダーストリーミングを所有し、デスクトップと CLI のバイナリが同じプロバイダー契約を使用できるようにする。`config.rs` はトークンを通常の TOML から分離して保持し、`prompt.rs` は翻訳のみのプロンプトを構築し、`llm.rs` はリクエストスコープの `TranslationEvent` 値を出力する。
+プロバイダ解決は、アクティブなプロバイダ、カスタム互換 API プレフィックス、正の最初のチャンクタイムアウトとアイドルタイムアウト、リクエストパラメータ、翻訳ごとの `${session_id}` ヘッダーへの 1 回の UUID 置換を保持する必要があります。
+プロバイダがデルタを生成した後だけでなく、接続確立中およびバックプレッシャー中に前のリクエストをキャンセルしてください。
+プロバイダのアイドルタイムアウトは、ダウンストリームコンシューマがテキストデルタを受け入れるのを待つ時間を除外します。
+TOML、ショートカット文字列、ネイティブ選択値、HTTP データを信頼できない入力として扱ってください。
+テストは、開発者のホーム設定ではなく、分離された一時設定と合成認証情報を使用する必要があります。
 
-### デスクトップ境界
+## CLI 契約
 
-GPUI アプリケーションスレッドは、ポップアップエンティティ、グローバルホットキーマネージャー、ウィンドウアクション、共有の 2 ワーカー Tokio ランタイムを所有する。`selection.rs` は macOS Accessibility API とクリップボード API にアクセスする唯一のモジュールであり、`ui.rs` は GPUI ビューの状態を変更する唯一のモジュールである。ポップアップは閉じられた後もウィンドウを保持し、新しいショートカットが開始されると古いストリームをキャンセルし、`RequestId` が古いイベントを無視する。
+引数なし、または `--tui` 付きの `gshift` は、インストールされたパッケージ内の公式 NSH ターミナルホストを起動します。
+ラッパーはファイルとオプションの呼び出しを保持されたバッチバイナリに転送します。
+`gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]` は既存の動作を保持します。
+すべての兄弟出力を解決し、設定を読み込んだりプロバイダに接続したりする前に、入力/出力の衝突を拒否してください。
+順序を保つ `.md` と `.mbt.md` の処理、正規化された言語サフィックス、ターゲットを変更せずにシンボリックリンクを安全に強制置換する動作を保持してください。
+ファイル出力とリダイレクトされた自動カラー stdout は、ANSI エスケープを含まないままにする必要があります。
+プレーン stdout は、区切りを挿入せずにプロバイダのデルタをストリーミングします。
+ターミナルの自動カラーと強制カラーは、Tree-sitter レンダリングの前に各完了した翻訳をバッファリングします。
+デスクトップと CLI は、設定、認証情報、プロンプト、パラメータ、タイムアウトセマンティクスを共有します。
 
-### CLI 境界
+## 検証とメンテナンス
 
-`cli.rs` は言語の検証、Markdown 兄弟パスの解決、バッチ出力の事前検証、Tree-sitter ANSI レンダリングを所有する。`gshift` は順序付きのファイルおよび stdout の I/O を所有し、各入力を共有の `llm::translate` 関数へ逐次渡す。境界付きチャネルはデスクトップ UI とストリーミングワーカーを分離し、キャンセルはプロバイダーストリームの境界で監視される。
+- アプリケーション動作テストは、Node やコピーされたコントローラハーネスではなく、NSH 経由で実行してください。
+- 実際の Vite+ タスク委譲、生成されたネイティブ宣言、ネイティブパッケージング、保持された CLI を個別に確認してください。
+- NSH バンドルの成功は、ネイティブアプリケーション、CLI パッケージ、Nix 派生が機能することの証明ではありません。
+- 有料モデルに接続せずにトランスポート境界を検証するために、実際のローカル HTTP/SSE フィクスチャを使用してください。
+- 合成プロバイダテストを実際のプロバイダ受け入れと区別し、ヘッドレスレイアウトをネイティブの視覚レビューと区別してください。
+- アクセシビリティまたは画面権限がエンドユーザーチェックを妨げる場合は、その境界を報告し、それを回避する試みを停止してください。
+- Rust の `unsafe_code = "forbid"` と厳格な Clippy ルールを維持してください。
+- 実用的な場合は本番ソースファイルを 250 行未満に保ち、モジュールの責務を維持してください。
+- テンプレートのパッケージマネージャピン、リリース経過期間の待機期間、厳格な経過期間チェック、ライフサイクルビルドの拒否を保持してください。
+- 認証情報や生成された `.nsh`、`node_modules`、target ディレクトリ、ベンチマークフィクスチャ、一時レポートをコミットしないでください。
+- ソース、設定、コミットメッセージ、正規ドキュメントは英語で保ってください。
+- GlossShift CLI で日本語ドキュメントを再生成してください: `gshift README.md AGENTS.md --lang ja --force`。
+- CLI がインストールされていない場合は、プロジェクトタスクを使用してください: `vp run cli -- README.md AGENTS.md --lang ja --force`。
+- このリポジトリの翻訳に `mdt` を使用しないでください。
+- 生成がブロックされた場合は、生成出力を手動で捏造するのではなく、そのことを記録してください。
+- `AGENTS.md` を正規とし、別の `CLAUDE.md` を作成しないでください。
 
-### パッケージング境界
-
-両方のバイナリは Rust および Nix のパッケージ出力に含まれる。デフォルトの flake オーバーレイは、一致する `meta.mainProgram` 値を持つ `glossshift` と `gshift` を公開し、パッケージ導出は安定した `GlossShift.app` バンドルレイアウトを通じてデスクトップバイナリを公開する。
-
-## 開発ツール
-
-- **Rust and Cargo**: `unsafe_code` を禁止し、厳格な Clippy lint を適用した 2024 エディションのパッケージをコンパイル、テスト、フォーマット、lint する。
-- **Just**: リポジトリで定義された開発、検証、CLI、macOS パッケージングのワークフローを提供する。
-- **Nix flakes**: Darwin パッケージ出力、再利用可能なオーバーレイ、Rust ツールチェーンと Just を備えた開発シェルを提供する。これらのツールがローカルにインストールされていない場合は、定義済みレシピの前に `nix develop` を実行する。
-- **mdt**: 設定済みの OpenCode または Codex アダプターを使用して、日本語のソースドキュメント翻訳を生成する。
-- **GPUI**: ネイティブタイトルバー、サイズ変更可能なデスクトップポップアップ、アプリケーションスレッドの UI モデルを提供する。
-- **Rig**: カスタム互換ベース URL を含む OpenAI Chat Completions ストリーミングを提供する。
-- **global-hotkey and macOS Accessibility crates**: グローバルショートカットの登録と安全な選択キャプチャ境界を提供する。
-- **Tree-sitter**: 色付きターミナル出力向けの Markdown 構文ハイライトを提供する。
-
-## パッケージ固有のルール
-
-- 可能な限り本番ソースファイルを 250 行未満に保ち、既存のモジュール責務の境界を維持する。
-- コールバック、UI、CLI、ネットワークの境界では境界付きチャネルを使用し、すべてのストリーミングイベントにリクエスト ID を付与する。
-- 新しい翻訳を開始する前にアクティブなストリームをキャンセルし、古いイベントが現在の UI 状態を上書きできないようにする。
-- 自動カラーモードでは、生成ファイルとリダイレクトされた stdout に ANSI エスケープを含めない。
-- いずれかのソースドキュメントを変更した後は、`mdt --lang ja --force README.md` と `mdt --lang ja --force AGENTS.md` を使用して、英語ソースの横に `README.ja.md` と `AGENTS.ja.md` を再生成してコミットする。
-- 両方のソースドキュメント内の相対リンクと、各英語ソース末尾にある正確な share-artifact provenance フッターを保持する。
-
-_This AGENTS.md was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [AGENTS template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/agents/template.md)._
+_この AGENTS.md は、[share-artifact スキル](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md)と [AGENTS テンプレート](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/agents/template.md)から生成されました。_
