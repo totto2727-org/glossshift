@@ -5,14 +5,19 @@
   "build": 1,
   "capabilities": {
     "clipboard": true,
+    "fs": {
+      "read": ["${homeDir}", "${dataDir}", "${pluginDir}", "/private/tmp", "/tmp"],
+      "write": ["${homeDir}", "${dataDir}", "/private/tmp", "/tmp"]
+    },
+    "network": { "hosts": ["127.0.0.1"] },
     "process": {
-      "execute": ["node"],
+      "execute": ["coreutils", "curl", "llama-server"],
       "env": [
         "XDG_CONFIG_HOME",
         "XDG_CACHE_HOME",
         "GLOSSSHIFT_CONFIG",
-        "GLOSSSHIFT_NODE_COMMAND",
-        "GLOSSSHIFT_NODE_ENTRY",
+        "GLOSSSHIFT_COREUTILS",
+        "GLOSSSHIFT_CURL",
         "GLOSSSHIFT_LLAMA_SERVER"
       ]
     }

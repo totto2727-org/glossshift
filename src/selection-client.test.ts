@@ -74,12 +74,17 @@ test('helper boundary rejects wrong shapes, versions, status, oversized and empt
   ).toBe(true)
 })
 
-test('selection executable must be an explicit absolute path without NUL bytes', async () => {
+test('selection executable permits only an absolute path or the exact granted development helper', async () => {
   for (const value of [undefined, 'helper', './helper', '/bad\0helper']) {
     expect(Result.isFailure(await run(Effect.result(readSelectionClient({ GLOSSSHIFT_MACOS_HELPER: value }))))).toBe(
       true,
     )
   }
+  expect(
+    Result.isSuccess(
+      await run(Effect.result(readSelectionClient({ GLOSSSHIFT_MACOS_HELPER: 'glossshift-macos-helper' }))),
+    ),
+  ).toBe(true)
   expect(
     Result.isSuccess(await run(Effect.result(readSelectionClient({ GLOSSSHIFT_MACOS_HELPER: '/immutable/helper' })))),
   ).toBe(true)

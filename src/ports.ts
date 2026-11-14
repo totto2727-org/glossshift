@@ -27,13 +27,13 @@ export interface TranslationRequest {
   readonly targetLanguage: string
 }
 
-/** Local model configuration remains inside the Node translation boundary. */
+/** Injectable application services run inside the official NSH host. */
 export interface NativePorts {
   readonly settings: Effect.Effect<PublicSettings, Fault>
   readonly capture: Effect.Effect<string, Fault>
   /** A lossless bounded stream. The controller finalizer releases the local request. */
   readonly translate: (request: TranslationRequest) => Stream.Stream<TranslationEvent, Fault>
-  /** Idempotent and able to wake blocked transport operations. */
+  /** Idempotent cleanup after the controller interrupts the request stream. */
   readonly cancel: (id: RequestId) => Effect.Effect<void, Fault>
   readonly copy: (text: string) => Effect.Effect<void, Fault>
   readonly reveal: Effect.Effect<void, Fault>

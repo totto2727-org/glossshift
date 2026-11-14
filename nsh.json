@@ -4,21 +4,23 @@
   "version": "0.2.0",
   "build": 1,
   "icon": "packaging/app-icon.png",
-  "window": {
-    "defaultVisible": false,
-    "closeOnPress": false
-  },
+  "window": { "defaultVisible": false, "closeOnPress": false },
   "capabilities": {
     "clipboard": true,
     "statusBar": true,
+    "fs": {
+      "read": ["${homeDir}", "${dataDir}", "${pluginDir}", "/private/tmp", "/tmp"],
+      "write": ["${homeDir}", "${dataDir}", "/private/tmp", "/tmp"]
+    },
+    "network": { "hosts": ["127.0.0.1"] },
     "process": {
-      "execute": ["node"],
+      "execute": ["coreutils", "curl", "llama-server", "glossshift-macos-helper"],
       "env": [
         "XDG_CONFIG_HOME",
         "XDG_CACHE_HOME",
         "GLOSSSHIFT_CONFIG",
-        "GLOSSSHIFT_NODE_COMMAND",
-        "GLOSSSHIFT_NODE_ENTRY",
+        "GLOSSSHIFT_COREUTILS",
+        "GLOSSSHIFT_CURL",
         "GLOSSSHIFT_MACOS_HELPER",
         "GLOSSSHIFT_BACKGROUND",
         "GLOSSSHIFT_LLAMA_SERVER"

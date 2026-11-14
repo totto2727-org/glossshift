@@ -5,6 +5,7 @@ import { Effect, Schema } from 'effect'
 import type { Fault } from './ports'
 
 const AbsolutePath = Schema.String.check(Schema.isPattern(/^\/[^\0]+$/u))
+const HelperCommand = Schema.Union([AbsolutePath, Schema.Literal('glossshift-macos-helper')])
 const Permission = Schema.Struct({
   schemaVersion: Schema.Literal(1),
   kind: Schema.Literal('permission'),
@@ -107,7 +108,7 @@ export const createSelectionClient = (command: string, runner: SelectionRunner =
 }
 
 export const readSelectionClient = (environment: Readonly<Record<string, unknown>> = process.env) =>
-  Schema.decodeUnknownEffect(AbsolutePath)(environment['GLOSSSHIFT_MACOS_HELPER']).pipe(
+  Schema.decodeUnknownEffect(HelperCommand)(environment['GLOSSSHIFT_MACOS_HELPER']).pipe(
     Effect.mapError(unavailable),
     Effect.map((command) => createSelectionClient(command)),
   )
