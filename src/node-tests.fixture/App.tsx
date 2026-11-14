@@ -12,7 +12,13 @@ mount(() => {
         if (typeof root !== 'string' || !String.startsWith('/')(root)) throw new Error('Repository PWD is unavailable')
         return run(
           'node',
-          ['--test', '--test-reporter=tap', `${root}/node/local.test.ts`, `${root}/node/desktop.test.ts`],
+          [
+            '--test',
+            '--test-reporter=tap',
+            `${root}/node/local.test.ts`,
+            `${root}/node/desktop.test.ts`,
+            `${root}/node/server.test.ts`,
+          ],
           {
             timeoutMs: 45_000,
           },
@@ -25,7 +31,7 @@ mount(() => {
           status.set(
             output.code === 0 && String.includes('# fail 0')(output.stdout)
               ? 'Node regressions passed'
-              : `Node regressions failed: ${output.stderr}\n${output.stdout}`,
+              : `Node regressions failed: ${output.stderr}\n${String.slice(-6000)(output.stdout)}`,
           )
         }),
       ),

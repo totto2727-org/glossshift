@@ -20,21 +20,35 @@
           nodejs = final.nodejs_26;
         };
         nsh = final.callPackage ./nix/nsh.nix { };
-        nsh-source = final.callPackage ./nix/nsh-source.nix { };
         glossshift-source = final.callPackage ./nix/source.nix { };
         glossshift-pnpm-deps = final.callPackage ./nix/pnpm-deps.nix { };
+        glossshift-llama-server = final.callPackage ./nix/llama-server.nix { };
+        glossshift-macos-helper = final.callPackage ./nix/macos-helper.nix { };
         glossshift = final.callPackage ./package.nix { };
         gshift = final.callPackage ./nix/gshift.nix { };
       };
-      mkPkgs = system: import nixpkgs { inherit system; overlays = [ overlay ]; };
+      mkPkgs =
+        system:
+        import nixpkgs {
+          inherit system;
+          overlays = [ overlay ];
+        };
     in
     {
       overlays.default = overlay;
       packages = forSystems appSystems (
         system:
-        let pkgs = mkPkgs system;
-        in {
-          inherit (pkgs) glossshift gshift nsh nsh-source;
+        let
+          pkgs = mkPkgs system;
+        in
+        {
+          inherit (pkgs)
+            glossshift
+            gshift
+            nsh
+            glossshift-llama-server
+            glossshift-macos-helper
+            ;
           default = pkgs.glossshift;
           pnpm-deps = pkgs.glossshift-pnpm-deps;
         }
@@ -43,49 +57,32 @@
         system:
         let
           pkgs = mkPkgs system;
-          tooling = [ pkgs.vite-plus pkgs.just ];
+          tooling = [
+            pkgs.vite-plus
+            pkgs.just
+          ];
           ci = pkgs.mkShell { packages = tooling; };
         in
-        { inherit ci; }
+        {
+          inherit ci;
+        }
         // nixpkgs.lib.optionalAttrs (system == "aarch64-darwin") {
           default = pkgs.mkShell {
-            NSH_SOURCE = pkgs.nsh-source;
+            GLOSSSHIFT_NODE_COMMAND = "${pkgs.nodejs_26}/bin/node";
+            GLOSSSHIFT_LLAMA_SERVER = "${pkgs.glossshift-llama-server}/bin/llama-server";
+            GLOSSSHIFT_MACOS_HELPER = "${pkgs.glossshift-macos-helper}/bin/glossshift-macos-helper";
             packages = tooling ++ [
               pkgs.nodejs_26
               pkgs.nsh
-              pkgs.cargo
-              pkgs.rustc
-              pkgs.clippy
-              pkgs.rustfmt
+              pkgs.glossshift-llama-server
+              pkgs.glossshift-macos-helper
             ];
             shellHook = ''
-              if [ ! -f native/Cargo.toml ] || [ ! -f nsh.json ] || [ -L .nsh ]; then
-                printf '%s\n' 'Run nix develop from the GlossShift root with a regular .nsh cache directory.' >&2
+              if [ ! -f nsh.json ]; then
+                printf '%s\n' 'Run nix develop from the GlossShift root.' >&2
                 exit 1
               fi
-              mkdir -p .nsh || exit 1
-              upstream="$PWD/.nsh/upstream"
-              stamp="$upstream/.glossshift-source"
-              if [ -L "$upstream" ] || { [ -e "$upstream" ] && [ ! -f "$stamp" ]; }; then
-                printf '%s\n' "Refusing to replace unmanaged $upstream. Move it aside, then run nix develop again." >&2
-                exit 1
-              fi
-              if [ ! -f "$stamp" ] || [ "$(cat "$stamp")" != "${pkgs.nsh-source}" ]; then
-                staging="$(mktemp -d "$PWD/.nsh/upstream-stage.XXXXXX")" || exit 1
-                if ! cp -R "${pkgs.nsh-source}/." "$staging/"; then
-                  printf '%s\n' 'Could not copy the pinned NSH source. Existing source was not changed.' >&2
-                  exit 1
-                fi
-                chmod -R u+w "$staging" || exit 1
-                test -f "$staging/crates/nsh-core/Cargo.toml" || exit 1
-                printf '%s\n' "${pkgs.nsh-source}" > "$staging/.glossshift-source" || exit 1
-                if [ -d "$upstream" ]; then
-                  backup="$(mktemp -d "$PWD/.nsh/upstream-backup.XXXXXX")" || exit 1
-                  mv "$upstream" "$backup/source" || exit 1
-                  printf '%s\n' "Previous managed NSH source retained at $backup/source"
-                fi
-                mv "$staging" "$upstream" || exit 1
-              fi
+              export GLOSSSHIFT_NODE_ENTRY="$PWD/node/main.ts"
               vp config
             '';
           };

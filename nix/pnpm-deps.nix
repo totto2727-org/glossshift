@@ -1,4 +1,8 @@
-{ lib, fetchPnpmDeps, pnpm }:
+{
+  lib,
+  fetchPnpmDeps,
+  pnpm,
+}:
 
 fetchPnpmDeps {
   pname = "glossshift";
@@ -14,5 +18,5 @@ fetchPnpmDeps {
   };
   inherit pnpm;
   fetcherVersion = 4;
-  hash = "sha256-Z/aGCZIGOx0hxKwlR1Mrly11KKloJf7oPMN6F8MkQoc=";
+  hash = "sha256-lWFO9osZzdg+8VOOqwVKSBMcPAAjk7NPFkSXlJjZy/8=";
 }

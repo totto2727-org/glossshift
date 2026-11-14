@@ -35,12 +35,6 @@ test:
 test-tui:
     vp run test-tui
 
-test-native:
-    vp run test-native
-
-test-lifecycle:
-    vp run test-lifecycle
-
 package-app:
     vp run package
 

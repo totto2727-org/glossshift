@@ -14,7 +14,6 @@ minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true
 
 allowBuilds:
-  node-llama-cpp: false
   vite-plus: false
 
 patchedDependencies:

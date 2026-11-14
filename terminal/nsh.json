@@ -12,7 +12,8 @@
         "XDG_CACHE_HOME",
         "GLOSSSHIFT_CONFIG",
         "GLOSSSHIFT_NODE_COMMAND",
-        "GLOSSSHIFT_NODE_ENTRY"
+        "GLOSSSHIFT_NODE_ENTRY",
+        "GLOSSSHIFT_LLAMA_SERVER"
       ]
     }
   }

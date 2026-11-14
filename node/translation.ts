@@ -1,7 +1,6 @@
 import { Array, Context, Effect, Exit, Layer, Option, Result, Schema, Scope, Semaphore, Stream } from 'effect'
 import { AiError, LanguageModel } from 'effect/ai'
 import type { Response } from 'effect/ai'
-import type { LlamaModel } from 'node-llama-cpp'
 
 import { loadConfig, TranslationError, validateConfig } from './config.ts'
 import type { LocalConfig } from './config.ts'
@@ -9,6 +8,7 @@ import { generate } from './generation.ts'
 import { loadModel } from './model.ts'
 import { makePrompt } from './prompt.ts'
 import type { TranslationRequest } from './prompt.ts'
+import type { LocalServer } from './server-api.ts'
 
 export { TranslationError } from './config.ts'
 export { TranslationRequest, normalizeLanguage } from './prompt.ts'
@@ -59,13 +59,13 @@ const fromAiError = (error: AiError.AiError): TranslationError =>
     },
   )
 
-/** One model per application scope, one fresh context per request, and at most one active inference. */
+/** One server per application scope and at most one active inference request. */
 export const makeTranslation = (input: LocalConfig) =>
   Effect.gen(function* () {
     const config = yield* validateConfig(input)
     const applicationScope = yield* Effect.scope
     const environment = yield* Effect.context<Effect.Services<ReturnType<typeof loadModel>>>()
-    let model = Option.none<LlamaModel>()
+    let model = Option.none<LocalServer>()
     // A failed or interrupted first load must not poison the cache or retain partial native resources.
     // The request semaphore below also serializes initialization.
     const getModel = Effect.uninterruptibleMask((restore) =>

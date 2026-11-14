@@ -18,6 +18,9 @@ Copy always uses the original text, including Markdown syntax.
 The **Plain** toggle switches both panes between Markdown preview and plain text.
 Code blocks have no syntax highlighting, links do not open, images show alternate text, and HTML remains literal.
 Desktop selection capture requires macOS Accessibility permission.
+The helper reads the focused application's Accessibility selection before GlossShift activates its popup.
+Applications that do not expose selected text through this API report an error.
+GlossShift does not simulate `Cmd+C` or replace clipboard contents to capture a selection.
 
 Run the interactive terminal UI:
 
@@ -29,8 +32,8 @@ gshift --tui
 
 Enter text and a target language, then choose **Translate**.
 The terminal UI does not start desktop hotkeys or tray services and does not need Accessibility permission.
-The terminal UI uses NSH's official prebuilt host and does not compile custom Rust application code.
-The desktop app still builds its native selection and startup integration.
+Both desktop and terminal modes use NSH's official prebuilt hosts and do not compile custom Rust application code.
+Desktop selection capture runs in a separate Swift helper.
 Use **Quit** or `Ctrl+C` to exit.
 
 Translate Markdown files in the supplied order:
@@ -57,12 +60,12 @@ Text is processed on the Mac, not sent to a hosted inference service.
 ## Features
 
 - Native macOS popup with global shortcuts and an official NSH terminal UI.
-- Local Metal inference through node-llama-cpp and a real Effect AI `LanguageModel` adapter.
+- Local Metal inference through the pinned official llama-server and a real Effect AI `LanguageModel` adapter.
 - Automatic model download, pinned default revision, SHA-256 verification, and offline cache reuse.
 - Configurable larger GGUF models and explicit context and output limits.
 - Shared translation, cancellation, and Markdown/plain behavior across desktop, terminal, and batch modes.
 - Ordered Markdown file processing with input/output collision checks and safe symbolic-link replacement.
-- TypeScript application, translation, settings, and autostart policy, with Rust retained for desktop selection and startup integration.
+- TypeScript application, translation, settings, and autostart policy, with a small separate Swift Accessibility helper.
 
 ## Prerequisites
 
@@ -72,9 +75,10 @@ Text is processed on the Mac, not sent to a hosted inference service.
 - Enough available memory for the chosen model and context.
 - Accessibility permission only for desktop selection capture.
 
-The Nix package includes Node and the native Metal addon.
-It does not require a compiler or node-llama-cpp source build on first use.
+The Nix package includes Node, the official `llama-server` b12110 executable with its Metal libraries, and the Swift helper.
+No compiler, native Node addon, or engine download is required on first use.
 Model weights stay in the user's cache rather than the Nix store.
+The inference server is private to the application, listens only on loopback, and uses a new authentication key per launch.
 
 ## Setup
 
@@ -221,7 +225,8 @@ See [AGENTS.md](./AGENTS.md) for repository structure, architecture, toolchain s
 Vite+ owns installation, tasks, formatting, and lint.
 NSH owns application type checking, execution, tests, bundling, and native packaging.
 The Node translation process runs TypeScript directly and shares its service with the batch CLI.
-The maintained [NSH compatibility record](./docs/upstream-differences.md) documents the pinned release and macOS lifecycle patch.
+The [runtime architecture](./docs/runtime-architecture.md) describes process ownership and the separate Accessibility helper.
+The maintained [upstream difference record](./docs/upstream-differences.md) documents the unchanged NSH release and retained plist validation patch.
 
 ## License
 

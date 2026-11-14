@@ -4,13 +4,25 @@
   "version": "0.2.0",
   "build": 1,
   "icon": "packaging/app-icon.png",
-  "rust": "native",
+  "window": {
+    "defaultVisible": false,
+    "closeOnPress": false
+  },
   "capabilities": {
     "clipboard": true,
     "statusBar": true,
     "process": {
       "execute": ["node"],
-      "env": ["XDG_CONFIG_HOME", "XDG_CACHE_HOME", "GLOSSSHIFT_CONFIG"]
+      "env": [
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "GLOSSSHIFT_CONFIG",
+        "GLOSSSHIFT_NODE_COMMAND",
+        "GLOSSSHIFT_NODE_ENTRY",
+        "GLOSSSHIFT_MACOS_HELPER",
+        "GLOSSSHIFT_BACKGROUND",
+        "GLOSSSHIFT_LLAMA_SERVER"
+      ]
     }
   }
 }
