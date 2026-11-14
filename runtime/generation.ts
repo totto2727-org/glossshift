@@ -73,7 +73,7 @@ export const generate = (
   Stream.unwrap(
     Effect.gen(function* () {
       const input = yield* tokenizePrompt(server, config, prompt)
-      if (input.tokens.length >= config.contextSize - 1)
+      if (input.tokens.length >= config.contextSize)
         return yield* Effect.fail(
           new TranslationError({
             code: 'ContextTooLong',
@@ -84,7 +84,7 @@ export const generate = (
         Effect.sync(() => new AbortController()),
         (controller) => Effect.sync(() => controller.abort()),
       )
-      const budget = Math.min(config.maxTokens, config.contextSize - input.tokens.length - 1)
+      const budget = Math.min(config.maxTokens, config.contextSize - input.tokens.length)
       const iterator = completion(server, input.tokens, budget, input.stops, abort.signal)
       const iterable: AsyncIterable<string> = {
         [Symbol.asyncIterator]: () => ({

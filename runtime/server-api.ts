@@ -71,11 +71,22 @@ export const serverJson = <A>(server: LocalServer, endpoint: string, body: unkno
     catch: inferenceFailed,
   }).pipe(Effect.flatMap(Schema.decodeUnknownEffect(schema)), Effect.mapError(inferenceFailed))
 
-const Tokens = Schema.Struct({ tokens: Schema.Array(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))) })
+const TokenBatch = Schema.Array(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)))
 export const tokenize = (server: LocalServer, content: string, trusted: boolean, addSpecial = false) =>
-  serverJson(server, '/tokenize', { content, parse_special: trusted, add_special: addSpecial }, Tokens).pipe(
-    Effect.map((value) => value.tokens),
-  )
+  Effect.gen(function* () {
+    const value = yield* serverJson(
+      server,
+      '/tokenize',
+      { content, parse_special: trusted, add_special: addSpecial },
+      Schema.Struct({ tokens: Schema.Unknown }),
+    )
+    if (!Array.isArray(value.tokens)) return yield* Effect.fail(inferenceFailed())
+    // Full-context arrays must not exceed NSH's synchronous JavaScript execution budget.
+    const batches = yield* Effect.forEach(Array.chunksOf(value.tokens, 1024), (batch) =>
+      Schema.decodeUnknownEffect(TokenBatch)(batch).pipe(Effect.tap(() => Effect.yieldNow)),
+    )
+    return Array.flatten(batches)
+  }).pipe(Effect.mapError(inferenceFailed))
 
 export const CompletionFrame = Schema.Struct({
   content: Schema.String,

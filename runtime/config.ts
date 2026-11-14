@@ -1,4 +1,6 @@
-import { Array, Config, Data, Effect, FileSystem, Option, Path, Schema, String } from 'effect'
+import { Array, Config, Data, Effect, FileSystem, Option, Path, Record, Schema, String } from 'effect'
+
+import { defaultModelId, modelPresets } from './models.ts'
 
 export type TranslationErrorCode =
   | 'InvalidRequest'
@@ -35,19 +37,13 @@ export interface LocalConfig {
 export const modelNotice =
   'Built with PLaMo. The default model is downloaded from PFN and uses the PLaMo Community License. Commercial use requires prior registration and eligibility. Review https://plamo.preferredai.jp/info/plamo-community-license-en before use.'
 
-export const defaultModel: ModelSource = {
-  uri: 'https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/resolve/1cf96ae02133958a20074bfdfab76517bb737d00/plamo-3-translate-0.8b-Q4_K_M.gguf',
-  sha256: '70891ec70dc7ab4205745a38307867c2881b99239f20327927633abfe4bc9ec6',
-  prompt: 'plamo',
-  supportedLanguages: String.split(
-    'ar az be bg bn ca ceb de en es et eu fa fr gu he hi hr hu hy id it ja jv ka kk km ko lt lv ml mr ms my ne nl pa pl ru si sk sl sr sw ta te th tl ur uz vi zh-hans zh-hant',
-    ' ',
-  ),
-}
+export const defaultModel: ModelSource = modelPresets[defaultModelId].model
+
+const ModelId = Schema.Literals(Record.keys(modelPresets))
 
 const ConfigFile = Schema.Struct({
   sourceLanguage: Schema.optional(Schema.String),
-  model: Schema.optional(ModelSource),
+  model: Schema.optional(Schema.Union([ModelId, ModelSource])),
   cacheDirectory: Schema.optional(Schema.String),
   contextSize: Schema.optional(Schema.Int),
   maxTokens: Schema.optional(Schema.Int),
@@ -60,6 +56,10 @@ export const validateConfig = (config: LocalConfig) =>
   Effect.gen(function* () {
     const path = yield* Path.Path
     const uri = yield* Effect.try({ try: () => new URL(config.model.uri), catch: invalidConfig })
+    const preset = Array.findFirst(
+      Record.values(modelPresets),
+      (value) => value.model.sha256 === String.toLowerCase(config.model.sha256),
+    )
     if (
       (uri.protocol !== 'https:' && uri.protocol !== 'file:') ||
       uri.username !== '' ||
@@ -67,9 +67,9 @@ export const validateConfig = (config: LocalConfig) =>
       !/^[a-fA-F0-9]{64}$/.test(config.model.sha256) ||
       !path.isAbsolute(config.cacheDirectory) ||
       config.contextSize < 256 ||
-      config.contextSize > (config.model.prompt === 'plamo' ? 32768 : 131072) ||
+      (Option.isSome(preset) && config.contextSize > preset.value.contextLimit) ||
       config.maxTokens < 1 ||
-      config.maxTokens >= config.contextSize ||
+      config.maxTokens > config.contextSize ||
       !Number.isSafeInteger(config.contextSize) ||
       !Number.isSafeInteger(config.maxTokens)
     ) {
@@ -89,6 +89,7 @@ export const loadConfig = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const explicit = yield* Config.option(Config.String('GLOSSSHIFT_CONFIG'))
+  const selectedModel = yield* Config.option(Config.String('GLOSSSHIFT_MODEL'))
   const home = yield* Config.option(Config.String('HOME'))
   const cache = yield* Config.option(Config.String('XDG_CACHE_HOME'))
   const configRoot = yield* Config.option(Config.String('XDG_CONFIG_HOME'))
@@ -110,11 +111,30 @@ export const loadConfig = Effect.gen(function* () {
   const cacheDirectory =
     values.cacheDirectory ?? (cacheRoot === undefined ? undefined : path.join(cacheRoot, 'glossshift', 'models'))
   if (cacheDirectory === undefined) return yield* Effect.fail(invalidConfig())
+  // Environment selection overrides only the file's model, never explicit cache or token settings.
+  const selection = Option.isSome(selectedModel)
+    ? yield* Schema.decodeUnknownEffect(ModelId)(selectedModel.value)
+    : (values.model ?? defaultModelId)
+  const model = typeof selection === 'string' ? modelPresets[selection].model : selection
+  const preset = Array.findFirst(
+    Record.values(modelPresets),
+    (value) => value.model.sha256 === String.toLowerCase(model.sha256),
+  )
+  const contextSize = values.contextSize ?? Option.map(preset, (value) => value.contextSize).pipe(Option.getOrUndefined)
+  if (contextSize === undefined)
+    return yield* Effect.fail(
+      new TranslationError({
+        code: 'InvalidConfig',
+        message:
+          'Set contextSize in local.json to the custom GGUF model context limit. Unknown model artifacts have no default context size.',
+      }),
+    )
   return yield* validateConfig({
     sourceLanguage: values.sourceLanguage ?? 'auto',
-    model: values.model ?? defaultModel,
+    model,
     cacheDirectory,
-    contextSize: values.contextSize ?? 8192,
-    maxTokens: values.maxTokens ?? 4096,
+    contextSize,
+    // No implicit output cap: generation uses the space left after the tokenized prompt.
+    maxTokens: values.maxTokens ?? contextSize,
   })
-}).pipe(Effect.mapError(invalidConfig))
+}).pipe(Effect.mapError((error) => (error instanceof TranslationError ? error : invalidConfig())))
