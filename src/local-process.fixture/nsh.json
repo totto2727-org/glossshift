@@ -1,0 +1,7 @@
+{
+  "name": "GlossShiftLocalProcessFixture",
+  "capabilities": {
+    "process": { "execute": ["node"] },
+    "fs": { "write": ["/private/tmp"] }
+  }
+}

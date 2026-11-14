@@ -2,20 +2,18 @@
 name = "glossshift"
 version = "0.2.0"
 edition = "2024"
-description = "A macOS NSH popup and CLI for streaming translations through OpenAI-compatible APIs"
+description = "A macOS NSH popup with application-owned local translation"
 license = "MIT"
 repository = "https://github.com/totto2727-org/glossshift"
 homepage = "https://github.com/totto2727-org/glossshift"
 
 [dependencies]
-llm-profiles = { version = "0.1.0", features = ["rig"] }
 accessibility = "0.2.0"
 anyhow = "1.0"
 async-channel = "2.5"
 clap = { version = "4.5", features = ["derive"] }
 core-foundation = "0.10"
 core-graphics = "0.24.0"
-futures = "0.3"
 global-hotkey = { version = "0.8.0", features = ["serde"] }
 libc = "0.2"
 macos-accessibility-client = "0.0.2"
@@ -30,17 +28,13 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = [
 ] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSString", "NSArray"] }
 plist = "1"
-rig = "0.41.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tempfile = "3"
-thiserror = "2.0"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7"
 toml = "0.9"
 tray-icon = { version = "0.24.2", default-features = false }
-tree-sitter-highlight = "0.26"
-tree-sitter-md = "0.5"
 uuid = { version = "1", features = ["v4"] }
 xdg = "3.0.0"
 

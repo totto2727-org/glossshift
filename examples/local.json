@@ -1,0 +1,5 @@
+{
+  "sourceLanguage": "auto",
+  "contextSize": 8192,
+  "maxTokens": 4096
+}

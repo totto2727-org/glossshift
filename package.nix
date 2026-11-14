@@ -66,12 +66,16 @@ stdenv.mkDerivation {
     runHook preBuild
     export PATH="${bundleSigner}/bin:$PATH"
     # Reuse the checked-in ICNS instead of invoking host-only sips/iconutil.
-    jq 'del(.icon)' nsh.json > nsh.json.new
+    jq --arg node '${nodejs_26}/bin/node' 'del(.icon) | .capabilities.process.execute = [$node]' nsh.json > nsh.json.new
     mv nsh.json.new nsh.json
     export CARGO_TARGET_DIR="$PWD/target"
     nsh test Tui.test.ts --target tui
     nsh build . --release
-    cargo build --manifest-path native/Cargo.toml --release --bin gshift
+    node --input-type=module -e '
+      const { getLlama } = await import("node-llama-cpp");
+      const llama = await getLlama({ build: "never", skipDownload: true, usePrebuiltBinaries: true, gpu: "metal", dryRun: true });
+      await llama.dispose();
+    '
     cargo build --manifest-path .nsh/rust/tui/Cargo.toml --release --bin nsh-app-glossshift-tui-host --locked
     nsh package . --target macos
     app=.nsh/out/GlossShift.app
@@ -79,7 +83,14 @@ stdenv.mkDerivation {
     substituteInPlace "$app/Contents/Info.plist" \
       --replace-fail '<key>CFBundleName</key>' \
       '<key>CFBundleIconFile</key><string>GlossShift.icns</string><key>CFBundleName</key>'
+    mkdir -p "$app/Contents/Resources/glossshift"
+    jq -n --arg command '${nodejs_26}/bin/node' \
+      --arg entry "$out/libexec/glossshift/node/main.ts" \
+      '{command: $command, entry: $entry}' > runtime.json
+    cp runtime.json "$app/Contents/Resources/glossshift/runtime.json"
     rcodesign sign "$app"
+    # Build hooks are denied. Pruning keeps all optional native prebuilds for this host.
+    CI=true npm_config_offline=true pnpm prune --prod --ignore-scripts
     runHook postBuild
   '';
   installPhase = ''
@@ -87,7 +98,13 @@ stdenv.mkDerivation {
     mkdir -p "$out/Applications" "$out/bin" "$out/libexec/glossshift" "$out/share/glossshift/tui"
     cp -R .nsh/out/GlossShift.app "$out/Applications/GlossShift.app"
     ln -s "$out/Applications/GlossShift.app/Contents/MacOS/GlossShift" "$out/bin/glossshift"
-    cp target/release/gshift "$out/libexec/glossshift/gshift-batch"
+    cp -R node_modules package.json runtime.json "$out/libexec/glossshift/"
+    mkdir -p "$out/libexec/glossshift/node" "$out/libexec/glossshift/src"
+    for source in node/*.ts; do
+      case "$source" in *.test.ts) continue ;; esac
+      cp "$source" "$out/libexec/glossshift/node/"
+    done
+    cp src/local-protocol.ts "$out/libexec/glossshift/src/local-protocol.ts"
     cp target/release/nsh-app-glossshift-tui-host "$out/libexec/glossshift/gshift-tui-host"
     for item in .nsh/out/bundle.* .nsh/out/app.json .nsh/out/capabilities.json .nsh/out/assets; do
       if [ -e "$item" ]; then cp -R "$item" "$out/share/glossshift/tui/"; fi
@@ -100,7 +117,7 @@ stdenv.mkDerivation {
       [ "$#" -eq 0 ] || shift
       exec @out@/libexec/glossshift/gshift-tui-host --bundle @out@/share/glossshift/tui/bundle.js "$@"
     else
-      exec @out@/libexec/glossshift/gshift-batch "$@"
+      exec ${nodejs_26}/bin/node @out@/libexec/glossshift/node/main.ts "$@"
     fi
     EOF
     substituteInPlace "$out/bin/gshift" --replace-fail @out@ "$out"
@@ -116,6 +133,13 @@ stdenv.mkDerivation {
     test -x "$out/bin/gshift"
     test -s "$out/share/glossshift/tui/bundle.js"
     test -s "$out/Applications/GlossShift.app/Contents/Resources/nsh/bundle.nshc"
+    test -s "$out/libexec/glossshift/runtime.json"
+    test -s "$out/Applications/GlossShift.app/Contents/Resources/glossshift/runtime.json"
+    ${nodejs_26}/bin/node --input-type=module -e '
+      const { getLlama } = await import("file://" + process.argv[1] + "/node_modules/node-llama-cpp/dist/index.js");
+      const llama = await getLlama({ build: "never", skipDownload: true, usePrebuiltBinaries: true, gpu: "metal", dryRun: true });
+      await llama.dispose();
+    ' "$out/libexec/glossshift"
     "$out/bin/gshift" --help > /dev/null
     runHook postInstallCheck
   '';

@@ -10,12 +10,15 @@
   },
   "type": "module",
   "dependencies": {
-    "effect": "^4.0.0"
+    "@effect/platform-node": "^4.1.2",
+    "effect": "^4.0.0",
+    "node-llama-cpp": "^3.22.3"
   },
   "devDependencies": {
     "@totto2727/gitignore-patterns": "^0.1.0",
     "@tsconfig/node-ts": "^23.6.4",
     "@tsconfig/strictest": "^2.0.8",
+    "@types/node": "^26.6.6",
     "vite-plus": "catalog:"
   },
   "engines": {

@@ -7,6 +7,8 @@
     "App.tsx",
     "App.test.ts",
     "Tui.test.ts",
+    "Node.test.ts",
+    "LocalModel.test.ts",
     "ui.fixture.tsx",
     "terminal.fixture.tsx",
     "src/**/*.ts",

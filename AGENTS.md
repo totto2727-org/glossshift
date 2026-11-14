@@ -8,19 +8,22 @@ src/domain.ts               Pure popup states, messages, and transitions
 src/controller.ts           Effect-owned request lifetimes and bounded event processing
 src/ports.ts                Injectable native services and public settings
 src/                        NSH views, native-module adapters, and application tests
-native/Cargo.toml           Rust native bridge and gshift package
-native/Cargo.lock           Locked Rust dependencies
+native/Cargo.toml           Rust macOS service bridge
+native/Cargo.lock           Locked native dependencies
 native/src/bridge.rs        Typed NSH module exports
 native/src/bridge_types.rs  Non-secret values crossing the TS/Rust boundary
 native/src/desktop.rs       macOS service startup and shutdown
 native/src/selection.rs     Accessibility and clipboard selection capture
 native/src/platform.rs      Selection and permission interfaces
-native/src/llm.rs           Rig translation stream and cancellation
-native/src/config.rs        XDG settings and non-destructive provider migration
-native/src/prompt.rs        Shared translation prompts
-native/src/cli.rs           CLI language, path, and ANSI Markdown helpers
-native/src/bin/gshift.rs    Ordered Markdown translation CLI
-native/tests/              Real CLI and HTTP-boundary regression tests
+native/src/config.rs        Non-destructive XDG shortcut and window settings
+native/src/runtime.rs       Installed Node runtime location
+node/main.ts                Node batch and private sidecar entry
+node/translation.ts         Scoped Effect AI local translation service
+node/model.ts               Verified automatic GGUF download and native model lifetime
+node/generation.ts          Bounded token generation and prompt tokenization
+node/prompt.ts              PFML3 prompt and supported-language validation
+node/config.ts              Local model settings and pinned default artifact
+node/sidecar.ts             Acknowledged private NDJSON transport
 nsh.json                    Native module, application identity, and entry metadata
 vite.config.ts              Vite+ formatting, lint, and delegated task definitions
 pnpm-workspace.yaml         Catalog, package-manager policy, and release-age safeguards
@@ -45,7 +48,7 @@ The generated `.nsh/upstream` dependency is prepared from the pinned source and 
 | `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                                                   |
 | `vp run check`                           | Check formatting and lint without a second typechecker.                                           |
 | `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                                            |
-| `vp run typecheck`                       | Delegate to `nsh check .`, including native declarations and NSH's TypeScript compiler.           |
+| `vp run typecheck`                       | Check the NSH application and Node project through NSH's TypeScript compiler.                     |
 | `vp run dev`                             | Delegate development and reload to NSH's macOS host.                                              |
 | `vp run run`                             | Run the application through NSH.                                                                  |
 | `vp run build`                           | Produce the NSH release bundle, not an installable application.                                   |
@@ -53,9 +56,12 @@ The generated `.nsh/upstream` dependency is prepared from the pinned source and 
 | `vp run test`                            | Run application tests through the official NSH test host.                                         |
 | `vp run tui`                             | Run the shared TS application through NSH's official terminal host.                               |
 | `vp run test-tui`                        | Run the dedicated terminal interaction suite through NSH's official TestBackend.                  |
-| `vp run test-native`                     | Run Rust library, CLI, and local HTTP transport regressions.                                      |
+| `vp run test-node`                       | Run isolated Node engine tests through an official NSH process fixture.                           |
+| `vp run test-cli`                        | Check batch contracts and real filesystem behavior through NSH.                                   |
+| `vp run test-local-model`                | Opt in to production TUI translation with real model weights and isolated configuration.          |
+| `vp run test-native`                     | Run Rust OS-service and native-boundary regressions.                                              |
 | `vp run test-lifecycle`                  | Opt in to a real AppKit window lifecycle check without reading credentials or other applications. |
-| `vp run cli -- FILES... --lang LANGUAGE` | Run the retained Rust CLI.                                                                        |
+| `vp run cli -- FILES... --lang LANGUAGE` | Run the Node TypeScript batch CLI.                                                                |
 | `vp run ci`                              | Run the minimal formatting and lint gate.                                                         |
 
 Vite+ owns installation, task orchestration, formatting, and lint only.
@@ -86,21 +92,41 @@ Plain mode switches both panes without modifying stored source or translation te
 Copy always uses the raw domain text, not rendered Markdown.
 Do not reintroduce an application CSS stylesheet, a custom Markdown parser, or a browser renderer.
 
+### Local translation boundary
+
+TypeScript owns translation, model selection, automatic download, prompt formatting, streaming, cancellation, and the batch CLI.
+Use the real `effect/ai` `LanguageModel` adapter for node-llama-cpp instead of a decorative AI dependency or a remote HTTP server.
+NSH runs QuickJS, so Node APIs and the native llama addon stay in a dedicated Node process.
+Keep Node imports out of the NSH application dependency graph.
+Connect that process with private, schema-validated NDJSON over stdin and stdout.
+Acknowledge started and delta frames only after the consumer takes them, and keep cancellation independent of a full stream queue.
+Write download notices and diagnostics to stderr, never to the protocol or batch translation stdout.
+Application teardown must release its process, active generation, context, model, and native llama runtime.
+
+Pin the default official PFN GGUF revision and SHA-256.
+Use `createModelDownloader` for automatic, resumable model downloads and verify the complete artifact before loading it.
+Keep model weights in the user's cache, not the Nix store or repository.
+An offline cache hit must not contact Hugging Face.
+Use `getLlama` with the packaged native prebuild and disable implicit source compilation and binary downloads.
+Keep untrusted source text separate from trusted PFML3 special tokens, add BOS once, and suppress protocol stop tokens.
+Reject unsupported languages, context overflow, and output truncation instead of reporting a successful partial file.
+Use the publisher's model license notice without registering the user or accepting commercial terms on their behalf.
+
 ### Rust boundary
 
-The published [`llm-profiles`](https://crates.io/crates/llm-profiles) crate owns shared provider loading, validation, named credentials, and its optional Rig adapter.
-Rust retains configuration migration, provider-specific headers and parameters, translation prompts and transport, native selection, hotkeys, tray, autostart, and the `gshift` CLI.
-Credentials and secret headers never cross into view state or native-module bootstrap data.
-Rig is retained for provider and CLI parity, not because NSH lacks streaming HTTP primitives.
-Replacing it with Effect AI requires proving compatible base URLs, parameters, header substitution, cancellation, both timeout classes, and CLI behavior first.
+Rust owns only macOS integration, window and shortcut settings, typed OS controls, and locating the installed Node runtime.
+Keep translation, shared provider credentials, remote API clients, model inference, and the batch CLI out of Rust.
+The runtime locator reads immutable installed metadata rather than depending on the caller's current directory.
+Grant the exact packaged Node executable in NSH's process capabilities.
+Forward only the environment variables required for home, cache, and configuration paths.
 
-The NSH module exports typed data and bounded pull-based events.
+The NSH module exports typed data and bounded pull-based OS controls.
 Decode unknown data at the TS boundary, attach a request ID to every stream event, and reject stale or terminal generations.
 Native asynchronous functions must not block the JS engine thread or move JS callbacks across threads.
 A pending native receive belongs to an explicit transport session and must be released or invalidated during reload and shutdown.
 Opening a new session cancels old pending receivers, and closing an old session must not close a newer session.
 Namespace translation request IDs by session so a reloaded controller cannot alias a previous request.
-Project provider failures to allowlisted public messages instead of returning raw errors, response bodies, headers, or configuration parse context to the UI.
+Project failures to public messages instead of exposing raw native errors, user text, environment values, or configuration parse context.
 Capture the previous application's selection before showing or activating the popup.
 Native selection and permission interfaces remain injectable for another OS implementation without introducing another GUI event loop.
 
@@ -108,7 +134,7 @@ Native selection and permission interfaces remain injectable for another OS impl
 
 Use the official NSH TUI backend, not a second terminal renderer.
 Select terminal behavior with `platform.idiom === 'terminal'`; the operating system remains macOS and `nsh/desktop.isAvailable` alone does not distinguish a terminal host.
-Share the Effect controller, provider transport, Markdown/plain behavior, and raw-copy semantics with the desktop app.
+Share the Effect controller, local translation transport, Markdown/plain behavior, and raw-copy semantics with the desktop app.
 Inject typed terminal input instead of capturing another application's selection.
 Do not initialize AppKit, global hotkeys, tray resources, or desktop menus from terminal startup.
 Use the official terminal clipboard and lifecycle APIs.
@@ -129,41 +155,40 @@ Initialize native services in the main-thread standalone setup hook and release 
 Closing the popup hides it without destroying the engine, and reopening reveals the retained state.
 Background startup must not briefly activate and hide a window.
 
-## Configuration and credentials
+## Configuration
 
-The application configuration root uses `xdg::BaseDirectories`, defaults to `~/.config/glossshift`, and honors `XDG_CONFIG_HOME`.
-Shared providers live in `~/.agents/config.toml`, with named keys in `~/.agents/credentials.toml` and permissions `0600`.
-`AGENTS_CONFIG` selects an absolute shared configuration path, with credentials beside it.
-Do not search the current directory for credentials.
-Legacy migration preserves original GlossShift files and never overwrites existing shared files.
-
-Provider resolution must preserve the active provider, custom compatible API prefixes, positive first-chunk and idle timeouts, request parameters, and one UUID substitution for `${session_id}` headers per translation.
-Cancel a previous request during connection establishment and while backpressured, not only after the provider produces a delta.
-The provider idle timeout excludes time waiting for the downstream consumer to accept a text delta.
-Treat TOML, shortcut strings, native selection values, and HTTP data as untrusted input.
-Tests must use isolated temporary settings and synthetic credentials, never the developer's home configuration.
+Rust reads only `~/.config/glossshift/config.toml`, honoring `XDG_CONFIG_HOME`, for OS settings.
+Node reads local translation settings from `~/.config/glossshift/local.json`, honoring `XDG_CONFIG_HOME` or the explicit absolute `GLOSSSHIFT_CONFIG` path.
+The local model cache honors `XDG_CACHE_HOME` and can be changed in local settings.
+Do not read or modify `~/.agents` or legacy provider credentials.
+Treat configuration, shortcuts, native selection, process frames, model metadata, and model output as untrusted boundary input.
+Tests must use isolated temporary settings and synthetic source text, never the developer's private configuration or selected content.
+Real default-model tests must disclose the network download and distinguish inference acceptance from protocol fixtures.
 
 ## CLI contract
 
 `gshift` without arguments, or with `--tui`, starts the official NSH terminal host in the installed package.
-The wrapper forwards file and option invocations to the retained batch binary.
+The wrapper forwards file and option invocations to the Node TypeScript batch entry.
 `gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]` retains its existing behavior.
-Resolve every sibling output and reject input/output collisions before loading configuration or contacting a provider.
+Resolve every sibling output and reject input/output collisions before loading configuration or a model.
 Preserve ordered `.md` and `.mbt.md` processing, normalized language suffixes, and safe forced replacement of symlinks without changing their targets.
 File outputs and redirected automatic-color stdout must remain free of ANSI escapes.
-Plain stdout streams provider deltas without inserted separators.
-Terminal automatic color and forced color buffer each completed translation before Tree-sitter rendering.
-Desktop and CLI share configuration, credentials, prompts, parameters, and timeout semantics.
+Plain stdout streams local model deltas without inserted separators.
+Terminal automatic color and forced color buffer each completed translation before rendering.
+Color styles the complete output without parsing Markdown or adding syntax highlighting.
+Desktop, terminal UI, and batch CLI share the same local model, source language, prompt format, and token limits.
 
 ## Verification and maintenance
 
 - Run application behavior tests through NSH, not Node or a copied controller harness.
 - Check real Vite+ task delegation, generated native declarations, native packaging, and the retained CLI independently.
 - A successful NSH bundle is not proof that the native application, CLI package, or Nix derivation works.
-- Use real local HTTP/SSE fixtures to verify transport boundaries without contacting a paid model.
-- Distinguish synthetic-provider tests from actual provider acceptance and headless layout from native visual review.
+- Use protocol fixtures for deterministic cancellation and backpressure checks, then exercise real GGUF inference through the actual Node entry.
+- Verify installed Nix executables load the packaged native addon and translate with the real model, not just that packaging completes.
+- Distinguish synthetic protocol tests from actual model inference and headless layout from native visual review.
 - If Accessibility or screen permissions block an end-user check, report the boundary and stop attempts to bypass it.
 - Keep Rust `unsafe_code = "forbid"` and strict Clippy rules.
+- Use `cargo fmt --manifest-path native/Cargo.toml --package glossshift`, not `--all`, to avoid formatting the managed NSH checkout.
 - Keep production source files below 250 lines when practical and preserve module responsibilities.
 - Preserve the template's package-manager pin, release-age waiting period, strict age checking, and denied lifecycle builds.
 - Do not commit credentials or generated `.nsh`, `node_modules`, target directories, benchmark fixtures, or temporary reports.

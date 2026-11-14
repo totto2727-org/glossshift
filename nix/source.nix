@@ -7,14 +7,16 @@ let
       ../App.tsx
       ../App.test.ts
       ../Tui.test.ts
+      ../Node.test.ts
+      ../LocalModel.test.ts
       ../terminal.fixture.tsx
       ../ui.fixture.tsx
       ../nsh.json
       ../src
+      ../node
       ../native/Cargo.toml
       ../native/Cargo.lock
       ../native/src
-      ../native/tests
       ../native/examples
       ../packaging
       ../package.json

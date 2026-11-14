@@ -1,7 +1,4 @@
-pub mod cli;
 pub mod config;
-pub mod llm;
-pub mod prompt;
 
 mod autostart;
 mod bridge;
@@ -9,11 +6,11 @@ mod bridge_types;
 mod desktop;
 mod dispatch;
 mod platform;
+mod runtime;
 mod selection;
 mod services;
 mod shortcuts;
 mod startup;
-mod translation_bridge;
 mod transport;
 mod tray;
 
@@ -32,6 +29,3 @@ fn native(registry: &mut Registry) {
 
 #[cfg(test)]
 mod bridge_test;
-
-#[cfg(test)]
-mod cli_test;

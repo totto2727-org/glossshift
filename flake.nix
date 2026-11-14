@@ -51,6 +51,7 @@
           default = pkgs.mkShell {
             NSH_SOURCE = pkgs.nsh-source;
             packages = tooling ++ [
+              pkgs.nodejs_26
               pkgs.nsh
               pkgs.cargo
               pkgs.rustc

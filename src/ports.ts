@@ -27,11 +27,11 @@ export interface TranslationRequest {
   readonly targetLanguage: string
 }
 
-/** Credential-bearing objects remain inside the native adapter. */
+/** Local model configuration remains inside the Node translation boundary. */
 export interface NativePorts {
   readonly settings: Effect.Effect<PublicSettings, Fault>
   readonly capture: Effect.Effect<string, Fault>
-  /** A lossless bounded stream. The controller finalizer releases the native request. */
+  /** A lossless bounded stream. The controller finalizer releases the local request. */
   readonly translate: (request: TranslationRequest) => Stream.Stream<TranslationEvent, Fault>
   /** Idempotent and able to wake blocked transport operations. */
   readonly cancel: (id: RequestId) => Effect.Effect<void, Fault>

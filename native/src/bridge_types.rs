@@ -17,24 +17,25 @@ pub struct WindowSettings {
 }
 
 #[derive(Clone, JsObject)]
+pub struct RuntimeSettings {
+    pub command: String,
+    pub entry: String,
+}
+
+#[derive(Clone, JsObject)]
 pub struct Bootstrap {
     pub schema_version: u32,
-    pub source_language: String,
     pub shortcuts: Vec<Shortcut>,
     pub window: WindowSettings,
     pub accessibility_granted: bool,
     pub status: String,
-    pub provider_name: String,
+    pub runtime: RuntimeSettings,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PropEnum)]
 pub enum EventKind {
     Capture,
-    Started,
-    Delta,
-    Finished,
     Failed,
-    Cancelled,
     Reopened,
 }
 

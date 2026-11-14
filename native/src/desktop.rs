@@ -51,9 +51,6 @@ fn install_main() -> Result<(), String> {
             if event.state == HotKeyState::Released
                 && let Some(target) = targets.get(&event.id)
             {
-                if let Some(service) = crate::services::started_services() {
-                    let _ = service.cancel(None);
-                }
                 current.push(target.clone());
             }
         }));

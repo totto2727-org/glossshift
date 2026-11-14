@@ -7,8 +7,6 @@ fn bridge_declarations_match_the_typescript_transport_without_credentials() {
         .find(|module| module.name == "Bridge")
         .unwrap_or_else(|| panic!("missing Bridge module"));
     for (name, returns) in [
-        ("translate", "void"),
-        ("cancel", "void"),
         ("initializeTerminal", "Bootstrap"),
         ("openTransport", "string"),
         ("closeTransport", "void"),
@@ -27,7 +25,6 @@ fn bridge_declarations_match_the_typescript_transport_without_credentials() {
         "initializeTerminal(): Promise<Bootstrap>",
         "openTransport(): Promise<string>",
         "closeTransport(sessionId: string): Promise<void>",
-        "nextEvent(sessionId: string): Promise<BridgeEvent>",
         "nextControl(sessionId: string): Promise<BridgeEvent>",
         "selection(): Promise<string>",
         "copy(text: string): Promise<void>",
@@ -43,9 +40,10 @@ fn bridge_declarations_match_the_typescript_transport_without_credentials() {
     for field in [
         "requestId",
         "targetLanguage",
-        "sourceLanguage",
         "accessibilityGranted",
-        "providerName",
+        "runtime",
+        "command",
+        "entry",
     ] {
         assert!(declarations.contains(field), "missing wire field {field}");
     }
@@ -55,6 +53,10 @@ fn bridge_declarations_match_the_typescript_transport_without_credentials() {
         "credentials",
         "requestParameters",
         "headers",
+        "translate(",
+        "cancel(",
+        "nextEvent(",
+        "providerName",
     ] {
         assert!(
             !declarations.contains(private),
@@ -73,11 +75,7 @@ fn wire_event_tags_are_lower_camel_case() {
     use nsh_core::element::PropEnum as _;
     for (kind, expected) in [
         (EventKind::Capture, "capture"),
-        (EventKind::Started, "started"),
-        (EventKind::Delta, "delta"),
-        (EventKind::Finished, "finished"),
         (EventKind::Failed, "failed"),
-        (EventKind::Cancelled, "cancelled"),
         (EventKind::Reopened, "reopened"),
     ] {
         assert_eq!(kind.js_name(), expected);

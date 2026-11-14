@@ -1,66 +1,78 @@
 # GlossShift
 
-GlossShift is a macOS translation application with an [NSH](https://nsh.dev/) desktop popup and interactive terminal UI written in TypeScript and Effect, plus a `gshift` batch command that shares its OpenAI-compatible providers, prompts, credentials, and streaming transport.
+GlossShift translates text locally on an Apple Silicon Mac.
+Its desktop popup and terminal UI use NSH, TypeScript, and Effect.
+The `gshift` batch command uses the same local model and translation service.
 
 ## Usage
+
+Open the installed desktop application:
 
 ```bash
 open ~/.nix-profile/Applications/GlossShift.app
 ```
 
-Select text in any macOS application and press a configured shortcut.
-The popup places the captured text in **Source**, streams the result into **Translation**, and lets you copy either pane.
-The **Plain** toggle switches both panes between Markdown preview and the original plain text.
-Preview uses NSH's standard Markdown `TextView`, including headings, lists, tables, inline emphasis, block quotes, and plain code blocks without syntax highlighting.
-Links do not open external pages, images display alternate text without fetching them, and HTML is shown literally.
-Copy controls always copy the original text, including Markdown syntax, regardless of the display mode.
+Select text in another application and press a configured shortcut.
+GlossShift shows the source and streams the translation into the second pane.
+Copy always uses the original text, including Markdown syntax.
+The **Plain** toggle switches both panes between Markdown preview and plain text.
+Code blocks have no syntax highlighting, links do not open, images show alternate text, and HTML remains literal.
+Desktop selection capture requires macOS Accessibility permission.
 
-Run `gshift` without arguments to open the interactive terminal UI:
+Run the interactive terminal UI:
 
 ```bash
 gshift
+# Explicit interactive mode:
+gshift --tui
 ```
 
-Enter the source text and target language, then choose **Translate**.
-The terminal UI shares the desktop application's Markdown/plain toggle, raw-copy controls, cancellation, provider configuration, and credentials.
-It does not initialize desktop hotkeys, the tray, or selection capture, and it does not require Accessibility permission.
-Use **Quit** or `Ctrl+C` to exit and restore the terminal.
-The installed wrapper also accepts `gshift --tui` to select interactive mode explicitly.
+Enter text and a target language, then choose **Translate**.
+The terminal UI does not start desktop hotkeys or tray services and does not need Accessibility permission.
+Use **Quit** or `Ctrl+C` to exit.
 
-To translate files in batch mode:
+Translate Markdown files in the supplied order:
 
 ```bash
 gshift document.md notes.mbt.md --lang ja
+# Stream plain output without creating sibling files:
+gshift document.md --lang en --stdout --color never
 ```
 
-Write translations to standard output without ANSI styling:
+File mode writes `document.ja.md` and `notes.ja.mbt.md` and reports their paths to stderr.
+Plain stdout concatenates translations without inserted separators.
+The first translation automatically downloads the official PLaMo 3 Translate 0.8B Q4_K_M GGUF, approximately 573 MB.
+Subsequent runs use the verified cached model without downloading it again.
+No hosted-model account or API key is required.
+Text is processed on the Mac, not sent to a hosted inference service.
 
-```bash
-gshift document.md --lang ja --stdout --color never
-```
+> [!IMPORTANT]
+> The default model uses the [PLaMo Community License](https://plamo.preferredai.jp/info/plamo-community-license-en), not the application's MIT metadata license.
+> Commercial use requires prior registration and eligibility under that license.
+> Review the terms before use.
+> GlossShift does not register users or accept commercial terms on their behalf.
 
-On its first invocation, `gshift` creates its application settings under the GlossShift XDG configuration directory and shared provider settings under `~/.agents`, then exits until the placeholder API key is replaced. After configuration, the first command writes `document.ja.md` and `notes.ja.mbt.md` and reports their paths to standard error; the second command emits the plain translated body to standard output without creating a file. Multiple inputs are always processed in command-line order.
+## Features
 
-## Key features
-
-- Native macOS popup with global shortcuts, a resizable window, official NSH components, native Tailwind classes, and raw-text copy controls.
-- Official NSH terminal backend for interactive translation, sharing TypeScript/Effect state and provider transport without initializing desktop hotkeys, tray, or selection capture.
-- The pinned NSH 0.5.0 release and its matching source and terminal component.
-- TypeScript/Effect application state with injected native services, while Rust retains macOS integration, shared credential resolution, and the existing translation transport.
-- Read-only Markdown preview with a plain-text toggle, no syntax highlighting, and no automatic external content loading.
-- Streaming translations through servers that implement the OpenAI Chat Completions API, including custom base URLs and request parameters.
-- Application-specific XDG settings plus shared `~/.agents` providers and credentials reusable by other applications through the independent `llm-profiles` crate.
-- Ordered multi-file Markdown translation with sibling-file or standard-output modes.
-- Plain streamed output for pipelines and optional Tree-sitter Markdown ANSI highlighting for terminals.
-- A separated system prompt and user document so source content remains inert and its structure is translated one-to-one instead of changing the translation contract.
-- Request replacement in the desktop popup so a newer shortcut cancels and supersedes an older translation.
+- Native macOS popup with global shortcuts and an official NSH terminal UI.
+- Local Metal inference through node-llama-cpp and a real Effect AI `LanguageModel` adapter.
+- Automatic model download, pinned default revision, SHA-256 verification, and offline cache reuse.
+- Configurable larger GGUF models and explicit context and output limits.
+- Shared translation, cancellation, and Markdown/plain behavior across desktop, terminal, and batch modes.
+- Ordered Markdown file processing with input/output collision checks and safe symbolic-link replacement.
+- TypeScript translation and application code, with Rust limited to macOS integration.
 
 ## Prerequisites
 
-- **Apple Silicon Mac only**: Intel Macs are not supported.
-- **Nix with flakes enabled**
-- **OpenAI-compatible provider credentials**: Supply an API key, model, and base URL for a server implementing Chat Completions.
-- **Accessibility permission for the desktop app**: Grant access when using global selection capture and its simulated `Cmd+C` fallback.
+- Apple Silicon macOS.
+- Nix with flakes enabled.
+- Network access and disk space for the first model download.
+- Enough available memory for the chosen model and context.
+- Accessibility permission only for desktop selection capture.
+
+The Nix package includes Node and the native Metal addon.
+It does not require a compiler or node-llama-cpp source build on first use.
+Model weights stay in the user's cache rather than the Nix store.
 
 ## Setup
 
@@ -75,8 +87,9 @@ nix run 'github:totto2727-org/glossshift#gshift' -- --help
 
 ```bash
 nix profile add 'github:totto2727-org/glossshift#glossshift'
-nix profile add 'github:totto2727-org/glossshift#gshift'
 ```
+
+The package includes `GlossShift.app` and `gshift`.
 
 ### Nix flake
 
@@ -94,10 +107,7 @@ nix profile add 'github:totto2727-org/glossshift#gshift'
     in {
       packages.${system}.default = pkgs.buildEnv {
         name = "translation-tools";
-        paths = [
-          glossshift.packages.${system}.glossshift
-          glossshift.packages.${system}.gshift
-        ];
+        paths = [ glossshift.packages.${system}.glossshift ];
       };
     };
 }
@@ -105,74 +115,59 @@ nix profile add 'github:totto2727-org/glossshift#gshift'
 
 ## Configuration
 
-GlossShift keeps translation, shortcut, and window settings in `~/.config/glossshift/config.toml`, or `$XDG_CONFIG_HOME/glossshift/config.toml` when `XDG_CONFIG_HOME` is set.
-Provider definitions live separately in `~/.agents/config.toml`, and named API keys live in `~/.agents/credentials.toml` with Unix permissions `0600`.
-The published [`llm-profiles`](https://crates.io/crates/llm-profiles) crate owns loading, validation, credential resolution, and conversion to Rig.
-Other applications can read these same files and choose any named provider without depending on GlossShift.
+### Local translation
 
-Set `AGENTS_CONFIG` to an absolute configuration-file path to select a different shared configuration.
-Its `credentials.toml` is read from the same directory.
-The loader does not search the current directory or silently use a project's `.agents` directory, so launching the desktop and CLI from different directories does not change providers.
+No configuration is needed for the default 0.8B model.
+Optional settings live in `~/.config/glossshift/local.json`, or `$XDG_CONFIG_HOME/glossshift/local.json`.
+Set `GLOSSSHIFT_CONFIG` to an absolute file path to select another local configuration.
+An explicitly selected file must exist.
 
-### Shared providers
-
-For example, `~/.agents/config.toml` can retain both OpenAI and OpenCode Go:
-
-```toml
-active_provider = "opencode-go"
-
-[providers.openai]
-base_url = "https://api.openai.com/v1"
-model = "gpt-4.1-mini"
-credential = "openai"
-first_chunk_timeout_seconds = 30
-stream_idle_timeout_seconds = 60
-
-[providers.opencode-go]
-base_url = "https://opencode.ai/zen/go/v1"
-model = "kimi-k2.5"
-credential = "opencode-go"
-first_chunk_timeout_seconds = 30
-stream_idle_timeout_seconds = 60
-
-[providers.opencode-go.headers]
-x-opencode-session = "${session_id}"
-User-Agent = "glossshift/0.2.0"
-
-# Optional provider-specific JSON-compatible request fields:
-# [providers.opencode-go.request_parameters]
-# reasoning_effort = "none"
+```json
+{
+  "sourceLanguage": "auto",
+  "contextSize": 8192,
+  "maxTokens": 4096
+}
 ```
 
-Choose a Chat Completions model available to your provider account.
-The base URL must include its API prefix, such as `/v1` or `/zen/go/v1`.
-`active_provider` chooses the provider used by GlossShift, while each provider's `credential` references an entry in the credentials file.
-Provider and credential names do not have to be identical.
-Both timeout values default to 30 and 60 seconds respectively and must be positive.
-Additional request parameters are forwarded through Rig.
-`${session_id}` in header values expands to one UUID per translation, shared by all requests within that translation.
-Literal values and other placeholders remain unchanged.
+`sourceLanguage` defaults to automatic detection.
+`contextSize` includes the input, prompt, and generated translation.
+`maxTokens` limits generated tokens and must be smaller than the context.
+PLaMo configuration cannot exceed the model's 32768-token context.
+An oversized source or incomplete output fails instead of producing a successful truncated file.
+Translate a smaller section when the configured limits are insufficient.
 
-Create matching entries in `~/.agents/credentials.toml` and replace the placeholders:
+The default cache is `~/.cache/glossshift/models`, or `$XDG_CACHE_HOME/glossshift/models`.
+Set `cacheDirectory` to an absolute directory to override it.
+The downloaded file is named with its SHA-256 digest and is verified before loading.
 
-```toml
-[credentials.openai]
-api_key = "replace-me"
+To use the official 2B Q4_K_M model instead, add this model setting:
 
-[credentials.opencode-go]
-api_key = "replace-me"
+```json
+{
+  "model": {
+    "uri": "https://huggingface.co/pfnet/plamo-3-translate-2b-GGUF/resolve/4f672106b847200bfdc0f6af6c321cd94eba1aed/plamo-3-translate-2b-Q4_K_M.gguf",
+    "sha256": "1ffd9073afcc70e35ccc942428aa2b73d7aa2b9ea779bf504b775369e0276c13",
+    "prompt": "plamo"
+  }
+}
 ```
 
-Never commit this credentials file or real secret header values.
+This model download is approximately 1.81 GB and requires more memory than 0.8B.
+Use `prompt: "plamo"` for PLaMo 3 translation models.
+For another single-file GGUF, use `prompt: "chat"` only if its metadata provides a valid chat template.
+A custom model needs an HTTPS or `file:` URI and its complete SHA-256 digest.
+Multipart GGUFs are not supported.
+A download URL selects model weights, not a hosted inference endpoint.
+Restart the application after changing settings.
 
-### Application settings
+The [official default artifact](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/tree/1cf96ae02133958a20074bfdfab76517bb737d00) and its digest are pinned in `node/config.ts`.
 
-GlossShift's XDG `config.toml` contains only application settings:
+### Desktop settings
+
+Window and shortcut settings live in `~/.config/glossshift/config.toml`, honoring `XDG_CONFIG_HOME`:
 
 ```toml
-[translation]
-source_language = "auto"
-
 [[shortcuts]]
 keys = "Ctrl+Super+KeyJ"
 target_language = "Japanese"
@@ -184,29 +179,13 @@ min_width = 320
 min_height = 180
 ```
 
-Shortcut keys must be unique, and every target language must be non-empty.
-See `examples/config.toml`, `examples/agents-config.toml`, and `examples/credentials.toml` for starter files.
+Shortcut keys must be unique, and each target language must be non-empty.
+GlossShift creates this file only if it is absent.
+Existing settings and shared `~/.agents` files are not overwritten.
+Provider credentials and old provider settings are not used for local translation.
+Use `local.json` for the source language and model settings.
 
-### Existing installations
-
-When the selected shared configuration does not yet exist, GlossShift imports the legacy provider definitions and active provider from its XDG configuration and copies the legacy credentials if the shared credentials file is absent.
-Existing shared files are never overwritten, and the original legacy files are preserved.
-Once the shared configuration exists, provider settings in the old GlossShift configuration no longer select or modify the shared provider.
-Edit the shared files for future provider changes, then restart the desktop application or rerun the CLI.
-
-## Permissions
-
-Grant the installed `GlossShift.app` access in System Settings > Privacy & Security > Accessibility. This permission lets the global shortcut capture selected text and use the simulated `Cmd+C` fallback when an application does not expose its selection directly.
-
-## API
-
-The supported end-user interfaces are the packaged `GlossShift.app` and `gshift` command. Rust modules exposed in the source package share implementation between those binaries; GlossShift does not publish a separately supported Rust library API or registry reference.
-
-### `gshift`
-
-The installed `gshift` wrapper selects the official NSH terminal host when called without arguments or with `--tui`.
-File and option invocations continue to use the batch interface below.
-NSH 0.5.0 does not provide `nsh package --target tui`, so the Nix package installs NSH's generated terminal host together with its application bundle.
+## Command reference
 
 ```text
 gshift
@@ -214,62 +193,36 @@ gshift --tui
 gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]
 ```
 
-| Input or option           | Meaning                                                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `<FILES>...`              | One or more `.md` or `.mbt.md` files, translated sequentially in the supplied order.                                           |
-| `-l`, `--lang <LANGUAGE>` | Required target-language code. It is trimmed, lowercased, and must contain only ASCII letters, digits, and internal hyphens.   |
-| `-f`, `--force`           | Replace existing sibling outputs. This conflicts with `--stdout`.                                                              |
-| `--stdout`                | Concatenate translations to standard output in input order without inserted separators.                                        |
-| `--color <MODE>`          | Control ANSI Markdown highlighting for batch stdout: `auto`, `always`, or `never`. Defaults to `auto` and requires `--stdout`. |
-| `-h`, `--help`            | Print the generated command reference.                                                                                         |
-| `-V`, `--version`         | Print the installed version.                                                                                                   |
+| Option                    | Behavior                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `<FILES>...`              | Process `.md` and `.mbt.md` inputs in order.                                          |
+| `-l`, `--lang <LANGUAGE>` | Select the target language, such as `ja` or `en`.                                     |
+| `-f`, `--force`           | Replace existing sibling outputs, but never an input file. Conflicts with `--stdout`. |
+| `--stdout`                | Concatenate translations to stdout without writing files.                             |
+| `--color <MODE>`          | Set whole-output ANSI styling to `auto`, `always`, or `never`. Requires `--stdout`.   |
+| `-h`, `--help`            | Show help without loading a model or configuration.                                   |
+| `-V`, `--version`         | Show the version without loading a model or configuration.                            |
 
-Without `--stdout`, `gshift` inserts `.<language>` before `.md`, preserves the compound `.mbt.md` extension, and replaces an existing trailing `.ja` or `.en` language segment. It rejects output paths that collide with an input or another output. Existing files and symbolic links are rejected unless `--force` is set; forced symbolic-link output replaces the link itself without modifying its target.
-
-With `--stdout --color auto`, redirected output is plain and streamed while terminal output is buffered per translation and ANSI-highlighted. `--color never` always streams plain output, and `--color always` emits ANSI styling even when redirected. File outputs never contain ANSI escapes.
-
-Configuration, input, provider, timeout, and output failures are written to standard error with a `gshift failed:` prefix and exit status `1`. Help and version output exit successfully without loading configuration.
-
-```bash
-# Replace existing Japanese sibling outputs.
-gshift first.md second.md --lang ja --force
-
-# Stream plain English output for a pipeline.
-gshift document.md --lang en --stdout --color never
-```
+File names receive a language suffix before `.md` or `.mbt.md`.
+An existing trailing `.ja` or `.en` suffix is replaced.
+Input/output collisions, duplicate outputs, and unapproved overwrites fail before loading a model.
+With `--force`, a symbolic-link output is replaced without modifying its target.
+File output and redirected automatic-color stdout contain no ANSI styling.
+Color adds terminal styling only, not Markdown syntax highlighting.
+Plain stdout streams deltas, so an inference failure can leave partial text in a pipeline.
+File mode writes only completed translations.
+Diagnostics go to stderr with a nonzero exit status on failure.
 
 ## Development
 
-For repository structure, architecture, and development commands, see [AGENTS.md](./AGENTS.md).
-
-```bash
-nix develop
-vp install --frozen-lockfile
-vp run typecheck
-vp run test
-vp run test-tui
-vp run tui
-# Start the desktop development host separately:
-vp run dev
-```
-
-Vite+ is the task runner, installer, formatter, and linter.
-Type checking, application execution, tests, bundling, and native packaging delegate to NSH rather than Vite or a Node/browser renderer.
-`vp run build` creates an NSH bundle, while `vp run package` creates the native macOS application.
-The application uses Effect for state transitions, scoped request cancellation, validated native boundaries, and bounded streaming.
-Rust keeps `llm-profiles`, the existing Rig provider contract, macOS services, and the batch `gshift` CLI.
-Local NSH commands reuse the Cargo cache in `target` when the Rust inputs are unchanged, so a TS view change does not require recompiling those implementations.
-A changed Nix application derivation builds in a new sandbox and does not reuse that working-directory cache.
-This migration does not make cold Rust builds or changed Nix packages incremental.
-
-The development environment prepares the pinned NSH source dependency at `.nsh/upstream`.
-A small maintained [upstream compatibility patch](./docs/upstream-differences.md) provides pre-activation native setup, hidden startup, retained-window visibility, and shutdown hooks without replacing NSH's AppKit loop.
-No application CSS stylesheet or custom Markdown parser is needed.
-Application tests run in NSH's official test host with injected services and synthetic credentials.
-Native selection across other applications still requires macOS Accessibility permission.
+See [AGENTS.md](./AGENTS.md) for repository structure, architecture, toolchain setup, and validation commands.
+Vite+ owns installation, tasks, formatting, and lint.
+NSH owns application type checking, execution, tests, bundling, and native packaging.
+The Node translation process runs TypeScript directly and shares its service with the batch CLI.
+The maintained [NSH compatibility record](./docs/upstream-differences.md) documents the pinned release and macOS lifecycle patch.
 
 ## License
 
-The package metadata declares MIT, but this repository does not currently include a `LICENSE` file.
-
-_This README was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [README template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/readme/template.md)._
+The application metadata declares MIT, but this repository does not currently include a `LICENSE` file.
+The default model is separate software under the PLaMo Community License.
+Built with PLaMo.

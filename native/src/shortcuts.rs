@@ -132,7 +132,7 @@ mod tests {
         let (shortcuts, mut receiver) = Shortcuts::new();
         let (sender, events) = async_channel::bounded(1);
         sender
-            .send(BridgeEvent::new(EventKind::Delta, "occupied", ""))
+            .send(BridgeEvent::new(EventKind::Capture, "occupied", ""))
             .await?;
         shortcuts.push("Japanese".into());
         let first = receiver

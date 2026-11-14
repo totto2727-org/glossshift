@@ -1,0 +1,6 @@
+{
+  "name": "GlossShiftNodeRegressionFixture",
+  "capabilities": {
+    "process": { "execute": ["node"], "env": ["PWD"] }
+  }
+}

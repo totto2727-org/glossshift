@@ -19,26 +19,18 @@ impl Bridge {
     /// Returns configuration, shortcut registration, or native service errors.
     pub async fn initialize() -> Result<Bootstrap, String> {
         crate::desktop::initialize().await?;
-        Ok(services()?.bootstrap())
+        services()?.bootstrap()
     }
 
-    /// Load shared settings for the terminal without starting desktop services.
+    /// Load native settings for the terminal without starting desktop services.
     ///
     /// # Errors
-    /// Returns application or provider configuration errors.
+    /// Returns application configuration errors.
     pub fn initialize_terminal(_cx: &mut ModuleCx) -> Result<Bootstrap, String> {
-        Ok(services()?.terminal_bootstrap())
+        services()?.terminal_bootstrap()
     }
 
-    /// Receive one ordered event. Only one consumer can wait at a time.
-    ///
-    /// # Errors
-    /// Returns an error if the transport closes or already has a waiting consumer.
-    pub async fn next_event(session_id: String) -> Result<BridgeEvent, String> {
-        services()?.next_event(&session_id).await
-    }
-
-    /// Receive one capture or control event independently of provider backlog.
+    /// Receive one capture or control event independently of translation work.
     ///
     /// # Errors
     /// Returns an error if the transport closes or already has a waiting consumer.
@@ -61,29 +53,6 @@ impl Bridge {
     pub fn close_transport(session_id: String, _cx: &mut ModuleCx) -> Result<(), String> {
         let result = services()?.close_transport(&session_id);
         drop(session_id);
-        result
-    }
-
-    /// Replace the active translation with a request identified by the UI.
-    ///
-    /// # Errors
-    /// Returns invalid-input, provider configuration, or service state errors.
-    pub fn translate(
-        request_id: String,
-        source: String,
-        target: String,
-        _cx: &mut ModuleCx,
-    ) -> Result<(), String> {
-        services()?.translate(request_id, source, target)
-    }
-
-    /// Cancel a matching request without cancelling a newer translation.
-    ///
-    /// # Errors
-    /// Returns an error if translation state is unavailable.
-    pub fn cancel(request_id: String, _cx: &mut ModuleCx) -> Result<(), String> {
-        let result = services()?.cancel(Some(&request_id));
-        drop(request_id);
         result
     }
 
@@ -119,7 +88,7 @@ impl Bridge {
         crate::desktop::reveal().await
     }
 
-    /// Cancel the active stream and ask NSH to stop the application.
+    /// Ask NSH to stop the application and its owned children.
     ///
     /// # Errors
     /// Returns native transport errors.
