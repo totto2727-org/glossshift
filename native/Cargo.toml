@@ -20,8 +20,8 @@ global-hotkey = { version = "0.8.0", features = ["serde"] }
 libc = "0.2"
 macos-accessibility-client = "0.0.2"
 dispatch2 = "0.3"
-nsh-core = { path = "../.nsh/upstream/crates/nsh-core", version = "0.4.0" }
-nsh-platform-macos = { path = "../.nsh/upstream/crates/nsh-platform-macos", version = "0.4.0" }
+nsh-core = { path = "../.nsh/upstream/crates/nsh-core", version = "0.5.0" }
+nsh-platform-macos = { path = "../.nsh/upstream/crates/nsh-platform-macos", version = "0.5.0" }
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = [
   "NSApplication",
@@ -45,7 +45,7 @@ uuid = { version = "1", features = ["v4"] }
 xdg = "3.0.0"
 
 [dev-dependencies]
-nsh-core = { path = "../.nsh/upstream/crates/nsh-core", version = "0.4.0", features = ["declarations"] }
+nsh-core = { path = "../.nsh/upstream/crates/nsh-core", version = "0.5.0", features = ["declarations"] }
 
 [profile.release]
 lto = "thin"

@@ -56,7 +56,7 @@ diff --git a/crates/nsh-platform-macos/src/app.rs b/crates/nsh-platform-macos/sr
              display: None,
              keep_size: false,
              background: false,
-@@ -813,6 +847,35 @@
+@@ -898,6 +932,35 @@
      });
  }
 
@@ -92,7 +92,7 @@ diff --git a/crates/nsh-platform-macos/src/app.rs b/crates/nsh-platform-macos/sr
  /// Ends the standalone event loop, returning process ownership to its caller.
  fn finish_running(app: &NSApplication) {
      let window = RUNNING.with(|running| {
-@@ -886,7 +949,19 @@
+@@ -971,7 +1034,19 @@
  pub fn run_app(source: AppSource, mut options: AppOptions) -> std::process::ExitCode {
      options.notifications = true;
      let mtm = MainThreadMarker::new().expect("run_app must be called on the main thread");
@@ -112,31 +112,29 @@ diff --git a/crates/nsh-platform-macos/src/app.rs b/crates/nsh-platform-macos/sr
      app.setActivationPolicy(activation_policy(&options));
      name_app(&options.title);
      crate::chrome::set_app_name(&options.title);
-@@ -953,6 +1028,9 @@
-     // SAFETY: the window is kept in `RUNNING` until it closes.
-     unsafe { window.setReleasedWhenClosed(false) };
-     window.setTitle(&NSString::from_str(&options.title));
+@@ -1050,6 +1125,9 @@
+     // holds the keyboard, so becoming key never lets AppKit pick the first
+     // key view (a field, its text selected).
+     window.setInitialFirstResponder(Some(view.surface().root.ns()));
+     crate::window::launch_main(view.surface(), &window, &launch, kept);
 +    if let Some((width, height)) = options.min_size {
 +        window.setContentMinSize(NSSize::new(f64::from(width), f64::from(height)));
 +    }
-     window.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
-     crate::system::open_window(&window, options.appearance);
-     let view = AppView::new(mtm, options.clone());
-@@ -983,7 +1061,9 @@
-     #[cfg(feature = "dev")]
-     let pending = pending.or(dev_server.map(AppSource::DevServer));
+     if kept.is_none()
+         && launch.display.is_none()
+@@ -1073,7 +1151,7 @@
      PENDING.with(|p| *p.borrow_mut() = pending);
--    if options.background {
-+    if options.initially_hidden {
-+        window.makeFirstResponder(Some(view.surface().root.ns()));
-+    } else if options.background {
-         // Shown without activating the app (it never is: its window is
-         // never key, and the test agent's input goes to it directly).
-         window.orderFrontRegardless();
+     // nsh.json `window.defaultVisible: false`: the window is made and the
+     // app runs in it, unseen, until it shows it (a tray app).
+-    let shown = !held && launch.visible_at_launch();
++    let shown = !held && !options.initially_hidden && launch.visible_at_launch();
+     if shown {
+         show_launched(&window, view.surface(), options.background);
+     } else if !held {
 diff --git a/crates/nsh-platform-macos/src/lib.rs b/crates/nsh-platform-macos/src/lib.rs
 --- a/crates/nsh-platform-macos/src/lib.rs
 +++ b/crates/nsh-platform-macos/src/lib.rs
-@@ -77,8 +77,8 @@
+@@ -78,8 +78,8 @@
  pub use crate::app::set_root;
  pub use crate::{
      app::{

@@ -2,26 +2,26 @@
 
 ## Comparison revision
 
-GlossShift uses the NSH nightly distribution at [`longbridge/nsh` revision `c5214aaf4bbdf33bc1d59e9595e009b6aa54d702`](https://github.com/longbridge/nsh/tree/c5214aaf4bbdf33bc1d59e9595e009b6aa54d702).
-The development environment pins the source archive, official nightly CLI distribution, and official terminal component to the same revision, with separate content hashes.
-The nightly channel does not select the Rust nightly toolchain.
+GlossShift uses the official NSH 0.5.0 release at [`longbridge/nsh` revision `f4d68f7f9f31eb7b3ecc8a4cbc31096d5c6238a1`](https://github.com/longbridge/nsh/tree/f4d68f7f9f31eb7b3ecc8a4cbc31096d5c6238a1).
+The development environment pins the source archive, official CLI distribution, and official terminal component to the same release, with separate content hashes.
 The CLI remains unchanged.
 `patches/nsh-macos-lifecycle.patch` is applied to that exact source before NSH generates and builds the application's native hosts.
 
 ## Retained operational difference
 
-By default, the standard macOS host shows and activates its initial window.
-Its public activation policy, window attributes, and `keep_alive_on_close` option already support accessory applications, minimum sizes, and retaining a closed window, but the generated JavaScript application runner does not expose an application setup hook that can initialize native services before activation.
-The upstream `background` option still shows a non-activating window, so it does not replace hidden startup.
-GlossShift requires non-activating `--background` startup, capture before activation, native shortcut and tray lifetimes, configured window bounds, and close-to-hide behavior.
-Showing the window and hiding it later does not meet the startup requirement.
+Upstream 0.5.0 supports hidden initial startup through `nsh.json` `window.defaultVisible: false`, minimum sizes through window attributes, explicit window focus, and engine-owned cleanup through `on_app_quit`.
+Its `background` host option still shows a non-activating window and prohibits application activation, so it is not the application's hidden-startup flag.
+The generated JavaScript application runner does not expose a native setup hook before window construction and activation.
+GlossShift still needs that hook to parse packaged launch flags, complete help or autostart commands without opening a window, load configured window bounds, and initialize native shortcut and tray services on the main thread.
+Its shutdown guard also runs after setup failure and successful early exit, before an engine or an engine-owned quit listener exists.
+Upstream `on_app_quit` is therefore not a replacement for this guard: its listeners belong to a running engine and their futures have a shared 200 ms deadline.
 
 The patch changes only `crates/nsh-platform-macos/src/app.rs` and that crate's public re-exports in `src/lib.rs`.
-It adds:
+It retains the existing native integration contract:
 
 - An optional pair of main-thread setup and shutdown functions for standalone applications.
-- An `initially_hidden` option that suppresses initial showing and activation without suppressing engine startup.
-- An optional minimum content size.
+- An `initially_hidden` option for the dynamic packaged `--background` flag, combined with upstream launch visibility rather than replacing it.
+- An optional minimum content size from the application's settings, applied after upstream launch attributes.
 - Thread-safe show and hide requests for the retained standalone window.
 
 Hook registration stores function pointers only.
@@ -29,11 +29,14 @@ It does not read configuration, register shortcuts, create a tray, or request pe
 The setup function runs when the standalone runner starts, before it constructs or activates its window.
 Shutdown runs after engine cleanup, including setup failure and successful early exit.
 Unconfigured hosts retain the upstream defaults, including notification setup, URL launch delivery, activation policy, window attributes, and the original event loop.
+The visibility change preserves upstream development-host window holding, `defaultVisible`, `show_launched`, and `launched_main` bookkeeping.
+With no hooks installed, `min_size` remains `None` and `initially_hidden` remains `false`, so the upstream size and visibility paths are unchanged.
 The terminal host is unchanged and does not invoke the macOS hooks.
 
-The explicit show request uses AppKit's public `activateIgnoringOtherApps(true)` method because cooperative `activate()` does not guarantee activation unless the foreground application yields it.
+The retained explicit show request uses AppKit's public `activateIgnoringOtherApps(true)` method because cooperative `activate()` does not guarantee activation unless the foreground application yields it.
+Upstream 0.5.0 also uses this method for explicit window focus, but the existing native adapter remains unchanged in this compatibility port.
 A global translation shortcut cannot require changes to another application, and showing an inactive popup does not meet the focus requirement.
-This deprecated API is allowed only at that call site, not for background startup, and must be revisited when upgrading the macOS host.
+This deprecated API is allowed only at that call site in the patch, not for background startup.
 It does not grant Accessibility permission or change system privacy settings.
 
 ## Operational impact
@@ -41,7 +44,9 @@ It does not grant Accessibility permission or change system privacy settings.
 GlossShift keeps NSH's AppKit event loop and delegate rather than adding a second GUI loop or an application-owned unsafe AppKit delegate.
 Application Rust code continues to forbid unsafe code.
 Provider resolution, credentials, and translation protocol behavior are not changed by this patch.
-The standard NSH typecheck, development, test, build, and package commands remain the entry points.
+The standard NSH typecheck, development, test, build, and macOS package commands remain the entry points.
+Official 0.5.0 includes the terminal host but does not provide a `nsh package --target tui` target.
+The installed terminal command therefore still uses the generated terminal host and the external JavaScript bundle rather than an invented terminal package target.
 
 The pinned, patched source is made available at the reproducible development dependency path `.nsh/upstream`.
 This generated path is not committed and is not an arbitrary sibling checkout or a benchmark fixture.
