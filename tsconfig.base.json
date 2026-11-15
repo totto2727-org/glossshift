@@ -3,5 +3,6 @@
   "compilerOptions": {
     "target": "ESNext",
     "noEmit": true
-  }
+  },
+  "include": ["${configDir}/**/*"]
 }

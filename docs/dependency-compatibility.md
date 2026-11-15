@@ -60,7 +60,9 @@ Native CLI tests in `app/cli/src` and `app/cli/packaging.test` run through Vite+
 The PNPM monorepo uses role-based `app/*` and `package/*` projects with `workspace:*` dependencies and catalog-managed external versions, without changing dependency pins or release-age policy.
 Shared source exports replace cross-project relative imports and do not require TypeScript path aliases.
 Common strict compiler policy lives in `tsconfig.base.json`, while minimal project profiles retain separate Node and generated NSH ambient environments.
-Project configurations use default file discovery with no `include`, `exclude`, or `files` lists, and recursive workspace scripts own typechecking rather than the root lint gate.
+The common base supplies one whole-project `include: ["${configDir}/**/*"]` rule, while project profiles add no file lists or exclusions.
+This restores complete source and test discovery despite NSH's generated `files` roots, which otherwise suppress TypeScript's implicit discovery.
+Recursive workspace scripts own typechecking rather than the root lint gate.
 See [Workspace and TypeScript ownership](./runtime-architecture.md#workspace-and-typescript-ownership) for the observed ambient declaration conflicts that prevent one combined type program.
 GUI behavior tests remain in the official NSH test host, and Swift helper contract tests run separately.
 All tests, test-only helpers, and fixtures are excluded from distribution sources, and Nix package derivations run no checks or tests.

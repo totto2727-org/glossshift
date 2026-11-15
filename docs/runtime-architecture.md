@@ -164,8 +164,11 @@ Applications depend on `@glossshift/runtime` through `workspace:*`, and the desk
 Source exports expose `@glossshift/runtime/*` and the NSH Platform entry without TypeScript path aliases.
 External versions remain in PNPM catalogs with the existing release-age safeguards.
 
-Only `tsconfig.base.json` remains at the root, holding the strictest and Node-TS presets, `target: ESNext`, and `noEmit`.
-Package configurations use default file discovery without `include`, `exclude`, or `files` lists.
+Only `tsconfig.base.json` remains at the root, holding the strictest and Node-TS presets, `target: ESNext`, `noEmit`, and one whole-project discovery rule: `include: ["${configDir}/**/*"]`.
+[TypeScript's `${configDir}` substitution](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-5.html#the-configdir-template-variable-for-configuration-files) resolves this rule against each consuming project, not the repository root.
+Project configurations have no local file lists or exclusions.
+NSH's generated `files` declaration suppresses implicit discovery, so omitting the shared rule makes its checker miss application source and tests.
+Acceptance injected an unimported type error into each of the four projects and confirmed that every public typecheck rejected it with the shared rule, then passed after removal.
 The package folders define what belongs in each project rather than fine-grained compiler file lists.
 NSH projects extend generated `.nsh/tsconfig.json` and the common base, while the Node CLI and shared runtime select Node types.
 An actual combined type-program experiment failed because NSH and Node ambient declarations conflict for `Response`, `URL`, `process`, and filesystem APIs.

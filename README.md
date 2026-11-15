@@ -257,7 +257,9 @@ Package source exports resolve these dependencies without TypeScript path aliase
 Dependency versions remain centralized in PNPM catalogs with the existing release-age safeguards.
 `tsconfig.base.json` holds the common strict policy, while minimal package configurations select Node or generated NSH types.
 `vp run typecheck` recursively runs each workspace package's `typecheck` script, so a new package joins by declaring that script rather than adding files to a root list.
-Each package uses TypeScript's default file discovery without `include`, `exclude`, or `files` lists.
+Each package scans its complete directory through the common base's single `include: ["${configDir}/**/*"]` rule, with no per-project file lists or exclusions.
+This broad rule is necessary because NSH's generated configuration declares `files`, which otherwise disables implicit discovery and leaves application source unchecked.
+New source and test files join their project's typecheck without registration.
 `vp run check` remains formatting and lint only.
 Desktop development, execution, bundling, and packaging target `app/desktop`, while the public task names stay unchanged.
 The GUI executes shared configuration and translation policy directly inside NSH through the extraction-ready Effect Platform layer.

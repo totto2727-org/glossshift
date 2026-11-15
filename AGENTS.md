@@ -27,7 +27,7 @@ flake.nix                          Pinned tools, Metal-enabled llama-cpp, and Da
 package.nix                        Native desktop application packaging
 package.json                       Workspace root tooling dependencies
 pnpm-workspace.yaml                app/* and package/* membership, catalogs, and release policy
-tsconfig.base.json                 Common strict TypeScript policy only
+tsconfig.base.json                 Common strict TypeScript policy and project discovery
 vite.config.ts                     Formatting, lint, and delegated development tasks
 patches/                           LaunchAgent plist dictionary validation patch
 Justfile                           Compatibility aliases into Vite+ tasks
@@ -66,7 +66,12 @@ Use NSH for GUI bundling, execution, and behavior tests, not Vite bundling or a 
 Keep `tsconfig.base.json` as the single common policy file, extending the strictest and Node-TS presets with `target: ESNext` and `noEmit`.
 Use a real PNPM monorepo with applications in `app/*`, reusable libraries in `package/*`, package manifests, `workspace:*` dependencies, and catalog-managed external dependencies, matching the surrounding workspace's other projects.
 Resolve shared modules through `@glossshift/runtime/*` and `@glossshift/nsh-platform` source exports, not path aliases or cross-project relative imports.
-Keep package TypeScript configurations minimal and use default discovery with no `include`, `exclude`, or `files` lists.
+Keep package TypeScript configurations minimal, without project-specific `include`, `exclude`, or `files` lists.
+Use the single broad `include: ["${configDir}/**/*"]` rule in the common base to discover each consuming project's complete directory, including tests and newly added files.
+Do not replace it with per-file or per-subdirectory selections.
+NSH's generated configuration declares ambient roots through `files`, which disables implicit default discovery when no `include` is supplied.
+Removing the shared discovery rule makes `nsh check .` pass without checking application source.
+Verify discovery changes by adding an unimported type error in each host project, confirming its public typecheck fails, then removing the temporary probe and confirming success.
 Choose directory and package boundaries that naturally contain the relevant source, tests, and host environment rather than maintaining fine-grained file lists.
 NSH projects extend their generated `.nsh/tsconfig.json` and the common base, while Node CLI and runtime projects select Node types.
 A single combined NSH and Node type program was tested and failed on incompatible ambient `Response`, `URL`, `process`, and filesystem declarations.

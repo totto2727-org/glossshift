@@ -83,7 +83,8 @@ A child that exceeds those limits fails and is terminated instead of growing mem
 
 Run `vp run test-platform` from the repository root in the pinned development shell.
 The package also provides `vp run typecheck` and `vp run test` from `package/nsh-platform/`.
-Its TypeScript project scans local files by default and obtains host declarations from its own NSH-generated configuration.
+Its TypeScript project scans the complete local directory through the common base's `include: ["${configDir}/**/*"]` rule and obtains host declarations from its own NSH-generated configuration.
+The shared rule prevents generated `files` roots from suppressing source and test discovery, without introducing per-project file lists.
 The tests execute in the official NSH TUI host, not Node or a copied implementation.
 They import only the public Platform and its implementation, with no GlossShift environment grants.
 They cover independent providers and working directories, injected Stdio, unsupported operations, real filesystem metadata and safe temporary files, scoped child output and cleanup, capture UTF-8 chunk boundaries, and delayed native writer exit.
