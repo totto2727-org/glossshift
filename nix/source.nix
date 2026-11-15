@@ -1,7 +1,6 @@
 { lib }:
 
 let
-  # Only production modules are package inputs. Tests run through development tasks.
   modules =
     directory:
     lib.fileset.fileFilter (
@@ -13,20 +12,22 @@ in
 lib.fileset.toSource {
   root = ../.;
   fileset = lib.fileset.unions [
-    ../App.tsx
-    ../nsh.json
-    (modules ../src)
-    ../platform.ts
-    (lib.fileset.difference (modules ../platform) ../platform/App.tsx)
-    (lib.fileset.difference (lib.fileset.difference (modules ../runtime) ../runtime/settings.test) ../runtime/main.ts)
-    ../runtime/tsconfig.json
-    ../packaging/app-icon.png
-    ../packaging/GlossShift.icns
-    ../packaging/tray-icon.svg
+    (modules ../app/desktop)
+    ../app/desktop/nsh.json
+    ../app/desktop/package.json
+    ../app/desktop/tsconfig.json
+    ../app/desktop/packaging/app-icon.png
+    ../app/desktop/packaging/GlossShift.icns
+    ../app/desktop/packaging/tray-icon.svg
+    ../package/nsh-platform/package.json
+    ../package/nsh-platform/platform.ts
+    (modules ../package/nsh-platform/platform)
+    ../package/runtime/package.json
+    (modules ../package/runtime/src)
     (../patches + "/plist@5.1.1.patch")
     ../package.json
     ../pnpm-lock.yaml
     ../pnpm-workspace.yaml
-    ../tsconfig.json
+    ../tsconfig.base.json
   ];
 }

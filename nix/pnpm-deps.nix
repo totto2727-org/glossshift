@@ -13,6 +13,10 @@ fetchPnpmDeps {
       ../package.json
       ../pnpm-lock.yaml
       ../pnpm-workspace.yaml
+      ../app/cli/package.json
+      ../app/desktop/package.json
+      ../package/nsh-platform/package.json
+      ../package/runtime/package.json
       (../patches + "/plist@5.1.1.patch")
     ];
   };

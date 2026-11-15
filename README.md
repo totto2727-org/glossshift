@@ -131,9 +131,9 @@ nix profile add 'github:totto2727-org/glossshift#gshift'
 ### Local translation
 
 No configuration is needed for the default 0.8B model.
-The supported PLaMo 3 translation models have built-in presets in `runtime/models.ts`.
+The supported PLaMo 3 translation models have built-in presets in `package/runtime/src/models.ts`.
 Selecting a model also selects its immutable GGUF URL, SHA-256 digest, prompt format, language policy, and supported context limit.
-All four built-in presets declare a 262144-token context limit in `runtime/models.ts`, matching the publisher's `max_position_embeddings` metadata.
+All four built-in presets declare a 262144-token context limit in `package/runtime/src/models.ts`, matching the publisher's `max_position_embeddings` metadata.
 The completion budget is calculated from the context remaining after prompt tokenization.
 Explicit settings may reduce the budget but cannot exceed the model's supported context.
 
@@ -191,7 +191,7 @@ Multipart GGUFs are not supported.
 A download URL selects model weights, not a hosted inference endpoint.
 Restart the application after changing settings.
 
-The [official default artifact](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/tree/1cf96ae02133958a20074bfdfab76517bb737d00) and all preset digests are pinned in `runtime/models.ts`.
+The [official default artifact](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF/tree/1cf96ae02133958a20074bfdfab76517bb737d00) and all preset digests are pinned in `package/runtime/src/models.ts`.
 
 ### Desktop settings
 
@@ -250,12 +250,21 @@ Diagnostics go to stderr with a nonzero exit status on failure.
 See [AGENTS.md](./AGENTS.md) for repository structure, architecture, toolchain setup, and validation commands.
 Vite+ owns installation, tasks, formatting, lint, and native CLI tests through Vitest.
 NSH owns GUI execution, tests, bundling, and native packaging.
-The CLI runs `cli/main.ts` on Node.js 26 and uses the declarative Effect 4 command in `runtime/main.ts`.
+The CLI runs `app/cli/src/main.ts` on Node.js 26 and uses the declarative Effect 4 command in `app/cli/src/command.ts`.
+The PNPM workspace separates applications in `app/*` from reusable libraries in `package/*`, following the role-based layout used by the surrounding workspace's other projects.
+`@glossshift/desktop` and `@glossshift/cli` consume `@glossshift/runtime` through `workspace:*` dependencies, and the desktop also consumes `@glossshift/nsh-platform`.
+Package source exports resolve these dependencies without TypeScript path aliases.
+Dependency versions remain centralized in PNPM catalogs with the existing release-age safeguards.
+`tsconfig.base.json` holds the common strict policy, while minimal package configurations select Node or generated NSH types.
+`vp run typecheck` recursively runs each workspace package's `typecheck` script, so a new package joins by declaring that script rather than adding files to a root list.
+Each package uses TypeScript's default file discovery without `include`, `exclude`, or `files` lists.
+`vp run check` remains formatting and lint only.
+Desktop development, execution, bundling, and packaging target `app/desktop`, while the public task names stay unchanged.
 The GUI executes shared configuration and translation policy directly inside NSH through the extraction-ready Effect Platform layer.
 The [runtime architecture](./docs/runtime-architecture.md) documents these process and packaging boundaries.
 The maintained [dependency compatibility record](./docs/dependency-compatibility.md) documents the unchanged NSH release and retained plist validation patch.
 GlossShift is an original application, not a fork.
-The [NSH Effect Platform](./platform/README.md) has an explicit, application-independent composition API for reuse in another NSH project.
+The [NSH Effect Platform](./package/nsh-platform/platform/README.md) has an explicit, application-independent composition API for reuse in another NSH project.
 
 ## License
 

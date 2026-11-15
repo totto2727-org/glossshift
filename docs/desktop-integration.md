@@ -10,7 +10,8 @@ The packaged `GlossShift.app` includes its own application icon for Finder, the 
 Both `just package-app` and the Nix package install the icon inside the application bundle.
 Running a bare development executable does not provide Finder with an application bundle icon.
 
-The status item is created on zgui's main event-loop thread and retained until application shutdown, as required by [tray-icon's macOS integration contract](https://docs.rs/tray-icon/0.24.2/tray_icon/#platform-specific-notes).
+The menu bar item is installed through NSH's standard `Tray` API in `app/desktop/src/desktop-controls.ts` and retained for the connection scope.
+NSH owns the native AppKit event loop, and delayed cleanup from an old scope cannot remove a replacement scope's tray.
 
 ## Launch at login
 
@@ -67,43 +68,39 @@ The implementation uses user LaunchAgents for compatibility with the application
 
 ## Contributor reference: native dependencies
 
-macOS is the only supported platform.
-The interfaces in `src/platform.rs` separate selection capture and Accessibility permission checks from the popup.
-`src/main.rs` selects the macOS implementation and injects it into the popup at startup.
-`src/selection.rs` owns Accessibility access, simulated Cmd+C, and the pasteboard fallback.
-The selection is captured before the popup receives focus.
+Apple Silicon macOS is the only supported platform.
+`app/desktop/src/ports.ts` defines injectable desktop services, and `app/desktop/src/native-adapter.ts` composes them with scoped Effect resources.
+`app/desktop/src/selection-client.ts` launches the separate one-shot Swift helper in `helper/` and validates its bounded JSON response.
+The helper uses Apple's ApplicationServices Accessibility APIs, captures selection before the popup receives focus, and never simulates `Cmd+C` or modifies the clipboard.
+Applications without an accessible selected-text value report a stable public failure.
 
-The application clipboard uses the official [zgui clipboard interface](https://zgui.zortax.de/docs/building/clipboard) instead of a native pasteboard API.
-zgui supplies a separate in-memory clipboard for its headless platform.
-`src/popup.rs` owns popup state and translation requests without UI framework dependencies.
-`src/desktop.rs` maps bounded channel events to reactive snapshots on the UI thread.
-It adopts the existing Tokio runtime through the official [Tokio integration](https://zgui.zortax.de/docs/learn/tokio-integration).
-The view uses the standard zgui-ui shadcn-style theme, component variants, and icons.
-Application CSS adds layout, overflow control, and token-based typography without replacing the standard component appearance.
-The official styling API uses CSS rather than a Tailwind utility generator, so the project does not add a separate Tailwind toolchain.
+`app/desktop/src/desktop-controls.ts` uses the standard NSH clipboard, window, application, and tray APIs.
+`app/desktop/src/domain.ts` owns pure popup transitions, and `app/desktop/src/controller.ts` owns request replacement, cancellation, and bounded event processing.
+The view uses official NSH components and native Tailwind `class` support without an application stylesheet or browser renderer.
+The application-lifetime Effect runtime is released on teardown rather than recreated per render.
 
-Menu bar installation, global shortcut registration, and autostart commands remain native adapters assembled at the application entry point.
-They do not belong in translation or popup state logic.
-A future platform can supply different adapters without changing the translation worker.
+Menu bar installation and global shortcuts remain desktop adapters, separate from shared translation policy in `package/runtime/src`.
+Settings and LaunchAgent operations live in `package/runtime/src/desktop-config.ts` and `package/runtime/src/autostart.ts`.
+The `glossshift` launcher delegates autostart operations to the standalone native CLI without starting NSH.
+The reusable NSH Effect Platform lives in `package/nsh-platform`, while application environment interpretation stays in `app/desktop/runtime/platform.ts`.
+A future platform can supply different adapters without changing translation policy.
 There is no Linux implementation or runtime platform switch.
 
 ### Markdown and plain text
 
-The official zgui-ui Toggle switches both panes between a read-only Markdown preview and plain text without changing popup state or copied content.
-`src/ui_markdown.rs` uses `pulldown-cmark` to render headings, lists, quotes, and code blocks as native text nodes.
-It does not emit HTML, load remote images, open links, or run a syntax highlighter.
-Inline emphasis is flattened to text, images use alternate text, and raw HTML stays literal.
-This is a lightweight CommonMark block preview, not a browser or a complete GitHub-flavored Markdown renderer.
-The original Markdown remains available through the Plain toggle and copy controls.
+The Plain toggle in `app/desktop/src/ui.tsx` switches both panes without changing stored source, translation, or copied content.
+Markdown uses NSH's standard `TextView`, with literal HTML, disabled math, non-opening links, alt-only images, and plain code blocks without syntax highlighting.
+NSH `Scroll` supplies native scrolling rather than browser overflow behavior.
+Copy always uses the raw domain text, including Markdown syntax.
+There is no custom Markdown parser or browser renderer.
 
-The supplied [zgui-editor](https://github.com/zortax/zgui-editor/tree/main) repository implements a code editor rather than a Markdown preview, lacks soft wrapping, and depends on Git versions of the framework.
-It is not added as an unused or incompatible dependency.
-The application instead keeps the published zgui stack and its standard component theme.
+### GUI and boundary tests
 
-### Headless popup tests
-
-Run `just test-ui` to exercise the popup on zgui's headless platform.
-The tests use temporary provider files, synthetic keys, injected selection results, and the test clipboard.
-They do not start the production application, register shortcuts, request Accessibility permission, or change login startup.
-`just test` and `just ci` also include these tests.
-These checks do not replace verification of native Accessibility capture, the menu bar, or a signed application bundle.
+Run `vp run test` from the repository root to exercise `app/desktop/App.test.ts` through the official NSH test host.
+`vp run test-settings` checks isolated desktop configuration, and `vp run test-platform` exercises the reusable `package/nsh-platform` boundary.
+`vp run test-helper` checks the Swift helper contract with synthetic input without reading another application's selection.
+Native CLI suites live in `app/cli/src` and `app/cli/packaging.test` and run through Vite+ and Vitest, not the GUI host.
+Tests use isolated settings, synthetic source text, injected selection results, and boundary adapters rather than private developer configuration.
+`vp run ci` is the minimal formatting and lint gate, not an aggregate behavior-test command.
+These checks do not replace verification of native Accessibility capture, the menu bar, global shortcuts, or a signed application bundle.
+Stop native interaction checks if required macOS permissions are unavailable.

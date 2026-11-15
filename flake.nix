@@ -99,7 +99,7 @@
                 ]
                 ++ runtimeTools;
               shellHook = ''
-                if [ ! -f nsh.json ]; then
+                if [ ! -f app/desktop/nsh.json ]; then
                   printf '%s\n' 'Run nix develop from the GlossShift root.' >&2
                   exit 1
                 fi

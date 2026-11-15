@@ -6,6 +6,21 @@ settings:
 
 catalogs:
   default:
+    '@effect/platform-node':
+      specifier: ^4.1.2
+      version: 4.1.2
+    '@types/node':
+      specifier: ^26.6.6
+      version: 26.6.6
+    effect:
+      specifier: ^4.0.0
+      version: 4.1.2
+    plist:
+      specifier: ^5.1.1
+      version: 5.1.1
+    smol-toml:
+      specifier: ^1.9.1
+      version: 1.9.1
     vite-plus:
       specifier: 1.1.0
       version: 1.1.0
@@ -20,19 +35,6 @@ patchedDependencies:
 importers:
 
   .:
-    dependencies:
-      '@effect/platform-node':
-        specifier: ^4.1.2
-        version: 4.1.2(effect@4.1.2)(redis@6.3.1)
-      effect:
-        specifier: ^4.0.0
-        version: 4.1.2
-      plist:
-        specifier: ^5.1.1
-        version: 5.1.1(patch_hash=05825e58519299b1c42ca082addeba7ea86280a89accbf0223ed9e4bded93231)
-      smol-toml:
-        specifier: ^1.9.1
-        version: 1.9.1
     devDependencies:
       '@totto2727/gitignore-patterns':
         specifier: ^0.1.0
@@ -44,7 +46,7 @@ importers:
         specifier: ^2.0.8
         version: 2.0.8
       '@types/node':
-        specifier: ^26.6.6
+        specifier: 'catalog:'
         version: 26.6.6
       typescript:
         specifier: ^7.0.2
@@ -52,6 +54,63 @@ importers:
       vite-plus:
         specifier: 'catalog:'
         version: 1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3(vitest@5.0.3))(typescript@7.0.2)
+
+  app/cli:
+    dependencies:
+      '@effect/platform-node':
+        specifier: 'catalog:'
+        version: 4.1.2(effect@4.1.2)(redis@6.3.1)
+      '@glossshift/runtime':
+        specifier: workspace:*
+        version: link:../../package/runtime
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.2
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3)(typescript@7.0.2)
+
+  app/desktop:
+    dependencies:
+      '@glossshift/nsh-platform':
+        specifier: workspace:*
+        version: link:../../package/nsh-platform
+      '@glossshift/runtime':
+        specifier: workspace:*
+        version: link:../../package/runtime
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.2
+    devDependencies:
+      plist:
+        specifier: 'catalog:'
+        version: 5.1.1(patch_hash=05825e58519299b1c42ca082addeba7ea86280a89accbf0223ed9e4bded93231)
+
+  package/nsh-platform:
+    dependencies:
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.2
+
+  package/runtime:
+    dependencies:
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.2
+      plist:
+        specifier: 'catalog:'
+        version: 5.1.1(patch_hash=05825e58519299b1c42ca082addeba7ea86280a89accbf0223ed9e4bded93231)
+      smol-toml:
+        specifier: 'catalog:'
+        version: 1.9.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
 
 packages:
 
@@ -1886,6 +1945,31 @@ snapshots:
       '@oxfmt/binding-win32-x64-msvc': 0.72.0
       vite-plus: 1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3(vitest@5.0.3))(typescript@7.0.2)
 
+  oxfmt@0.72.0(vite-plus@1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3)(typescript@7.0.2)):
+    dependencies:
+      tinypool: 2.2.0
+    optionalDependencies:
+      '@oxfmt/binding-android-arm-eabi': 0.72.0
+      '@oxfmt/binding-android-arm64': 0.72.0
+      '@oxfmt/binding-darwin-arm64': 0.72.0
+      '@oxfmt/binding-darwin-x64': 0.72.0
+      '@oxfmt/binding-freebsd-x64': 0.72.0
+      '@oxfmt/binding-linux-arm-gnueabihf': 0.72.0
+      '@oxfmt/binding-linux-arm-musleabihf': 0.72.0
+      '@oxfmt/binding-linux-arm64-gnu': 0.72.0
+      '@oxfmt/binding-linux-arm64-musl': 0.72.0
+      '@oxfmt/binding-linux-ppc64-gnu': 0.72.0
+      '@oxfmt/binding-linux-riscv64-gnu': 0.72.0
+      '@oxfmt/binding-linux-riscv64-musl': 0.72.0
+      '@oxfmt/binding-linux-s390x-gnu': 0.72.0
+      '@oxfmt/binding-linux-x64-gnu': 0.72.0
+      '@oxfmt/binding-linux-x64-musl': 0.72.0
+      '@oxfmt/binding-openharmony-arm64': 0.72.0
+      '@oxfmt/binding-win32-arm64-msvc': 0.72.0
+      '@oxfmt/binding-win32-ia32-msvc': 0.72.0
+      '@oxfmt/binding-win32-x64-msvc': 0.72.0
+      vite-plus: 1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3)(typescript@7.0.2)
+
   oxlint-tsgolint@7.0.2003:
     optionalDependencies:
       '@oxlint-tsgolint/darwin-arm64': 7.0.2003
@@ -1918,6 +2002,30 @@ snapshots:
       '@oxlint/binding-win32-x64-msvc': 1.87.0
       oxlint-tsgolint: 7.0.2003
       vite-plus: 1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3(vitest@5.0.3))(typescript@7.0.2)
+
+  oxlint@1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3)(typescript@7.0.2)):
+    optionalDependencies:
+      '@oxlint/binding-android-arm-eabi': 1.87.0
+      '@oxlint/binding-android-arm64': 1.87.0
+      '@oxlint/binding-darwin-arm64': 1.87.0
+      '@oxlint/binding-darwin-x64': 1.87.0
+      '@oxlint/binding-freebsd-x64': 1.87.0
+      '@oxlint/binding-linux-arm-gnueabihf': 1.87.0
+      '@oxlint/binding-linux-arm-musleabihf': 1.87.0
+      '@oxlint/binding-linux-arm64-gnu': 1.87.0
+      '@oxlint/binding-linux-arm64-musl': 1.87.0
+      '@oxlint/binding-linux-ppc64-gnu': 1.87.0
+      '@oxlint/binding-linux-riscv64-gnu': 1.87.0
+      '@oxlint/binding-linux-riscv64-musl': 1.87.0
+      '@oxlint/binding-linux-s390x-gnu': 1.87.0
+      '@oxlint/binding-linux-x64-gnu': 1.87.0
+      '@oxlint/binding-linux-x64-musl': 1.87.0
+      '@oxlint/binding-openharmony-arm64': 1.87.0
+      '@oxlint/binding-win32-arm64-msvc': 1.87.0
+      '@oxlint/binding-win32-ia32-msvc': 1.87.0
+      '@oxlint/binding-win32-x64-msvc': 1.87.0
+      oxlint-tsgolint: 7.0.2003
+      vite-plus: 1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3)(typescript@7.0.2)
 
   pathe@2.0.3: {}
 
@@ -2024,6 +2132,65 @@ snapshots:
       '@vitest/utils': 5.0.3
       oxfmt: 0.72.0(vite-plus@1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3(vitest@5.0.3))(typescript@7.0.2))
       oxlint: 1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3(vitest@5.0.3))(typescript@7.0.2))
+      oxlint-tsgolint: 7.0.2003
+      vite: '@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.6)(typescript@7.0.2)'
+      vitest: 5.0.3(@types/node@26.6.6)(@vitest/browser-preview@5.0.3)(@vitest/ui@5.0.3(vitest@5.0.3))(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.6)(typescript@7.0.2))
+    optionalDependencies:
+      '@voidzero-dev/vite-plus-darwin-arm64': 1.1.0
+      '@voidzero-dev/vite-plus-darwin-x64': 1.1.0
+      '@voidzero-dev/vite-plus-linux-arm64-gnu': 1.1.0
+      '@voidzero-dev/vite-plus-linux-arm64-musl': 1.1.0
+      '@voidzero-dev/vite-plus-linux-x64-gnu': 1.1.0
+      '@voidzero-dev/vite-plus-linux-x64-musl': 1.1.0
+      '@voidzero-dev/vite-plus-win32-arm64-msvc': 1.1.0
+      '@voidzero-dev/vite-plus-win32-x64-msvc': 1.1.0
+    transitivePeerDependencies:
+      - '@arethetypeswrong/core'
+      - '@edge-runtime/vm'
+      - '@opentelemetry/api'
+      - '@types/node'
+      - '@typescript/native-preview'
+      - '@vitejs/devtools'
+      - '@vitest/coverage-istanbul'
+      - '@vitest/coverage-v8'
+      - '@vitest/ui'
+      - '@volar/typescript'
+      - '@vue/language-core'
+      - bufferutil
+      - esbuild
+      - happy-dom
+      - jiti
+      - jsdom
+      - less
+      - msw
+      - publint
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - svelte
+      - terser
+      - tsx
+      - typescript
+      - unplugin-unused
+      - unrun
+      - utf-8-validate
+      - vue-tsc
+      - yaml
+
+  vite-plus@1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3)(typescript@7.0.2):
+    dependencies:
+      '@oxc-project/types': 0.153.0
+      '@oxlint/plugins': 1.79.0
+      '@vitest/browser': 5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.6)(typescript@7.0.2))(vitest@5.0.3)
+      '@vitest/browser-preview': 5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.6)(typescript@7.0.2))(vitest@5.0.3)
+      '@vitest/mocker': 5.0.3(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.6)(typescript@7.0.2))
+      '@vitest/pretty-format': 5.0.3
+      '@vitest/snapshot': 5.0.3
+      '@vitest/spy': 5.0.3
+      '@vitest/utils': 5.0.3
+      oxfmt: 0.72.0(vite-plus@1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3)(typescript@7.0.2))
+      oxlint: 1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@26.6.6)(@vitest/ui@5.0.3)(typescript@7.0.2))
       oxlint-tsgolint: 7.0.2003
       vite: '@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.6)(typescript@7.0.2)'
       vitest: 5.0.3(@types/node@26.6.6)(@vitest/browser-preview@5.0.3)(@vitest/ui@5.0.3(vitest@5.0.3))(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.6)(typescript@7.0.2))

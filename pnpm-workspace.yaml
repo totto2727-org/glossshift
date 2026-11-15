@@ -1,7 +1,13 @@
 packages:
-  - .
+  - app/*
+  - package/*
 
 catalog:
+  '@effect/platform-node': ^4.1.2
+  '@types/node': ^26.6.6
+  effect: ^4.0.0
+  plist: ^5.1.1
+  smol-toml: ^1.9.1
   vite-plus: 1.1.0
 
 # Keep the official Vite+ toolchain versions aligned.

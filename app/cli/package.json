@@ -1,0 +1,17 @@
+{
+  "name": "@glossshift/cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "vp exec tsc --project ."
+  },
+  "dependencies": {
+    "@effect/platform-node": "catalog:",
+    "@glossshift/runtime": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

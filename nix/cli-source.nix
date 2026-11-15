@@ -10,8 +10,10 @@ in
 lib.fileset.toSource {
   root = ../.;
   fileset = lib.fileset.unions [
-    (modules ../cli)
-    (lib.fileset.difference (lib.fileset.difference (modules ../runtime) ../runtime/settings.test) ../runtime/platform.ts)
+    ../app/cli/package.json
+    (modules ../app/cli/src)
+    ../package/runtime/package.json
+    (modules ../package/runtime/src)
     ../package.json
     ../pnpm-lock.yaml
     ../pnpm-workspace.yaml

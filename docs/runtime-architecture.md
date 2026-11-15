@@ -8,8 +8,8 @@ GlossShift has two separate execution environments that share translation policy
 The desktop runs TypeScript in the unmodified official NSH 0.5.0 macOS host.
 Selection capture uses a separate one-shot Swift executable.
 The desktop does not start Node or register a custom Rust module.
-The noninteractive `gshift` command runs `cli/main.ts` on Node.js 26 with native Effect services.
-Its declarative Effect 4 CLI definition lives in `runtime/main.ts`.
+The noninteractive `gshift` command runs `app/cli/src/main.ts` on Node.js 26 with native Effect services.
+Its declarative Effect 4 CLI definition lives in `app/cli/src/command.ts`.
 No arguments show help, and `--tui` is rejected.
 The desktop application launches separately.
 
@@ -17,13 +17,13 @@ The desktop application launches separately.
 flowchart TD
   Combined[Combined glossshift package] --> GUI[GlossShift.app]
   Combined --> Link[Symlink to standalone gshift]
-  Standalone[Independent nix/gshift.nix package] --> CLI[cli/main.ts on Node.js 26]
+  Standalone[Independent nix/gshift.nix package] --> CLI[app/cli/src/main.ts on Node.js 26]
   Link --> CLI
   GUI --> NSH[Official NSH macOS host]
   NSH --> UI[Popup and scoped controller]
   NSH --> Swift[One-shot Swift Accessibility helper]
-  UI --> NshPlatform[platform.ts and platform/ NSH services]
-  CLI --> Command[runtime/main.ts Effect 4 CLI]
+  UI --> NshPlatform[package/nsh-platform NSH services]
+  CLI --> Command[app/cli/src/command.ts Effect 4 CLI]
   Command --> NodePlatform[Native Node Effect services]
   NshPlatform --> Runtime[Shared runtime translation and configuration policy]
   NodePlatform --> Runtime
@@ -33,7 +33,7 @@ flowchart TD
   HTTP --> Runtime
 ```
 
-`nix/gshift.nix` includes the native entry, runtime modules, production JavaScript dependencies, Node.js 26, and required inference and file utilities.
+`nix/gshift.nix` includes the production `app/cli` and `package/runtime` trees, production JavaScript dependencies, Node.js 26, and required inference and file utilities.
 Its closure excludes NSH and Swift.
 The combined `glossshift` package contains the GUI and links the standalone CLI, so that combined closure includes Node.
 A Node-free GUI process is not a Node-free combined package closure.
@@ -47,12 +47,12 @@ There is no translation sidecar or JSON acknowledgment protocol between policy a
 
 ## Effect Platform boundary
 
-The extraction-ready `platform.ts` and `platform/` library supplies Effect services through NSH APIs without GlossShift-specific environment policy.
+The `@glossshift/nsh-platform` workspace library exposes `package/nsh-platform/platform.ts` and adapters in `package/nsh-platform/platform/` without GlossShift-specific environment policy.
 Its public composition accepts working directories, tool paths, configuration providers, and standard I/O explicitly.
-`runtime/platform.ts` supplies the GUI's application environment.
+`app/desktop/runtime/platform.ts` supplies the GUI's application environment.
 The native CLI uses Node-backed services instead of importing the NSH library.
 Named modules sit beside their child directories, with no `index.ts` modules.
-See [NSH Effect Platform](../platform/README.md) for supported services and explicit unsupported operations.
+See [NSH Effect Platform](../package/nsh-platform/platform/README.md) for supported services and explicit unsupported operations.
 
 NSH Promise APIs remain in boundary adapters and are lifted into scoped Effects.
 The GUI controller interrupts an active translation on cancellation or replacement.
@@ -149,10 +149,38 @@ Accessibility permission is not granted in the verification environment, so actu
 See [cached-model acceptance instructions](../AGENTS.md#reproduce-cached-model-acceptance) to reproduce the source and installed CLI checks with isolated settings and existing weights.
 See [Dependency compatibility](./dependency-compatibility.md) for exact pins and retained patches.
 
+## Workspace and TypeScript ownership
+
+The repository follows the surrounding workspace's `monorepo` project, which separates JavaScript applications in `js/app/*` from libraries in `js/package/*` and uses workspace dependencies and catalogs.
+GlossShift applies the same role-based structure directly as `app/*` and `package/*`, without copying another project's unrelated tooling or host assumptions.
+These are PNPM workspace packages with explicit manifests and dependencies, not directories made to look independent by separate compiler configurations.
+`app/desktop` owns the NSH entry, popup adapters, GUI tests, runtime composition, and packaging assets.
+`app/cli/src` owns the native entry, declarative command, batch policy, and unit tests, while `app/cli/packaging.test` owns installed-package and real-model suites.
+`package/runtime/src` owns shared configuration, model storage, inference, desktop settings, and autostart policy.
+`package/nsh-platform` owns the public Effect Platform composition, NSH adapters, and its own NSH test host.
+The Swift helper and Nix packaging remain at the root.
+
+Applications depend on `@glossshift/runtime` through `workspace:*`, and the desktop also depends on `@glossshift/nsh-platform`.
+Source exports expose `@glossshift/runtime/*` and the NSH Platform entry without TypeScript path aliases.
+External versions remain in PNPM catalogs with the existing release-age safeguards.
+
+Only `tsconfig.base.json` remains at the root, holding the strictest and Node-TS presets, `target: ESNext`, and `noEmit`.
+Package configurations use default file discovery without `include`, `exclude`, or `files` lists.
+The package folders define what belongs in each project rather than fine-grained compiler file lists.
+NSH projects extend generated `.nsh/tsconfig.json` and the common base, while the Node CLI and shared runtime select Node types.
+An actual combined type-program experiment failed because NSH and Node ambient declarations conflict for `Response`, `URL`, `process`, and filesystem APIs.
+Minimal environment profiles preserve meaningful checking without casts or bypassing whole checks.
+
+The root `vp run typecheck` runs `vp run -r typecheck` and discovers each workspace package's script.
+NSH projects use `nsh check .`, and Node projects use `vp exec tsc --project .`.
+Adding a workspace package with a `typecheck` script therefore does not require a root file list or task rewrite.
+The root `vp run check` performs formatting and lint only, with `typeAware` and `typeCheck` disabled.
+
 ## Build and verification boundaries
 
 - Vite+ owns dependency installation, tasks, formatting, lint, and native CLI tests through Vitest.
-- Official NSH commands check, run, test, bundle, and package the GUI.
+- Official NSH commands check each NSH project, run, test, bundle, and package `app/desktop`, and test the reusable `package/nsh-platform` boundary.
+- Root task names remain unchanged while delegating to the workspace projects.
 - Native CLI tests use reusable `.test` helpers and isolated filesystem settings, without a copied NSH harness.
 - Swift helper contract tests run separately with synthetic input and never read another application's selection.
 - Nix uses official NSH binaries and the pinned llama-cpp substitute, builds the small Swift helper separately, and packages the standalone Node CLI independently.

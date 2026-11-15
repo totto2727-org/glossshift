@@ -3,40 +3,34 @@
 ## Repository structure
 
 ```text
-App.tsx                     NSH entry in the same directory as nsh.json
-src/domain.ts               Pure popup states, messages, and transitions
-src/controller.ts           Effect-owned request lifetimes and bounded event processing
-src/ports.ts                Injectable native services and public settings
-src/                        NSH views, process adapters, and application tests
-cli/main.ts                 Native Node.js 26 CLI entry
-nix/gshift.nix              Independent CLI package without NSH or Swift
-src/desktop-controls.ts     Standard NSH clipboard, window, application, and tray APIs
-helper/Selection.swift      Injectable macOS Accessibility selection boundary
-helper/main.swift           One-shot JSON command entry
-nix/macos-helper.nix        Production-only small Swift helper build
-flake.nix                   Isolated Nixpkgs unstable pin for Metal-enabled llama-cpp
-runtime/main.ts             Declarative Effect 4 CLI command and batch policy
-platform/                   Effect services backed by NSH and bounded file utilities
-platform.ts                 Public NSH Effect Platform composition
-runtime/platform.ts         GlossShift GUI environment composition
-runtime/desktop-config.ts      Non-destructive TOML settings and validation
-runtime/autostart.ts           Safe macOS LaunchAgent file operations
-runtime/translation.ts         Scoped Effect AI local translation service
-runtime/model.ts               Verified automatic GGUF download and cache reuse
-runtime/server.ts              Private llama-server process lifetime and authentication
-runtime/server-api.ts          Validated loopback HTTP and bounded SSE
-runtime/generation.ts          Bounded generation and prompt tokenization
-runtime/prompt.ts              PFML3 prompt and supported-language validation
-runtime/config.ts              Local model selection and configuration validation
-runtime/models.ts              Pinned PLaMo model presets and operating budgets
-nsh.json                    Application identity, narrow capabilities, and window defaults
-vite.config.ts              Vite+ formatting, lint, and delegated task definitions
-pnpm-workspace.yaml         Catalog, package-manager policy, and release-age safeguards
-patches/                    LaunchAgent plist dictionary validation patch
-packaging/                  macOS application metadata and assets
-flake.nix                   Pinned development tools and Darwin package outputs
-package.nix                 Native application packaging
-Justfile                    Compatibility aliases into Vite+ tasks
+app/desktop/App.tsx                 NSH entry beside nsh.json
+app/desktop/src/                    Popup domain, controller, views, and desktop adapters
+app/desktop/runtime/                GUI environment composition and test fixtures
+app/desktop/packaging/              macOS metadata and icon assets
+app/desktop/*.test.ts               Official NSH application and inference suites
+app/cli/src/main.ts                 Native Node.js 26 CLI entry
+app/cli/src/command.ts              Declarative Effect 4 CLI definition
+app/cli/src/cli.ts                  Batch translation policy
+app/cli/src/cli-files.ts            Ordered file validation and safe output operations
+app/cli/src/*.test.ts               Native CLI unit and contract tests
+app/cli/packaging.test/             Installed CLI, distribution, and real-model suites
+package/runtime/src/               Shared configuration, model, and inference policy
+package/runtime/src/desktop-config.ts  Non-destructive TOML settings and validation
+package/runtime/src/autostart.ts    Safe macOS LaunchAgent file operations
+package/nsh-platform/platform.ts    Public application-independent NSH Effect composition
+package/nsh-platform/platform/      NSH service adapters and boundary tests
+package/nsh-platform/App.tsx        NSH platform test host beside nsh.json
+helper/                            One-shot Swift Accessibility helper and contract tests
+nix/gshift.nix                     Independent CLI package without NSH or Swift
+nix/macos-helper.nix               Production-only Swift helper build
+flake.nix                          Pinned tools, Metal-enabled llama-cpp, and Darwin outputs
+package.nix                        Native desktop application packaging
+package.json                       Workspace root tooling dependencies
+pnpm-workspace.yaml                app/* and package/* membership, catalogs, and release policy
+tsconfig.base.json                 Common strict TypeScript policy only
+vite.config.ts                     Formatting, lint, and delegated development tasks
+patches/                           LaunchAgent plist dictionary validation patch
+Justfile                           Compatibility aliases into Vite+ tasks
 ```
 
 ## Development commands
@@ -53,7 +47,7 @@ Do not add custom Rust host dependencies or generated source checkouts to restor
 | `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                                      |
 | `vp run check`                           | Check formatting and lint without a second typechecker.                              |
 | `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                               |
-| `vp run typecheck`                       | Check the GUI and native CLI with their respective TypeScript configurations.        |
+| `vp run typecheck`                       | Recursively check every workspace project's host-specific TypeScript program.        |
 | `vp run dev`                             | Delegate development and reload to NSH's macOS host.                                 |
 | `vp run run`                             | Run the application through NSH.                                                     |
 | `vp run build`                           | Produce the NSH release bundle, not an installable application.                      |
@@ -69,11 +63,22 @@ Do not add custom Rust host dependencies or generated source checkouts to restor
 
 Vite+ owns installation, task orchestration, formatting, lint, and native CLI tests through Vitest.
 Use NSH for GUI bundling, execution, and behavior tests, not Vite bundling or a second GUI host.
-Keep the strictest and Node-TS configuration presets and separate host-specific type boundaries.
-NSH's generated configuration supplies GUI types, while the native CLI uses its Node configuration.
+Keep `tsconfig.base.json` as the single common policy file, extending the strictest and Node-TS presets with `target: ESNext` and `noEmit`.
+Use a real PNPM monorepo with applications in `app/*`, reusable libraries in `package/*`, package manifests, `workspace:*` dependencies, and catalog-managed external dependencies, matching the surrounding workspace's other projects.
+Resolve shared modules through `@glossshift/runtime/*` and `@glossshift/nsh-platform` source exports, not path aliases or cross-project relative imports.
+Keep package TypeScript configurations minimal and use default discovery with no `include`, `exclude`, or `files` lists.
+Choose directory and package boundaries that naturally contain the relevant source, tests, and host environment rather than maintaining fine-grained file lists.
+NSH projects extend their generated `.nsh/tsconfig.json` and the common base, while Node CLI and runtime projects select Node types.
+A single combined NSH and Node type program was tested and failed on incompatible ambient `Response`, `URL`, `process`, and filesystem declarations.
+Preserve the environment-specific programs rather than bypassing those conflicts with casts or skipping whole checks.
+Every project declares its own `typecheck` script: `nsh check .` for NSH projects and `vp exec tsc --project .` for Node projects.
+The root `vp run typecheck` delegates to `vp run -r typecheck`, so new workspace projects join automatically through their scripts.
+The root formatting and lint gate keeps `typeAware` and `typeCheck` disabled and does not replace project typechecking.
+Root NSH development, execution, build, package, and application-test tasks target `app/desktop`, and platform tests target `package/nsh-platform`.
+Preserve the public task names.
 The Just aliases exist for compatibility, including the existing workflow's `just ci` entry point.
 Nix compiles the small Swift helper separately and bundles the GUI with the official NSH host.
-`nix/gshift.nix` packages `cli/main.ts`, shared runtime modules, and production dependencies for Node.js 26 without NSH or Swift.
+`nix/gshift.nix` packages the production `app/cli` and `package/runtime` trees and production dependencies for Node.js 26 without NSH or Swift.
 The combined `glossshift` package links this standalone CLI, so its closure includes Node even though the GUI never starts Node.
 It uses the unmodified `llama-cpp` package from the separately pinned Nixpkgs unstable input.
 Confirm that the exact macOS arm64 derivation is available from the binary cache before changing that pin.
@@ -99,8 +104,9 @@ Do not create `index.ts` or `index.tsx` modules.
 Use a named module beside its child directory, such as `platform.ts` and `platform/NshFileSystem.ts`.
 Keep the Platform implementation independent of GlossShift policy so it can be extracted as a library.
 Pass working directories, tools, configuration providers, and Stdio layers explicitly through `platform.ts`.
-Keep application environment interpretation in `runtime/platform.ts`.
-Document supported services and explicit NSH limitations in `platform/README.md`.
+Keep application environment interpretation in `app/desktop/runtime/platform.ts`.
+Document supported services and explicit NSH limitations in `package/nsh-platform/platform/README.md`.
+The public composition module is `package/nsh-platform/platform.ts`.
 
 TypeScript owns popup state, display mode, request replacement, stale and terminal event handling, copy actions, and view rendering.
 Use Effect services, scoped fibers, validated schemas, and Effect collection and string utilities instead of manual Promise orchestration or JavaScript standard-library collection helpers.
@@ -173,7 +179,8 @@ A delayed old scope must not unregister a newer scope's resources.
 
 ### Native CLI
 
-Use `cli/main.ts` as the independent Node.js 26 entry and `runtime/main.ts` for the declarative Effect 4 CLI command.
+Use `app/cli/src/main.ts` as the independent Node.js 26 entry and `app/cli/src/command.ts` for the declarative Effect 4 CLI command.
+Keep batch policy and file operations in `app/cli/src/cli.ts` and `app/cli/src/cli-files.ts`, with reusable translation policy in `package/runtime/src`.
 Keep NSH, Swift, AppKit, global hotkeys, and tray resources outside the CLI dependency graph and package closure.
 Use native arguments, working directory, standard streams, signals, and exit status.
 Do not restore the shell capture bridge, `gshift-launcher.sh`, a Nix batch launcher, or the deleted `batch/` and `terminal/` products.
@@ -222,12 +229,12 @@ Desktop and native CLI share the same local model, source language, prompt forma
 ## Reproduce cached-model acceptance
 
 Run from the repository root inside `nix develop` after installing the locked dependencies.
-The opt-in suite in `packaging/Inference.test.ts` uses isolated temporary settings and accepts only an existing `file:` GGUF URI, so it cannot download model weights.
+The opt-in suite in `app/cli/packaging.test/Inference.test.ts` uses isolated temporary settings and accepts only an existing `file:` GGUF URI, so it cannot download model weights.
 First obtain the 0.8B artifact through the normal verified application download if it is not already cached.
 That initial download requires network access and approximately 573 MB of disk space.
 Do not download larger presets for this check.
 
-Create an isolated JSON configuration at `tmp/local-model.test.json` with a `model` object containing the cached artifact's absolute `file:` URI, pinned `sha256`, and `prompt: "plamo"` from `runtime/models.ts`.
+Create an isolated JSON configuration at `tmp/local-model.test.json` with a `model` object containing the cached artifact's absolute `file:` URI, pinned `sha256`, and `prompt: "plamo"` from `package/runtime/src/models.ts`.
 Omit `contextSize` and `maxTokens` for the known 0.8B digest to exercise the full 262144-token default and dynamic completion budget.
 Do not point this test at private user configuration.
 Then run:

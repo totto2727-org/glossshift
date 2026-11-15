@@ -19,12 +19,12 @@ func checkPNG(_ path: String, size: Int) throws {
     require(image.hasAlpha, "\(path) must retain transparency")
 }
 
-try checkPNG("packaging/app-icon.png", size: 1024)
-try checkPNG("packaging/tray-icon.png", size: 32)
-let raw = try Data(contentsOf: URL(fileURLWithPath: "packaging/tray-icon.rgba"))
+try checkPNG("app/desktop/packaging/app-icon.png", size: 1024)
+try checkPNG("app/desktop/packaging/tray-icon.png", size: 32)
+let raw = try Data(contentsOf: URL(fileURLWithPath: "app/desktop/packaging/tray-icon.rgba"))
 require(raw.count == 32 * 32 * 4, "Tray must be exactly 4096 RGBA bytes without a header")
 var alphas: Set<UInt8> = []
-let preview = NSBitmapImageRep(data: try Data(contentsOf: URL(fileURLWithPath: "packaging/tray-icon.png")))!
+let preview = NSBitmapImageRep(data: try Data(contentsOf: URL(fileURLWithPath: "app/desktop/packaging/tray-icon.png")))!
 for pixel in 0..<(32 * 32) {
     let offset = pixel * 4
     require(raw[offset] == 0 && raw[offset + 1] == 0 && raw[offset + 2] == 0,
@@ -42,7 +42,7 @@ try FileManager.default.createDirectory(at: directory.deletingLastPathComponent(
 defer { try? FileManager.default.removeItem(at: directory) }
 let process = Process()
 process.executableURL = URL(fileURLWithPath: "/usr/bin/iconutil")
-process.arguments = ["--convert", "iconset", "--output", directory.path, "packaging/GlossShift.icns"]
+process.arguments = ["--convert", "iconset", "--output", directory.path, "app/desktop/packaging/GlossShift.icns"]
 try process.run()
 process.waitUntilExit()
 require(process.terminationStatus == 0, "ICNS must decode through iconutil")
@@ -53,6 +53,6 @@ for points in [16, 32, 128, 256, 512] {
     }
 }
 let plist = try PropertyListSerialization.propertyList(
-    from: Data(contentsOf: URL(fileURLWithPath: "packaging/Info.plist")), format: nil) as! [String: Any]
+    from: Data(contentsOf: URL(fileURLWithPath: "app/desktop/packaging/Info.plist")), format: nil) as! [String: Any]
 require(plist["CFBundleIconFile"] as? String == "GlossShift.icns", "Bundle icon reference must match asset")
 print("Validated all 10 ICNS representations (16–1024 px), PNG dimensions/alpha, plist, and 32×32 black RGBA template.")

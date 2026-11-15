@@ -72,7 +72,7 @@ let tray: [Shape] = [
 
 let manager = FileManager.default
 let root = URL(fileURLWithPath: manager.currentDirectoryPath)
-let packaging = root.appendingPathComponent("packaging")
+let packaging = root.appendingPathComponent("app/desktop/packaging")
 let iconset = root.appendingPathComponent("target/GlossShift.iconset")
 try manager.createDirectory(at: iconset, withIntermediateDirectories: true)
 

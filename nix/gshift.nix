@@ -29,10 +29,10 @@ stdenvNoCC.mkDerivation {
   installPhase = ''
     runHook preInstall
     mkdir -p "$out/share/gshift" "$out/bin"
-    cp -R cli runtime node_modules package.json "$out/share/gshift/"
+    cp -R app package node_modules package.json "$out/share/gshift/"
     rm -f "$out/share/gshift/node_modules/.modules.yaml" "$out/share/gshift/node_modules/.pnpm/lock.yaml"
     makeBinaryWrapper ${nodejs_26}/bin/node "$out/bin/gshift" \
-      --add-flag "$out/share/gshift/cli/main.ts" \
+      --add-flag "$out/share/gshift/app/cli/src/main.ts" \
       --set GLOSSSHIFT_LLAMA_SERVER '${glossshift-llama-server}/bin/llama-server' \
       --set GLOSSSHIFT_COREUTILS '${coreutils}/bin/coreutils' \
       --set GLOSSSHIFT_CURL '${curl}/bin/curl' \

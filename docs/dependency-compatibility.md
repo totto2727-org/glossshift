@@ -27,7 +27,7 @@ The application provides its own Effect Platform services over the standard NSH 
 NSH 0.5.0 lacks large-file streaming handles, exclusive temporary-file primitives, and parent CLI arguments and standard handles.
 Packaged curl and coreutils supply bounded download, hashing, and atomic-file operations.
 The independent Node.js 26 CLI uses native arguments, standard streams, working directory, and exit status instead of a shell/headless-host bridge.
-The extraction-ready GUI Platform library remains in `platform.ts` and `platform/`, without application-specific environment interpretation or `index.ts` modules.
+The extraction-ready GUI Platform library remains in `package/nsh-platform/platform.ts` and `package/nsh-platform/platform/`, without application-specific environment interpretation or `index.ts` modules.
 These adapters are application and packaging code, not upstream runtime changes.
 Retest the exact missing APIs on NSH updates and remove a fallback when the official API can safely replace it.
 [Runtime architecture](./runtime-architecture.md) records the observed limits and operational impact.
@@ -52,11 +52,16 @@ The [cached-model acceptance instructions](../AGENTS.md#reproduce-cached-model-a
 
 ## Native CLI packaging
 
-`nix/gshift.nix` packages Node.js 26, `cli/main.ts`, shared runtime modules, and production JavaScript dependencies independently of NSH and Swift.
-The command definition uses Effect 4 CLI in `runtime/main.ts`, with native process arguments and standard I/O.
+`nix/gshift.nix` packages Node.js 26, the production `app/cli` and `package/runtime` trees, and production JavaScript dependencies independently of NSH and Swift.
+The command definition uses Effect 4 CLI in `app/cli/src/command.ts`, with the Node entry in `app/cli/src/main.ts` and native process arguments and standard I/O.
 The combined `glossshift` package links that standalone CLI and therefore includes Node in its closure, although the GUI process remains NSH-only with a separate Swift helper.
 The old shell capture bridge and interactive terminal product are removed rather than retained as compatibility dependencies.
-Native CLI tests run through Vite+ and Vitest with reusable `.test` helpers.
+Native CLI tests in `app/cli/src` and `app/cli/packaging.test` run through Vite+ and Vitest with reusable `.test` helpers.
+The PNPM monorepo uses role-based `app/*` and `package/*` projects with `workspace:*` dependencies and catalog-managed external versions, without changing dependency pins or release-age policy.
+Shared source exports replace cross-project relative imports and do not require TypeScript path aliases.
+Common strict compiler policy lives in `tsconfig.base.json`, while minimal project profiles retain separate Node and generated NSH ambient environments.
+Project configurations use default file discovery with no `include`, `exclude`, or `files` lists, and recursive workspace scripts own typechecking rather than the root lint gate.
+See [Workspace and TypeScript ownership](./runtime-architecture.md#workspace-and-typescript-ownership) for the observed ambient declaration conflicts that prevent one combined type program.
 GUI behavior tests remain in the official NSH test host, and Swift helper contract tests run separately.
 All tests, test-only helpers, and fixtures are excluded from distribution sources, and Nix package derivations run no checks or tests.
 Installed distribution checks verify the GUI bundle signature, separate CLI link, production dependencies, and exclusion of NSH and Swift from the CLI closure.

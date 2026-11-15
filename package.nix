@@ -70,7 +70,7 @@ stdenvNoCC.mkDerivation {
     runHook preBuild
     export PATH="${bundleSigner}/bin:$PATH"
     # Official prebuilt hosts receive only the exact installed executables.
-    for manifest in nsh.json; do
+    for manifest in app/desktop/nsh.json; do
       jq --arg server '${serverCommand}' --arg helper '${helperCommand}' \
         --argjson tools '${builtins.toJSON systemTools}' '
         del(.rust, .icon) |
@@ -78,6 +78,7 @@ stdenvNoCC.mkDerivation {
         .capabilities.process.env = ((.capabilities.process.env // [] | map(select(. != "GLOSSSHIFT_NODE_COMMAND" and . != "GLOSSSHIFT_NODE_ENTRY"))) + ["GLOSSSHIFT_COREUTILS", "GLOSSSHIFT_CURL", "SSL_CERT_FILE"] | unique)' "$manifest" > "$manifest.new"
       mv "$manifest.new" "$manifest"
     done
+    pushd app/desktop
     nsh build . --release
     test ! -e .nsh/rust
     for bundle in .nsh/out/bundle.js; do
@@ -136,12 +137,13 @@ stdenvNoCC.mkDerivation {
     makeBinaryWrapper ${stdenvNoCC.shell} "$app/Contents/MacOS/GlossShift" \
       --add-flag "$out/Applications/GlossShift.app/Contents/Resources/glossshift/GlossShift-launcher"
     rcodesign sign "$app"
+    popd
     runHook postBuild
   '';
   installPhase = ''
     runHook preInstall
     mkdir -p "$out/Applications" "$out/bin"
-    cp -R .nsh/out/GlossShift.app "$out/Applications/GlossShift.app"
+    cp -R app/desktop/.nsh/out/GlossShift.app "$out/Applications/GlossShift.app"
     ln -s "$out/Applications/GlossShift.app/Contents/MacOS/GlossShift" "$out/bin/glossshift"
     ln -s ${gshift}/bin/gshift "$out/bin/gshift"
     runHook postInstall
