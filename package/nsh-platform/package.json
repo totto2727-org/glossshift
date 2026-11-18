@@ -1,0 +1,16 @@
+{
+  "name": "@glossshift/nsh-platform",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./platform.ts",
+    "./*": "./platform/*.ts"
+  },
+  "scripts": {
+    "typecheck": "nsh check .",
+    "test": "nsh test . --target tui"
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  }
+}

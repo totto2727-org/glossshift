@@ -3,123 +3,265 @@
 ## Repository structure
 
 ```text
-src/lib.rs            Shared public library modules
-src/config.rs         XDG application settings and non-destructive legacy migration
-src/prompt.rs         Translation prompt construction
-src/llm.rs            Rig streaming worker and request events
-src/cli.rs            Public CLI path, language, and Markdown rendering helpers
-src/bin/gshift.rs     Markdown translation CLI binary
-src/main.rs           GPUI desktop binary wiring
-src/selection.rs      macOS Accessibility and clipboard fallback
-src/ui.rs             GPUI popup view and actions
-examples/              Starter TOML configuration and credentials
-packaging/             macOS application metadata
-Justfile               Local development and packaging recipes
-flake.nix              Darwin packages, overlay, and development shell
-package.nix            Nix Rust package definition
+app/desktop/App.tsx                 NSH entry beside nsh.json
+app/desktop/src/                    Popup domain, controller, views, and desktop adapters
+app/desktop/runtime/                GUI environment composition
+app/desktop/packaging/              macOS metadata and icon assets
+app/desktop/*.test.ts               Official NSH application and inference suites
+app/cli/src/main.ts                 Native Node.js 26 CLI entry
+app/cli/src/program.ts              Command dispatch, help, version, and output presentation
+app/cli/src/commands/translate.ts   Declarative Effect 4 translation command
+app/cli/src/commands/autostart.ts   Private desktop autostart command
+app/cli/src/translateBatch.ts       Ordered translation and stdout rendering
+app/cli/src/translationPlan.ts      Language validation and sibling output planning
+app/cli/src/translationFiles.ts     Collision preflight and atomic file operations
+app/cli/src/*.test.ts               Native CLI unit and contract tests
+package/runtime/src/               Shared configuration, model, and inference policy
+package/runtime/src/desktopConfig.ts  Non-destructive TOML settings and validation
+package/runtime/src/autostart.ts    Safe macOS LaunchAgent file operations
+package/nsh-platform/platform.ts    Public application-independent NSH Effect composition
+package/nsh-platform/platform/      NSH service adapters and boundary tests
+package/nsh-platform/App.tsx        NSH platform test host beside nsh.json
+helper/                            One-shot Swift Accessibility helper
+nix/gshift.nix                     Independent CLI package without NSH or Swift
+nix/macos-helper.nix               Production-only Swift helper build
+flake.nix                          Pinned tools, Metal-enabled llama-cpp, and Darwin outputs
+package.nix                        Native desktop application packaging
+package.json                       Workspace root tooling dependencies
+pnpm-workspace.yaml                app/* and package/* membership, catalogs, and release policy
+tsconfig.base.json                 Common strict TypeScript policy and project discovery
+vite.config.ts                     Formatting, lint, and delegated development tasks
+patches/                           LaunchAgent plist dictionary validation patch
+Justfile                           Compatibility aliases into Vite+ tasks
 ```
 
 ## Development commands
 
-### Execution rules
+Run commands from the repository root.
+Enter `nix develop` to prepare Node.js 26, the pinned official NSH 0.5.0 tools for the GUI, the Swift helper, the official llama-server, curl, coreutils, and Vite+.
+Keep official NSH release components on the same exact revision with content hashes.
+Then install JavaScript dependencies with `vp install --frozen-lockfile`.
+All application manifests omit `rust`, so NSH uses its official prebuilt hosts.
+Do not add custom Rust host dependencies or generated source checkouts to restore an API that a separate helper or the standard JS API can provide.
 
-- Run commands from the repository root.
-- Cargo pins the independent [`llm-profiles`](https://github.com/totto2727-org/llm-profiles) library to Git revision `d3b3ede46fd823fe400aad85217537799b3ed40f` with its `rig` feature because the renamed library is not yet published to crates.io; no sibling checkout is required.
-- Standalone Nix packaging uses the same pinned Git dependency through `Cargo.lock` and its fixed output hash in `package.nix`; update both when changing the dependency revision, and do not claim a successful Nix build from Cargo checks alone.
-- Support macOS only until the project explicitly expands its platform scope.
-- Use the named Just recipes below instead of ad-hoc shell workflows; use Cargo directly only when a recipe cannot express the needed target.
-- Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `mdt`.
-- Do not create a separate `CLAUDE.md`; keep `AGENTS.md` as the canonical agent document.
-- Never commit real credentials, log API keys, or weaken a failing test or lint.
+| Command                                  | Responsibility                                                                |
+| ---------------------------------------- | ----------------------------------------------------------------------------- |
+| `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                               |
+| `vp run check`                           | Check formatting and lint without a second typechecker.                       |
+| `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                        |
+| `vp run typecheck`                       | Recursively check every workspace project's host-specific TypeScript program. |
+| `vp run dev`                             | Delegate development and reload to NSH's macOS host.                          |
+| `vp run run`                             | Run the application through NSH.                                              |
+| `vp run build`                           | Produce the NSH release bundle, not an installable application.               |
+| `vp run package`                         | Package the native macOS application through NSH.                             |
+| `vp run test`                            | Run application tests through the official NSH test host.                     |
+| `vp run test-platform`                   | Exercise injected platform service behavior without external tools.           |
+| `vp run test-inference`                  | Check configuration, prompt, token-budget, and HTTP/SSE logic with fixtures.  |
+| `vp run test-cli`                        | Run native CLI contracts and filesystem tests through Vite+ and Vitest.       |
+| `vp run cli -- FILES... --lang LANGUAGE` | Run the native Effect 4 CLI on Node.js 26.                                    |
+| `vp run ci`                              | Run the minimal formatting and lint gate.                                     |
 
-### Standard tasks
+Vite+ owns installation, task orchestration, formatting, lint, and native CLI tests through Vitest.
+Use NSH for GUI bundling, execution, and behavior tests, not Vite bundling or a second GUI host.
+Keep `tsconfig.base.json` as the single common policy file, extending the strictest and Node-TS presets with `target: ESNext` and `noEmit`.
+Use a real PNPM monorepo with applications in `app/*`, reusable libraries in `package/*`, package manifests, `workspace:*` dependencies, and catalog-managed external dependencies, matching the surrounding workspace's other projects.
+Resolve shared modules through `@glossshift/runtime/*` and `@glossshift/nsh-platform` source exports, not path aliases or cross-project relative imports.
+Keep package TypeScript configurations minimal, without project-specific `include`, `exclude`, or `files` lists.
+Use the single broad `include: ["${configDir}/**/*"]` rule in the common base to discover each consuming project's complete directory, including tests and newly added files.
+Do not replace it with per-file or per-subdirectory selections.
+NSH's generated configuration declares ambient roots through `files`, which disables implicit default discovery when no `include` is supplied.
+Removing the shared discovery rule makes `nsh check .` pass without checking application source.
+Verify discovery changes by adding an unimported type error in each host project, confirming its public typecheck fails, then removing the temporary probe and confirming success.
+Choose directory and package boundaries that naturally contain the relevant source, tests, and host environment rather than maintaining fine-grained file lists.
+NSH projects extend their generated `.nsh/tsconfig.json` and the common base, while Node CLI and runtime projects select Node types.
+A single combined NSH and Node type program was tested and failed on incompatible ambient `Response`, `URL`, `process`, and filesystem declarations.
+Preserve the environment-specific programs rather than bypassing those conflicts with casts or skipping whole checks.
+Every project declares its own `typecheck` script: `nsh check .` for NSH projects and `vp exec tsc --project .` for Node projects.
+The root `vp run typecheck` delegates to `vp run -r typecheck`, so new workspace projects join automatically through their scripts.
+The root formatting and lint gate keeps `typeAware` and `typeCheck` disabled and does not replace project typechecking.
+Root NSH development, execution, build, package, and application-test tasks target `app/desktop`, and platform tests target `package/nsh-platform`.
+Keep public development, build, and packaging entry points stable.
+Remove obsolete test tasks together with their deleted suites.
+The Just aliases exist for compatibility, including the existing workflow's `just ci` entry point.
+Nix compiles the small Swift helper separately and bundles the GUI with the official NSH host.
+`nix/gshift.nix` packages the production `app/cli` and `package/runtime` trees and production dependencies for Node.js 26 without NSH or Swift.
+The combined `glossshift` package links this standalone CLI, so its closure includes Node even though the GUI never starts Node.
+It uses the unmodified `llama-cpp` package from the separately pinned Nixpkgs unstable input.
+Confirm that the exact macOS arm64 derivation is available from the binary cache before changing that pin.
+Do not override the package merely to change a local build preference, because this can invalidate its substitute.
+Distribution source inputs exclude all tests, test helpers, and fixtures.
+Run all type checks and tests through development tasks, outside package derivations.
+Do not add check or test phases to the Nix derivations.
+Ruby is not permitted.
+Do not add standalone test scripts or hand-maintained JavaScript test bundles.
+Use the official NSH test framework for GUI behavior, native Vitest through Vite+ for CLI behavior, and reusable `.test` helpers.
+Mark test-only modules and assets with `.test`, including `.test.fixture` modules and test-only directories.
+Keep these names outside production source inputs.
+Keep maintained tests focused on application logic and injected service behavior.
+Do not add tests for build artifacts, signatures, package closures, fixed assets, or third-party APIs alone.
+Tests that directly start the CLI, inference server, coreutils, curl, or a compiled helper are deferred to the Projektor follow-up rather than maintained here.
+Keep workflow changes within the user's explicitly approved runner and timeout changes.
+Do not add macOS jobs, application builds, all-system evaluation, or flake checks to GitHub Actions without a new request.
 
-- `just fix` — Apply formatting and Clippy fixes.
-- `just fix-format` — Format all Rust sources with `cargo fmt --all`.
-- `just fix-lint` — Apply Clippy fixes with all targets, features, and denied warnings.
-- `just check` — Run format and Clippy checks.
-- `just check-format` — Check Rust formatting without changing files.
-- `just check-lint` — Run strict Clippy checks for every target and feature.
-- `just test` — Run the Rust unit tests.
-- `just build` — Build the debug binaries.
-- `just ci` — Run the complete local check, test, and build gate.
-- `just dev` — Run the desktop binary directly with Cargo.
-- `just run` — Build, ad-hoc sign, verify, and open `target/GlossShift.app`.
-- `just package-app` — Build and verify the local application bundle without opening it.
-- `mdt --lang ja --force README.md` — Regenerate the Japanese README source output.
-- `mdt --lang ja --force AGENTS.md` — Regenerate the Japanese AGENTS source output.
+## Application architecture
 
-### CLI reference
+### TS application boundary
 
-Run the CLI from the repository root with `just cli FILES... --lang LANGUAGE [OPTIONS]`; the equivalent direct command is `cargo run --bin gshift -- FILES... --lang LANGUAGE [OPTIONS]`. The `gshift` binary always reuses the desktop application's XDG application settings, shared agent provider, source language, timeout values, and named credential; it has no separate model, prompt, or token settings.
+Do not create `index.ts` or `index.tsx` modules.
+Use a named module beside its child directory, such as `platform.ts` and `platform/nshFileSystem.ts`.
+Use camelCase source, test, and fixture filenames, except framework-required names such as NSH's `App.tsx`.
+Put each CLI command in its own module under `app/cli/src/commands/`, with shared planning and file operations in explicitly named modules.
+Use Effect's `Data.TaggedError`, `Data.TaggedEnum`, and `Schema.TaggedStruct` instead of declaring `_tag` fields in application types or schemas.
+Keep the Platform implementation independent of GlossShift policy so it can be extracted as a library.
+Pass working directories, tools, configuration providers, and Stdio layers explicitly through `platform.ts`.
+Keep application environment interpretation in `app/desktop/runtime/platform.ts`.
+Document supported services and explicit NSH limitations in `package/nsh-platform/platform/README.md`.
+The public composition module is `package/nsh-platform/platform.ts`.
 
-The positional `FILES...` accepts one or more Markdown files with `.md` or `.mbt.md` suffixes and preserves their input order. `--lang`/`-l` is required and accepts a non-empty ASCII language code containing only letters, digits, and internal hyphens; it is trimmed and lowercased before use. `--force`/`-f` permits replacing existing sibling outputs and conflicts with `--stdout`. `--stdout` writes translations to standard output instead of files. `--color auto|always|never` controls ANSI Markdown highlighting, requires `--stdout`, and defaults to `auto`.
+TypeScript owns popup state, display mode, request replacement, stale and terminal event handling, copy actions, and view rendering.
+Use Effect services, scoped fibers, validated schemas, and Effect collection and string utilities instead of manual Promise orchestration or JavaScript standard-library collection helpers.
+Keep unavoidable NSH Promise and UI APIs in boundary adapters.
+Use one application-lifetime runtime, dispose its scope on teardown, and do not create a runtime per render.
+Provider deltas use bounded, lossless transport.
+Complete view snapshots may coalesce, but cancellation and replacement must not wait behind a full delta queue.
 
-Before loading configuration or translating, the CLI resolves every sibling output and rejects batches whose outputs collide with any input or with one another. Without `--stdout`, it creates one sibling path per input by inserting `.<language>` before `.md`, preserves the compound `.mbt.md` extension, and replaces an existing trailing `.ja` or `.en` segment. It refuses an existing output, including a symbolic link, unless `--force` is present. With `--force`, a symbolic link is removed and replaced by a regular output file without modifying its target. The CLI never writes ANSI escapes to files.
+Use the official NSH components and native Tailwind `class` support.
+Use NSH `Scroll`, not browser overflow behavior.
+Markdown uses the standard NSH `TextView`, with literal HTML, disabled math, non-opening links, alt-only images, and plain code-block rendering without syntax highlighting.
+Plain mode switches both panes without modifying stored source or translation text.
+Copy always uses the raw domain text, not rendered Markdown.
+Do not reintroduce an application CSS stylesheet, a custom Markdown parser, or a browser renderer.
 
-Inputs are translated sequentially in their command-line order. With `--stdout`, translation bodies are concatenated in that same order without inserted separators. With `--stdout --color auto`, redirected stdout remains byte-plain and each provider delta is flushed immediately, while terminal stdout buffers each translation until completion and then renders it with Tree-sitter Markdown ANSI styles. `--color never` keeps output plain and streamed even on a terminal. `--color always` buffers each completed translation and emits ANSI styles even when stdout is redirected.
+### Local translation boundary
 
-Examples:
+TypeScript owns translation, model selection, automatic download, prompt formatting, streaming, cancellation, and the batch CLI.
+Use the real `effect/ai` `LanguageModel` adapter for the packaged official llama-server instead of a decorative AI dependency.
+Run GUI configuration and translation directly in NSH through the reusable Effect Platform layer.
+Run the independent CLI through native Node Effect services, without importing NSH or Swift.
+Use compatible NSH modules only where their behavior has been verified in the official host.
+NSH 0.5.0 is not a complete Node runtime: large-file streams, secure exclusive filesystem creation, and parent CLI handles are missing.
+Use fixed packaged curl/coreutils commands for bounded model I/O and narrow atomic file operations.
+Do not load a complete GGUF into the JS heap or emulate streaming by reading the whole file.
+Unsupported Platform methods must fail explicitly.
+The GUI requires no runtime Node process, custom JavaScript host, or custom Rust module.
+Preserve scoped stream backpressure and independent cancellation without a JSON sidecar protocol.
+Write download notices and diagnostics to stderr, never to the protocol or batch translation stdout.
+Application teardown must release the active HTTP request and owned inference server.
+The server binds only to `127.0.0.1` on a kernel-selected port.
+Use a new random authentication key for each server, stored in a private temporary file rather than a command-line argument.
+Keep server diagnostics out of protocol stdout and public failures.
+Do not connect to caller-selected or hosted inference endpoints.
 
-```bash
-just cli README.md AGENTS.md --lang ja --force
-just cli README.md AGENTS.md --lang ja --stdout
-just cli README.md AGENTS.md --lang ja --stdout --color never
-just cli README.md --lang ja --stdout --color always
-```
+Pin the default official PFN GGUF revision and SHA-256.
+Keep supported PLaMo 0.8B, 2B, 8B, and 31B presets in code with immutable URLs, full digests, and actual full per-model context limits.
+Calculate the completion budget from the remaining context after prompt tokenization, optionally reduced by an explicit output limit.
+Do not restore artificial 8192-token context defaults, 4096-token output defaults, or a global 32768-token cap.
+Do not download or run larger models merely to check preset metadata.
+Do not require a configuration file to choose a built-in model.
+Require explicit `contextSize` for an unknown custom model digest rather than borrowing the default PLaMo budget.
+Identify known preset artifacts by digest, so a matching artifact selected through a `file:` URI still defaults to its full model maximum.
+Automatically resume supported byte-range model downloads and verify the complete artifact before publishing it in the cache.
+Keep model weights in the user's cache, not the Nix store or repository.
+An offline cache hit must not contact Hugging Face.
+Use the exact packaged llama-server path and disable implicit engine compilation or downloads.
+Keep untrusted source text separate from trusted PFML3 special tokens, add BOS once, and suppress protocol stop tokens.
+Reject unsupported languages, context overflow, and output truncation instead of reporting a successful partial file.
+Use the publisher's model license notice without registering the user or accepting commercial terms on their behalf.
 
-### Configuration and credentials
+### macOS helper boundary
 
-The application configuration root is resolved through `xdg::BaseDirectories`, defaults to `~/.config/glossshift`, and honors `XDG_CONFIG_HOME`.
-The independent `llm-profiles` crate owns shared provider definitions in `~/.agents/config.toml`, named keys in `~/.agents/credentials.toml`, and their validation and permissions.
-`AGENTS_CONFIG` selects an absolute shared config path, with credentials beside it, rather than searching the current directory.
-Treat shortcut strings, TOML content, Accessibility values, and HTTP responses as untrusted boundary input.
-Tests must select temporary shared paths and must never load or migrate the developer's real home configuration.
-Legacy provider migration preserves the original GlossShift files and never overwrites shared files.
+Accessibility runs in a separate, one-shot Swift executable, not in NSH or Node.
+Use Apple's ApplicationServices APIs directly without a third-party ABI bridge.
+The helper supports nonprompting permission inspection and selected-text capture with a bounded JSON response.
+It must not install another GUI loop, change privacy settings, simulate copy keystrokes, or modify the clipboard.
+Return stable public error codes rather than native error details.
+Capture the previous application's selection before showing or activating the popup.
+Keep the process launcher injectable so another OS implementation can replace it.
 
-The shared agent configuration retains multiple named OpenAI-compatible providers and a selected `active_provider`.
-Provider URLs, models, credentials, headers, and positive timeouts are validated by `llm-profiles`; first-chunk and stream-idle timeouts default to 30 and 60 seconds.
-Optional `[providers.<name>.request_parameters]` JSON fields are forwarded through its Rig adapter, and `${session_id}` header placeholders receive one UUID per translation.
-GlossShift validates unique hotkeys, non-empty target languages, and positive window dimensions at least as large as their minimums.
+TypeScript owns desktop configuration parsing, validation, default-file creation, and autostart file operations inside NSH.
+Standard clipboard, window, application, shortcut, and tray controls use NSH's JavaScript APIs.
+The installed launchers set immutable executable paths rather than depending on the caller's working directory.
+Grant only the required executables in NSH's process capabilities.
+Forward only the environment variables required for runtime, cache, and configuration paths.
+Namespace translation request IDs by connection so a reloaded controller cannot alias a previous request.
+Release child processes and shortcut registrations when the connection scope closes.
+A delayed old scope must not unregister a newer scope's resources.
 
-## Architecture
+### Native CLI
 
-### Shared library boundary
+Use `app/cli/src/main.ts` only to select Node services and start the program.
+`app/cli/src/program.ts` dispatches commands and presents help, version, and invocation errors.
+Keep the declarative Effect 4 translation command in `app/cli/src/commands/translate.ts` and private autostart dispatch in `app/cli/src/commands/autostart.ts`.
+`translateBatch.ts` executes ordered translations, `translationPlan.ts` defines language and output planning, and `translationFiles.ts` owns file safety.
+Keep reusable translation policy in `package/runtime/src`.
+Keep NSH, Swift, AppKit, global hotkeys, and tray resources outside the CLI dependency graph and package closure.
+Use native arguments, working directory, standard streams, signals, and exit status.
+Do not restore the shell capture bridge, `gshift-launcher.sh`, a Nix batch launcher, or the deleted `batch/` and `terminal/` products.
+No arguments show help, and `--tui` is rejected.
+Keep the desktop launch separate.
+Share translation and configuration policy through Effect services, while retaining host-specific Platform implementations.
+Test native CLI behavior through Vite+ and Vitest with reusable `.test` helpers.
 
-The GlossShift library owns application configuration, prompt construction, and translation streaming so the desktop and CLI binaries use the same contract.
-`llm-profiles` owns library-neutral resolved providers, credential handling, and conversion to Rig through its optional `rig` feature, independently of GlossShift and GPUI.
-`config.rs` loads application settings and handles legacy migration, `prompt.rs` builds translation-only prompts, and `llm.rs` emits request-scoped `TranslationEvent` values using the crate's `rig_agent_builder(Some(&session_id))`, adding the translation preamble before building the agent.
+### macOS lifecycle
 
-### Desktop boundary
+Support Apple Silicon macOS only until platform scope explicitly expands.
+Keep NSH's AppKit event loop and delegate.
+The maintained [dependency compatibility record](docs/dependency-compatibility.md) identifies the exact release and the retained plist parser patch.
+The official NSH executables and runtime source are unmodified.
+Use standard window attributes and scoped JS controls instead of a custom native setup hook.
+Closing the popup hides it without destroying the engine, and reopening reveals the retained state.
+Background startup must not briefly activate and hide a window.
 
-The GPUI application thread owns the popup entity, global-hotkey manager, window actions, and shared two-worker Tokio runtime. `selection.rs` is the only module that accesses macOS Accessibility and clipboard APIs; `ui.rs` is the only module that mutates GPUI view state. The popup keeps its window alive when closed, cancels older streams when a newer shortcut starts, and ignores events whose `RequestId` is stale.
+## Configuration
 
-### CLI boundary
+TypeScript in NSH reads `~/.config/glossshift/config.toml`, honoring `XDG_CONFIG_HOME`, for window and shortcut settings.
+The desktop TypeScript adapter converts configured shortcuts to NSH's standard shortcut notation before registration.
+The shared runtime reads local translation settings from `~/.config/glossshift/local.json`, honoring `XDG_CONFIG_HOME` or the explicit absolute `GLOSSSHIFT_CONFIG` path.
+The local model cache honors `XDG_CACHE_HOME` and can be changed in local settings.
+Do not read or modify `~/.agents` or legacy provider credentials.
+Treat configuration, shortcuts, native selection, process frames, model metadata, and model output as untrusted boundary input.
+Tests must use isolated temporary settings and synthetic source text, never the developer's private configuration or selected content.
 
-`cli.rs` owns language validation, Markdown sibling-path resolution, batch output preflight, and Tree-sitter ANSI rendering. `gshift` owns ordered file/stdout I/O and feeds each input sequentially to the shared `llm::translate` function. Bounded channels isolate the desktop UI and streaming worker, and cancellation is observed at the provider stream boundary.
+## CLI contract
 
-### Packaging boundary
+`gshift` without arguments shows help without loading configuration or a model.
+`--tui` is rejected rather than starting an interactive host.
+The declarative Effect 4 command uses native Node arguments, working directory, standard streams, and completion status.
+Resolve relative inputs through the injected Path service before filesystem calls.
+Keep diagnostics and terminal control sequences out of plain translation stdout.
+`gshift <FILES>... --lang <LANGUAGE> [--force | --stdout [--color <MODE>]]` retains its existing behavior.
+Resolve every sibling output and reject input/output collisions before loading configuration or a model.
+Preserve ordered `.md` and `.mbt.md` processing, normalized language suffixes, and safe forced replacement of symlinks without changing their targets.
+File outputs and redirected automatic-color stdout must remain free of ANSI escapes.
+Plain translations contain no inserted separators.
+Terminal automatic color and forced color buffer each completed translation before rendering.
+Color styles the complete output without parsing Markdown or adding syntax highlighting.
+Desktop and native CLI share the same local model, source language, prompt format, and token-budget policy.
 
-Both binaries are included in the Rust and Nix package outputs. The default flake overlay publishes `glossshift` and `gshift` with matching `meta.mainProgram` values, and the package derivation exposes the desktop binary through a stable `GlossShift.app` bundle layout.
+## Deferred integration tests
 
-## Development tools
+Projektor issue `GLOSSSHIFT-1` tracks later work on tests that directly start application or helper binaries.
+This includes subprocess CLI behavior, real-model inference and cleanup, external-tool adapters, and the Swift selection helper where application behavior requires integration coverage.
+Keep that work separate from the current in-process logic tests.
+Do not restore build-artifact, signature, package-closure, fixed-asset, or third-party-only checks as part of that follow-up.
 
-- **Rust and Cargo**: Compile, test, format, and lint the 2024-edition package with `unsafe_code` forbidden and strict Clippy lints.
-- **Just**: Provides the repository's named development, validation, CLI, and macOS packaging workflows.
-- **Nix flakes**: Provide Darwin package outputs, the reusable overlay, and a development shell with the Rust toolchain and Just; run `nix develop` before the named recipes when those tools are not installed locally.
-- **mdt**: Generates the Japanese source-document translations with the configured OpenCode or Codex adapter.
-- **GPUI**: Supplies the native-title-bar, resizable desktop popup and application-thread UI model.
-- **Rig**: Supplies OpenAI Chat Completions streaming, including custom compatible base URLs.
-- **global-hotkey and macOS Accessibility crates**: Provide global shortcut registration and safe selection capture boundaries.
-- **Tree-sitter**: Provides Markdown syntax highlighting for colorized terminal output.
+## Verification and maintenance
 
-## Package-specific rules
-
-- Keep production source files below 250 lines when practical and preserve the existing module responsibility boundaries.
-- Use bounded channels across callback, UI, CLI, and network boundaries, and attach a request ID to every streaming event.
-- Cancel the active stream before starting a newer translation and do not allow stale events to overwrite current UI state.
-- Keep ANSI escapes out of generated files and redirected stdout in automatic color mode.
-- Regenerate and commit `README.ja.md` and `AGENTS.ja.md` with `mdt --lang ja --force README.md` and `mdt --lang ja --force AGENTS.md` beside their English sources after either source document changes.
-- Preserve the relative links in both source documents and the exact share-artifact provenance footer at the end of each English source.
+- Run GUI behavior tests through NSH and native CLI tests through Vite+ and Vitest, not a copied controller harness.
+- Test application behavior with injected streams, temporary filesystem data, and explicit service layers.
+- Do not maintain build, package-layout, signature, asset-format, or direct external-binary execution tests.
+- Keep direct-binary integration coverage deferred in Projektor, separate from the retained application-logic tests.
+- Distinguish synthetic protocol tests from actual model inference and headless layout from native visual review.
+- If Accessibility or screen permissions block an end-user check, report the boundary and stop attempts to bypass it.
+- Keep helper builds separate from TypeScript bundling, with no dependency on generated NSH Rust workspaces.
+- Keep production source files below 250 lines when practical and preserve module responsibilities.
+- Preserve the template's package-manager pin, release-age waiting period, strict age checking, and denied lifecycle builds.
+- Do not commit credentials or generated `.nsh`, `node_modules`, target directories, benchmark fixtures, or temporary reports.
+- Keep source, configuration, commit messages, and canonical documentation in English.
+- Regenerate Japanese documents with the GlossShift CLI: `gshift README.md AGENTS.md --lang ja --force`.
+- If the CLI is not installed, use the project task: `vp run cli -- README.md AGENTS.md --lang ja --force`.
+- Do not use `mdt` for this repository's translations.
+- If generation is blocked, record it instead of manually fabricating generated output.
+- Keep `AGENTS.md` canonical and do not create a separate `CLAUDE.md`.
 
 _This AGENTS.md was generated from the [share-artifact skill](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/SKILL.md) and [AGENTS template](https://raw.githubusercontent.com/totto2727-org/agent/refs/heads/main/plugins/totto2727-coding/skills/share-artifact/agents/template.md)._

@@ -1,0 +1,17 @@
+{
+  "name": "@glossshift/desktop",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "nsh check ."
+  },
+  "dependencies": {
+    "@glossshift/nsh-platform": "workspace:*",
+    "@glossshift/runtime": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "plist": "catalog:"
+  }
+}

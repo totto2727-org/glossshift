@@ -1,0 +1,3 @@
+{
+  "extends": ["./.nsh/tsconfig.json", "../../tsconfig.base.json"]
+}

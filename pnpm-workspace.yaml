@@ -1,0 +1,26 @@
+packages:
+  - app/*
+  - package/*
+
+catalog:
+  '@effect/platform-node': ^4.1.2
+  '@types/node': ^26.6.6
+  effect: ^4.0.0
+  plist: ^5.1.1
+  smol-toml: ^1.9.1
+  vite-plus: 1.1.0
+
+# Keep the official Vite+ toolchain versions aligned.
+# https://viteplus.dev/guide/migrate
+overrides:
+  vite@*: npm:@voidzero-dev/vite-plus-core@1.1.0
+  vitest@*: 5.0.3
+
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+
+allowBuilds:
+  vite-plus: false
+
+patchedDependencies:
+  plist@5.1.1: patches/plist@5.1.1.patch

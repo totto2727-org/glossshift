@@ -1,0 +1,20 @@
+{
+  "name": "@glossshift/runtime",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "vp exec tsc --project ."
+  },
+  "dependencies": {
+    "effect": "catalog:",
+    "plist": "catalog:",
+    "smol-toml": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:"
+  }
+}

@@ -1,6 +1,3 @@
-[translation]
-source_language = "auto"
-
 [[shortcuts]]
 keys = "Ctrl+Super+KeyJ"
 target_language = "Japanese"
