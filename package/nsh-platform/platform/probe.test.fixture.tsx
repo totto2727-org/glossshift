@@ -1,14 +1,11 @@
-import * as native from 'fs/promises'
-import process from 'process'
-
 import { Config, ConfigProvider, Console, Effect, FileSystem, Path, Stdio, Stream } from 'effect'
 import { mount, signal, Text } from 'nsh'
 
 import { verifyCompositions } from './composition.test.fixture.ts'
-import * as NshConfigProvider from './NshConfigProvider.ts'
-import * as NshFileSystem from './NshFileSystem.ts'
-import * as NshPath from './NshPath.ts'
-import * as NshStdio from './NshStdio.ts'
+import * as NshConfigProvider from './nshConfigProvider.ts'
+import * as NshFileSystem from './nshFileSystem.ts'
+import * as NshPath from './nshPath.ts'
+import * as NshStdio from './nshStdio.ts'
 
 const importProvider = ConfigProvider.fromEnvRecord({ PLATFORM_PROBE: 'synthetic' })
 const diagnosticNotice = 'Standalone platform diagnostic'
@@ -73,9 +70,7 @@ mount(() => {
       if (partialDiagnostic._tag !== 'Failure') return yield* Effect.die('Incomplete UTF-8 diagnostic did not fail')
       if (partialDiagnostic.failure.reason.module !== 'Stdio')
         return yield* Effect.die('Incomplete UTF-8 diagnostic reported the wrong service')
-      const nativeKeys = Object.keys(native).sort().join(',')
-      const processKeys = Object.keys(process).sort().join(',')
-      status.set(`Platform probe passed\nfs:${nativeKeys}\nprocess:${processKeys}`)
+      status.set('Platform probe passed')
     }).pipe(
       Effect.provide(NshFileSystem.layer()),
       Effect.provide(NshPath.make('/synthetic')),

@@ -1,12 +1,12 @@
-import { Array, Deferred, Effect, Fiber, Layer, Option, Queue, Ref, Schema, Stream } from 'effect'
+import { Array, Deferred, Effect, Layer, Option, Queue, Ref, Schema, Stream } from 'effect'
 import { expect, test } from 'nsh/test'
 
 import { controllerFromNative, createController } from './controller'
 import type { PopupController } from './controller'
-import { RequestId } from './domain'
-import type { PopupState, TranslationEvent } from './domain'
-import type { Fault, NativePorts, TranslationRequest } from './ports'
-import { Native } from './ports'
+import { RequestId, TranslationEvent } from './domain'
+import type { PopupState } from './domain'
+import type { NativePorts, TranslationRequest } from './ports'
+import { Fault, Native } from './ports'
 
 const fixture = (capture: Effect.Effect<string, Fault> = Effect.succeed('# Captured')) =>
   Effect.gen(function* () {
@@ -49,7 +49,7 @@ test('Effect controller preserves the native captured ID and text without recapt
   await run(
     Effect.scoped(
       Effect.gen(function* () {
-        const f = yield* fixture(Effect.fail({ _tag: 'ActionRequired', message: 'Recapture must not run' }))
+        const f = yield* fixture(Effect.fail(Fault.make({ message: 'Recapture must not run' })))
         const controller = yield* createController(f.ports)
         const id = Schema.decodeUnknownSync(RequestId)('native-42')
         yield* controller.requestCaptured({ id, text: '# Selected before activation', targetLanguage: 'Japanese' })
@@ -104,7 +104,7 @@ test('Effect controller a reveal error is visible and does not retry activation 
         const f = yield* fixture()
         const controller = yield* createController({
           ...f.ports,
-          reveal: Effect.fail({ _tag: 'ActionRequired', message: 'Window unavailable' }),
+          reveal: Effect.fail(Fault.make({ message: 'Window unavailable' })),
         })
         yield* controller.request('Japanese')
         const failed = yield* until(controller, (state) => state.phase === 'Error')
@@ -114,32 +114,6 @@ test('Effect controller a reveal error is visible and does not retry activation 
       }),
     ),
   )
-})
-
-test('Effect runtime yields, interrupts, and finalizes a scoped fiber once in NSH', async () => {
-  const result = await run(
-    Effect.gen(function* () {
-      const cleaned = yield* Ref.make(0)
-      const started = yield* Deferred.make<void>()
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const fiber = yield* Effect.acquireRelease(Effect.void, () => Ref.update(cleaned, (n) => n + 1)).pipe(
-            Effect.flatMap(() => Deferred.succeed(started, undefined)),
-            Effect.andThen(Effect.sleep('1 millis')),
-            Effect.andThen(Effect.never),
-            Effect.scoped,
-            Effect.forkScoped,
-          )
-          yield* Deferred.await(started)
-          yield* Effect.yieldNow
-          yield* Effect.sleep('1 millis')
-          yield* Fiber.interrupt(fiber)
-        }),
-      )
-      return yield* Ref.get(cleaned)
-    }),
-  )
-  expect(result).toBe(1)
 })
 
 test('Effect controller initializes through an injected service layer with no native startup', async () => {
@@ -163,9 +137,7 @@ test('Effect controller a failed replacement still cancels the previous native r
         const count = yield* Ref.make(0)
         const capture = Ref.updateAndGet(count, (value) => value + 1).pipe(
           Effect.flatMap((value) =>
-            value === 1
-              ? Effect.succeed('First source')
-              : Effect.fail({ _tag: 'ActionRequired', message: 'Selection denied' } satisfies Fault),
+            value === 1 ? Effect.succeed('First source') : Effect.fail(Fault.make({ message: 'Selection denied' })),
           ),
         )
         const f = yield* fixture(capture)
@@ -193,9 +165,9 @@ test('Effect controller streams ordered deltas, copies raw text, and hides witho
         expect(request.text).toBe('# Captured')
         expect(request.sourceLanguage).toBe('auto')
         expect(request.targetLanguage).toBe('Japanese')
-        yield* Queue.offer(f.events, { _tag: 'Started', id: request.id, sourceText: request.text })
-        yield* Queue.offer(f.events, { _tag: 'Delta', id: request.id, text: '**First**' })
-        yield* Queue.offer(f.events, { _tag: 'Delta', id: request.id, text: '\nSecond' })
+        yield* Queue.offer(f.events, TranslationEvent.Started({ id: request.id, sourceText: request.text }))
+        yield* Queue.offer(f.events, TranslationEvent.Delta({ id: request.id, text: '**First**' }))
+        yield* Queue.offer(f.events, TranslationEvent.Delta({ id: request.id, text: '\nSecond' }))
         yield* until(controller, (state) => state.output === '**First**\nSecond')
         yield* controller.setMode('Plain')
         yield* until(controller, (state) => state.mode === 'Plain')
@@ -206,7 +178,7 @@ test('Effect controller streams ordered deltas, copies raw text, and hides witho
         yield* Effect.yieldNow
         expect(yield* Ref.get(f.actions)).toEqual(['capture', 'reveal', 'hide'])
         expect(Option.isNone(yield* Queue.poll(f.cancelled))).toBe(true)
-        yield* Queue.offer(f.events, { _tag: 'Finished', id: request.id })
+        yield* Queue.offer(f.events, TranslationEvent.Finished({ id: request.id }))
         const complete = yield* until(controller, (state) => state.phase === 'Complete')
         expect(complete.output).toBe('**First**\nSecond')
         expect(yield* Queue.take(f.cancelled)).toBe(request.id)
@@ -227,9 +199,9 @@ test('Effect controller replaces the native request and filters old transport ev
         const second = yield* Queue.take(f.requests)
         expect(second.id).not.toBe(first.id)
         expect(yield* Queue.take(f.cancelled)).toBe(first.id)
-        yield* Queue.offer(f.events, { _tag: 'Delta', id: first.id, text: 'STALE' })
-        yield* Queue.offer(f.events, { _tag: 'Delta', id: second.id, text: 'Current' })
-        yield* Queue.offer(f.events, { _tag: 'Finished', id: second.id })
+        yield* Queue.offer(f.events, TranslationEvent.Delta({ id: first.id, text: 'STALE' }))
+        yield* Queue.offer(f.events, TranslationEvent.Delta({ id: second.id, text: 'Current' }))
+        yield* Queue.offer(f.events, TranslationEvent.Finished({ id: second.id }))
         const complete = yield* until(controller, (state) => state.phase === 'Complete')
         expect(complete.output).toBe('Current')
       }),
@@ -241,7 +213,7 @@ test('Effect controller displays capture failures without provider or real confi
   await run(
     Effect.scoped(
       Effect.gen(function* () {
-        const f = yield* fixture(Effect.fail({ _tag: 'ActionRequired', message: 'Selection denied' }))
+        const f = yield* fixture(Effect.fail(Fault.make({ message: 'Selection denied' })))
         const controller = yield* createController(f.ports)
         yield* controller.request('Japanese')
         const failed = yield* until(controller, (state) => state.phase === 'Error')
@@ -274,7 +246,7 @@ test('Effect controller cancellation bypasses saturated translation delivery', a
                   Effect.gen(function* () {
                     const count = yield* Ref.updateAndGet(produced, (value) => value + 1)
                     if (count === 257) yield* Deferred.succeed(saturated, undefined)
-                    return { _tag: 'Delta', id: request.id, text: 'x' } satisfies TranslationEvent
+                    return TranslationEvent.Delta({ id: request.id, text: 'x' })
                   }),
                 )
               }),

@@ -6,14 +6,9 @@ import { Menu } from 'nsh/desktop'
 import { createController } from './controller'
 import type { PopupController } from './controller'
 import { fail, initialState } from './domain'
-import type { RequestId } from './domain'
+import type { NativeCommand } from './domain'
 import type { Fault, NativePorts } from './ports'
 import { PopupView } from './ui'
-
-export type NativeCommand =
-  | { readonly _tag: 'Captured'; readonly id: RequestId; readonly targetLanguage: string; readonly text: string }
-  | { readonly _tag: 'CaptureFailed'; readonly message: string }
-  | { readonly _tag: 'Reopened' }
 
 export interface NativeConnection {
   readonly ports: NativePorts

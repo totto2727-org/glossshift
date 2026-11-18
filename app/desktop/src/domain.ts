@@ -1,17 +1,24 @@
-import { Schema, String } from 'effect'
+import { Data, Schema, String } from 'effect'
 
 export const RequestId = Schema.NonEmptyString.pipe(Schema.brand('GlossShift/RequestId'))
 export type RequestId = typeof RequestId.Type
 export type DisplayMode = 'Markdown' | 'Plain'
 export type Pane = 'Source' | 'Translation'
 
-export const TranslationEvent = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('Started'), id: RequestId, sourceText: Schema.String }),
-  Schema.Struct({ _tag: Schema.Literal('Delta'), id: RequestId, text: Schema.String }),
-  Schema.Struct({ _tag: Schema.Literal('Finished'), id: RequestId }),
-  Schema.Struct({ _tag: Schema.Literal('Failed'), id: RequestId, message: Schema.String }),
-])
-export type TranslationEvent = typeof TranslationEvent.Type
+export type TranslationEvent = Data.TaggedEnum<{
+  Started: { readonly id: RequestId; readonly sourceText: string }
+  Delta: { readonly id: RequestId; readonly text: string }
+  Finished: { readonly id: RequestId }
+  Failed: { readonly id: RequestId; readonly message: string }
+}>
+export const TranslationEvent = Data.taggedEnum<TranslationEvent>()
+
+export type NativeCommand = Data.TaggedEnum<{
+  Captured: { readonly id: RequestId; readonly targetLanguage: string; readonly text: string }
+  CaptureFailed: { readonly message: string }
+  Reopened: {}
+}>
+export const NativeCommand = Data.taggedEnum<NativeCommand>()
 
 interface Content {
   readonly sourceText: string
@@ -25,26 +32,31 @@ export type PopupState = Content &
 
 export type ControllerMessage =
   | TranslationEvent
-  | { readonly _tag: 'Request'; readonly id: RequestId; readonly targetLanguage: string }
-  | { readonly _tag: 'RequestCaptured'; readonly id: RequestId; readonly targetLanguage: string; readonly text: string }
-  | { readonly _tag: 'Captured'; readonly id: RequestId; readonly sourceText: string }
-  | { readonly _tag: 'Cancel' }
-  | { readonly _tag: 'SetMode'; readonly mode: DisplayMode }
-  | { readonly _tag: 'Copy'; readonly pane: Pane }
-  | { readonly _tag: 'Copied' }
-  | { readonly _tag: 'Hide' }
-  | { readonly _tag: 'Quit' }
-  | { readonly _tag: 'ActionFailed'; readonly message: string }
-  | { readonly _tag: 'RevealFailed'; readonly message: string }
+  | Data.TaggedEnum<{
+      Request: { readonly id: RequestId; readonly targetLanguage: string }
+      RequestCaptured: { readonly id: RequestId; readonly targetLanguage: string; readonly text: string }
+      Captured: { readonly id: RequestId; readonly sourceText: string }
+      Cancel: {}
+      SetMode: { readonly mode: DisplayMode }
+      Copy: { readonly pane: Pane }
+      Copied: {}
+      Hide: {}
+      Quit: {}
+      ActionFailed: { readonly message: string }
+      RevealFailed: { readonly message: string }
+    }>
+export const ControllerMessage = Data.taggedEnum<ControllerMessage>()
 
-export type Directive =
-  | { readonly _tag: 'Start'; readonly id: RequestId; readonly targetLanguage: string }
-  | { readonly _tag: 'StartCaptured'; readonly id: RequestId; readonly targetLanguage: string; readonly text: string }
-  | { readonly _tag: 'Stop' }
-  | { readonly _tag: 'Copy'; readonly text: string }
-  | { readonly _tag: 'Reveal' }
-  | { readonly _tag: 'Hide' }
-  | { readonly _tag: 'Quit' }
+export type Directive = Data.TaggedEnum<{
+  Start: { readonly id: RequestId; readonly targetLanguage: string }
+  StartCaptured: { readonly id: RequestId; readonly targetLanguage: string; readonly text: string }
+  Stop: {}
+  Copy: { readonly text: string }
+  Reveal: {}
+  Hide: {}
+  Quit: {}
+}>
+export const Directive = Data.taggedEnum<Directive>()
 
 export interface Transition {
   readonly state: PopupState
@@ -103,7 +115,7 @@ export const transition = (state: PopupState, message: ControllerMessage): Trans
           output: '',
           status: `Translating to ${message.targetLanguage}`,
         },
-        directives: [{ _tag: 'Start', id: message.id, targetLanguage: message.targetLanguage }],
+        directives: [Directive.Start({ id: message.id, targetLanguage: message.targetLanguage })],
       }
     case 'RequestCaptured':
       return {
@@ -116,36 +128,36 @@ export const transition = (state: PopupState, message: ControllerMessage): Trans
           status: `Translating to ${message.targetLanguage}`,
         },
         directives: [
-          { _tag: 'StartCaptured', id: message.id, targetLanguage: message.targetLanguage, text: message.text },
+          Directive.StartCaptured({ id: message.id, targetLanguage: message.targetLanguage, text: message.text }),
         ],
       }
     case 'Captured':
       return state.phase === 'Streaming' && state.requestId === message.id
-        ? { state: { ...state, sourceText: message.sourceText }, directives: [{ _tag: 'Reveal' }] }
+        ? { state: { ...state, sourceText: message.sourceText }, directives: [Directive.Reveal()] }
         : { state, directives: [] }
     case 'Cancel':
       return {
         state:
           state.phase === 'Streaming' ? { ...content(state), phase: 'Ready', status: 'Translation cancelled' } : state,
-        directives: [{ _tag: 'Stop' }],
+        directives: [Directive.Stop()],
       }
     case 'SetMode':
       return { state: { ...state, mode: message.mode }, directives: [] }
     case 'Copy':
-      return { state, directives: [{ _tag: 'Copy', text: paneText(state, message.pane) }] }
+      return { state, directives: [Directive.Copy({ text: paneText(state, message.pane) })] }
     case 'Copied':
       return { state: { ...state, status: 'Text copied' }, directives: [] }
     case 'Hide':
-      return { state, directives: [{ _tag: 'Hide' }] }
+      return { state, directives: [Directive.Hide()] }
     case 'Quit':
-      return { state, directives: [{ _tag: 'Quit' }] }
+      return { state, directives: [Directive.Quit()] }
     case 'ActionFailed':
       return {
         state: fail(state, message.message),
-        directives: [{ _tag: 'Stop' }, { _tag: 'Reveal' }],
+        directives: [Directive.Stop(), Directive.Reveal()],
       }
     case 'RevealFailed':
-      return { state: fail(state, message.message), directives: [{ _tag: 'Stop' }] }
+      return { state: fail(state, message.message), directives: [Directive.Stop()] }
     case 'Started':
     case 'Delta':
     case 'Finished':
@@ -153,7 +165,7 @@ export const transition = (state: PopupState, message: ControllerMessage): Trans
       const next = acceptEvent(state, message)
       return {
         state: next,
-        directives: next !== state && message._tag === 'Failed' ? [{ _tag: 'Reveal' }] : [],
+        directives: next !== state && message._tag === 'Failed' ? [Directive.Reveal()] : [],
       }
     }
   }

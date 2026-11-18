@@ -10,7 +10,7 @@ The packaged `GlossShift.app` includes its own application icon for Finder, the 
 Both `just package-app` and the Nix package install the icon inside the application bundle.
 Running a bare development executable does not provide Finder with an application bundle icon.
 
-The menu bar item is installed through NSH's standard `Tray` API in `app/desktop/src/desktop-controls.ts` and retained for the connection scope.
+The menu bar item is installed through NSH's standard `Tray` API in `app/desktop/src/desktopControls.ts` and retained for the connection scope.
 NSH owns the native AppKit event loop, and delayed cleanup from an old scope cannot remove a replacement scope's tray.
 
 ## Launch at login
@@ -69,18 +69,18 @@ The implementation uses user LaunchAgents for compatibility with the application
 ## Contributor reference: native dependencies
 
 Apple Silicon macOS is the only supported platform.
-`app/desktop/src/ports.ts` defines injectable desktop services, and `app/desktop/src/native-adapter.ts` composes them with scoped Effect resources.
-`app/desktop/src/selection-client.ts` launches the separate one-shot Swift helper in `helper/` and validates its bounded JSON response.
+`app/desktop/src/ports.ts` defines injectable desktop services, and `app/desktop/src/nativeAdapter.ts` composes them with scoped Effect resources.
+`app/desktop/src/selectionClient.ts` launches the separate one-shot Swift helper in `helper/` and validates its bounded JSON response.
 The helper uses Apple's ApplicationServices Accessibility APIs, captures selection before the popup receives focus, and never simulates `Cmd+C` or modifies the clipboard.
 Applications without an accessible selected-text value report a stable public failure.
 
-`app/desktop/src/desktop-controls.ts` uses the standard NSH clipboard, window, application, and tray APIs.
+`app/desktop/src/desktopControls.ts` uses the standard NSH clipboard, window, application, and tray APIs.
 `app/desktop/src/domain.ts` owns pure popup transitions, and `app/desktop/src/controller.ts` owns request replacement, cancellation, and bounded event processing.
 The view uses official NSH components and native Tailwind `class` support without an application stylesheet or browser renderer.
 The application-lifetime Effect runtime is released on teardown rather than recreated per render.
 
 Menu bar installation and global shortcuts remain desktop adapters, separate from shared translation policy in `package/runtime/src`.
-Settings and LaunchAgent operations live in `package/runtime/src/desktop-config.ts` and `package/runtime/src/autostart.ts`.
+Settings and LaunchAgent operations live in `package/runtime/src/desktopConfig.ts` and `package/runtime/src/autostart.ts`.
 The `glossshift` launcher delegates autostart operations to the standalone native CLI without starting NSH.
 The reusable NSH Effect Platform lives in `package/nsh-platform`, while application environment interpretation stays in `app/desktop/runtime/platform.ts`.
 A future platform can supply different adapters without changing translation policy.
@@ -96,11 +96,11 @@ There is no custom Markdown parser or browser renderer.
 
 ### GUI and boundary tests
 
-Run `vp run test` from the repository root to exercise `app/desktop/App.test.ts` through the official NSH test host.
+Run `vp run test` from the repository root to exercise `app/desktop/app.test.ts` through the official NSH test host.
 `vp run test-settings` checks isolated desktop configuration, and `vp run test-platform` exercises the reusable `package/nsh-platform` boundary.
-`vp run test-helper` checks the Swift helper contract with synthetic input without reading another application's selection.
-Native CLI suites live in `app/cli/src` and `app/cli/packaging.test` and run through Vite+ and Vitest, not the GUI host.
+Native CLI logic suites live in `app/cli/src` and run through Vite+ and Vitest, not the GUI host.
 Tests use isolated settings, synthetic source text, injected selection results, and boundary adapters rather than private developer configuration.
 `vp run ci` is the minimal formatting and lint gate, not an aggregate behavior-test command.
-These checks do not replace verification of native Accessibility capture, the menu bar, global shortcuts, or a signed application bundle.
+Tests that directly start application, inference, external-tool, or helper binaries are deferred to Projektor issue `GLOSSSHIFT-1`.
+The retained logic tests do not establish native Accessibility capture, menu bar appearance, or global shortcut interaction.
 Stop native interaction checks if required macOS permissions are unavailable.

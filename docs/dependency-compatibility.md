@@ -39,24 +39,19 @@ The unmodified [`llama-cpp` 0.9.0 package](https://github.com/NixOS/nixpkgs/blob
 The macOS arm64 derivation enables Metal and has a signed substitute in the official Nix binary cache.
 GlossShift does not override or patch that derivation, use a custom FFI binding, or compile the engine during an application-only rebuild.
 When updating the pin, verify substitute availability and actual model inference before adopting it.
-Current source and installed CLI checks successfully translate cached 0.8B inputs using the configured 262144-token context without downloading model weights.
-A diagnostic test of the production startup at `-c 262144` verifies the Metal backend and positive GPU layer offload.
-Earlier evidence also recorded 17 of 17 layers offloaded on an Apple M1 Pro.
-These checks validate real short-input inference and full-context startup, not a 262144-token prompt, comparative performance, or larger models.
-The 2B, 8B, and 31B presets have pinned metadata but have not been downloaded or run for these changes.
 CPU-side buffers still participate, so this does not mean CPU use is eliminated.
 Its TypeScript adapter owns authenticated loopback access and process cleanup.
 Known model artifacts retain their full per-model context defaults by digest, including when loaded through a `file:` URI.
 An unknown custom GGUF digest requires explicit `contextSize` rather than inheriting the default PLaMo context.
-The [cached-model acceptance instructions](../AGENTS.md#reproduce-cached-model-acceptance) describe opt-in source and installed checks without downloading weights.
+Tests that directly start the inference server are deferred to Projektor issue `GLOSSSHIFT-1`, not part of the maintained logic suite.
 
 ## Native CLI packaging
 
 `nix/gshift.nix` packages Node.js 26, the production `app/cli` and `package/runtime` trees, and production JavaScript dependencies independently of NSH and Swift.
-The command definition uses Effect 4 CLI in `app/cli/src/command.ts`, with the Node entry in `app/cli/src/main.ts` and native process arguments and standard I/O.
+Command definitions use Effect 4 CLI in `app/cli/src/commands/translate.ts`, with the Node entry in `app/cli/src/main.ts` and dispatch in `app/cli/src/program.ts`.
 The combined `glossshift` package links that standalone CLI and therefore includes Node in its closure, although the GUI process remains NSH-only with a separate Swift helper.
 The old shell capture bridge and interactive terminal product are removed rather than retained as compatibility dependencies.
-Native CLI tests in `app/cli/src` and `app/cli/packaging.test` run through Vite+ and Vitest with reusable `.test` helpers.
+Native CLI logic tests in `app/cli/src` run through Vite+ and Vitest with injected services and temporary filesystem data, without starting external binaries.
 The PNPM monorepo uses role-based `app/*` and `package/*` projects with `workspace:*` dependencies and catalog-managed external versions, without changing dependency pins or release-age policy.
 Shared source exports replace cross-project relative imports and do not require TypeScript path aliases.
 Common strict compiler policy lives in `tsconfig.base.json`, while minimal project profiles retain separate Node and generated NSH ambient environments.
@@ -64,11 +59,10 @@ The common base supplies one whole-project `include: ["${configDir}/**/*"]` rule
 This restores complete source and test discovery despite NSH's generated `files` roots, which otherwise suppress TypeScript's implicit discovery.
 Recursive workspace scripts own typechecking rather than the root lint gate.
 See [Workspace and TypeScript ownership](./runtime-architecture.md#workspace-and-typescript-ownership) for the observed ambient declaration conflicts that prevent one combined type program.
-GUI behavior tests remain in the official NSH test host, and Swift helper contract tests run separately.
+GUI behavior tests remain in the official NSH test host with injected native boundaries.
 All tests, test-only helpers, and fixtures are excluded from distribution sources, and Nix package derivations run no checks or tests.
-Installed distribution checks verify the GUI bundle signature, separate CLI link, production dependencies, and exclusion of NSH and Swift from the CLI closure.
-A nonprompting helper permission check reports Accessibility access denied in the verification environment.
-Actual selection capture, visible GUI behavior, and global shortcut interaction remain unverified rather than bypassing that permission boundary.
+Build-artifact, signature, and package-closure checks are not maintained as tests.
+Direct-binary integration work is tracked in Projektor issue `GLOSSSHIFT-1`.
 
 ## plist dictionary validation
 
@@ -82,6 +76,5 @@ The patch adds duplicate-key rejection to `dist/parse.js` and `dist/parse-binary
 NSH 0.5.0 selects the package's browser export, but its official QuickJS host does not provide the global `DOMParser` required by `dist/parse.browser.js`.
 The patch therefore routes only the browser entry's `parse` export to the existing `dist/parse.js`, which uses the package's declared `@xmldom/xmldom` dependency and retains the same duplicate-key protection.
 This is an explicit package compatibility patch, not a requirement to start Node from the GUI or a custom XML parser.
-Official NSH regressions exercise valid XML and binary round trips as well as duplicate dictionary rejection.
-Isolated filesystem regressions cover registrations with duplicate keys and verify that status, enable, and disable leave their bytes unchanged.
+Duplicate-key rejection protects registration ownership checks from ambiguous dictionary values.
 Review this patch when updating `plist` and remove it if upstream rejects duplicate dictionary keys.

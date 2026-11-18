@@ -5,22 +5,24 @@
 ```text
 app/desktop/App.tsx                 NSH entry beside nsh.json
 app/desktop/src/                    Popup domain, controller, views, and desktop adapters
-app/desktop/runtime/                GUI environment composition and test fixtures
+app/desktop/runtime/                GUI environment composition
 app/desktop/packaging/              macOS metadata and icon assets
 app/desktop/*.test.ts               Official NSH application and inference suites
 app/cli/src/main.ts                 Native Node.js 26 CLI entry
-app/cli/src/command.ts              Declarative Effect 4 CLI definition
-app/cli/src/cli.ts                  Batch translation policy
-app/cli/src/cli-files.ts            Ordered file validation and safe output operations
+app/cli/src/program.ts              Command dispatch, help, version, and output presentation
+app/cli/src/commands/translate.ts   Declarative Effect 4 translation command
+app/cli/src/commands/autostart.ts   Private desktop autostart command
+app/cli/src/translateBatch.ts       Ordered translation and stdout rendering
+app/cli/src/translationPlan.ts      Language validation and sibling output planning
+app/cli/src/translationFiles.ts     Collision preflight and atomic file operations
 app/cli/src/*.test.ts               Native CLI unit and contract tests
-app/cli/packaging.test/             Installed CLI, distribution, and real-model suites
 package/runtime/src/               Shared configuration, model, and inference policy
-package/runtime/src/desktop-config.ts  Non-destructive TOML settings and validation
+package/runtime/src/desktopConfig.ts  Non-destructive TOML settings and validation
 package/runtime/src/autostart.ts    Safe macOS LaunchAgent file operations
 package/nsh-platform/platform.ts    Public application-independent NSH Effect composition
 package/nsh-platform/platform/      NSH service adapters and boundary tests
 package/nsh-platform/App.tsx        NSH platform test host beside nsh.json
-helper/                            One-shot Swift Accessibility helper and contract tests
+helper/                            One-shot Swift Accessibility helper
 nix/gshift.nix                     Independent CLI package without NSH or Swift
 nix/macos-helper.nix               Production-only Swift helper build
 flake.nix                          Pinned tools, Metal-enabled llama-cpp, and Darwin outputs
@@ -42,24 +44,22 @@ Then install JavaScript dependencies with `vp install --frozen-lockfile`.
 All application manifests omit `rust`, so NSH uses its official prebuilt hosts.
 Do not add custom Rust host dependencies or generated source checkouts to restore an API that a separate helper or the standard JS API can provide.
 
-| Command                                  | Responsibility                                                                       |
-| ---------------------------------------- | ------------------------------------------------------------------------------------ |
-| `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                                      |
-| `vp run check`                           | Check formatting and lint without a second typechecker.                              |
-| `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                               |
-| `vp run typecheck`                       | Recursively check every workspace project's host-specific TypeScript program.        |
-| `vp run dev`                             | Delegate development and reload to NSH's macOS host.                                 |
-| `vp run run`                             | Run the application through NSH.                                                     |
-| `vp run build`                           | Produce the NSH release bundle, not an installable application.                      |
-| `vp run package`                         | Package the native macOS application through NSH.                                    |
-| `vp run test`                            | Run application tests through the official NSH test host.                            |
-| `vp run test-platform`                   | Exercise isolated filesystem, configuration, process, and capture boundaries in NSH. |
-| `vp run test-inference`                  | Check compatible crypto and direct HTTP/SSE behavior in NSH.                         |
-| `vp run test-cli`                        | Run native CLI contracts and filesystem tests through Vite+ and Vitest.              |
-| `vp run test-packaging`                  | Check installed package boundaries and native CLI execution.                         |
-| `vp run test-local-model`                | Opt in to real-model translation with isolated configuration.                        |
-| `vp run cli -- FILES... --lang LANGUAGE` | Run the native Effect 4 CLI on Node.js 26.                                           |
-| `vp run ci`                              | Run the minimal formatting and lint gate.                                            |
+| Command                                  | Responsibility                                                                |
+| ---------------------------------------- | ----------------------------------------------------------------------------- |
+| `vp install --frozen-lockfile`           | Install the locked package graph through Vite+.                               |
+| `vp run check`                           | Check formatting and lint without a second typechecker.                       |
+| `vp run fix`                             | Apply Vite+ formatting and lint fixes.                                        |
+| `vp run typecheck`                       | Recursively check every workspace project's host-specific TypeScript program. |
+| `vp run dev`                             | Delegate development and reload to NSH's macOS host.                          |
+| `vp run run`                             | Run the application through NSH.                                              |
+| `vp run build`                           | Produce the NSH release bundle, not an installable application.               |
+| `vp run package`                         | Package the native macOS application through NSH.                             |
+| `vp run test`                            | Run application tests through the official NSH test host.                     |
+| `vp run test-platform`                   | Exercise injected platform service behavior without external tools.           |
+| `vp run test-inference`                  | Check configuration, prompt, token-budget, and HTTP/SSE logic with fixtures.  |
+| `vp run test-cli`                        | Run native CLI contracts and filesystem tests through Vite+ and Vitest.       |
+| `vp run cli -- FILES... --lang LANGUAGE` | Run the native Effect 4 CLI on Node.js 26.                                    |
+| `vp run ci`                              | Run the minimal formatting and lint gate.                                     |
 
 Vite+ owns installation, task orchestration, formatting, lint, and native CLI tests through Vitest.
 Use NSH for GUI bundling, execution, and behavior tests, not Vite bundling or a second GUI host.
@@ -80,7 +80,8 @@ Every project declares its own `typecheck` script: `nsh check .` for NSH project
 The root `vp run typecheck` delegates to `vp run -r typecheck`, so new workspace projects join automatically through their scripts.
 The root formatting and lint gate keeps `typeAware` and `typeCheck` disabled and does not replace project typechecking.
 Root NSH development, execution, build, package, and application-test tasks target `app/desktop`, and platform tests target `package/nsh-platform`.
-Preserve the public task names.
+Keep public development, build, and packaging entry points stable.
+Remove obsolete test tasks together with their deleted suites.
 The Just aliases exist for compatibility, including the existing workflow's `just ci` entry point.
 Nix compiles the small Swift helper separately and bundles the GUI with the official NSH host.
 `nix/gshift.nix` packages the production `app/cli` and `package/runtime` trees and production dependencies for Node.js 26 without NSH or Swift.
@@ -91,13 +92,14 @@ Do not override the package merely to change a local build preference, because t
 Distribution source inputs exclude all tests, test helpers, and fixtures.
 Run all type checks and tests through development tasks, outside package derivations.
 Do not add check or test phases to the Nix derivations.
-Use `vp run test-helper` for the Swift helper contract tests outside the package build.
 Ruby is not permitted.
 Do not add standalone test scripts or hand-maintained JavaScript test bundles.
 Use the official NSH test framework for GUI behavior, native Vitest through Vite+ for CLI behavior, and reusable `.test` helpers.
 Mark test-only modules and assets with `.test`, including `.test.fixture` modules and test-only directories.
 Keep these names outside production source inputs.
-The helper's contract tests use synthetic input and do not read another application's selection.
+Keep maintained tests focused on application logic and injected service behavior.
+Do not add tests for build artifacts, signatures, package closures, fixed assets, or third-party APIs alone.
+Tests that directly start the CLI, inference server, coreutils, curl, or a compiled helper are deferred to the Projektor follow-up rather than maintained here.
 Keep workflow changes within the user's explicitly approved runner and timeout changes.
 Do not add macOS jobs, application builds, all-system evaluation, or flake checks to GitHub Actions without a new request.
 
@@ -106,7 +108,10 @@ Do not add macOS jobs, application builds, all-system evaluation, or flake check
 ### TS application boundary
 
 Do not create `index.ts` or `index.tsx` modules.
-Use a named module beside its child directory, such as `platform.ts` and `platform/NshFileSystem.ts`.
+Use a named module beside its child directory, such as `platform.ts` and `platform/nshFileSystem.ts`.
+Use camelCase source, test, and fixture filenames, except framework-required names such as NSH's `App.tsx`.
+Put each CLI command in its own module under `app/cli/src/commands/`, with shared planning and file operations in explicitly named modules.
+Use Effect's `Data.TaggedError`, `Data.TaggedEnum`, and `Schema.TaggedStruct` instead of declaring `_tag` fields in application types or schemas.
 Keep the Platform implementation independent of GlossShift policy so it can be extracted as a library.
 Pass working directories, tools, configuration providers, and Stdio layers explicitly through `platform.ts`.
 Keep application environment interpretation in `app/desktop/runtime/platform.ts`.
@@ -184,8 +189,11 @@ A delayed old scope must not unregister a newer scope's resources.
 
 ### Native CLI
 
-Use `app/cli/src/main.ts` as the independent Node.js 26 entry and `app/cli/src/command.ts` for the declarative Effect 4 CLI command.
-Keep batch policy and file operations in `app/cli/src/cli.ts` and `app/cli/src/cli-files.ts`, with reusable translation policy in `package/runtime/src`.
+Use `app/cli/src/main.ts` only to select Node services and start the program.
+`app/cli/src/program.ts` dispatches commands and presents help, version, and invocation errors.
+Keep the declarative Effect 4 translation command in `app/cli/src/commands/translate.ts` and private autostart dispatch in `app/cli/src/commands/autostart.ts`.
+`translateBatch.ts` executes ordered translations, `translationPlan.ts` defines language and output planning, and `translationFiles.ts` owns file safety.
+Keep reusable translation policy in `package/runtime/src`.
 Keep NSH, Swift, AppKit, global hotkeys, and tray resources outside the CLI dependency graph and package closure.
 Use native arguments, working directory, standard streams, signals, and exit status.
 Do not restore the shell capture bridge, `gshift-launcher.sh`, a Nix batch launcher, or the deleted `batch/` and `terminal/` products.
@@ -213,7 +221,6 @@ The local model cache honors `XDG_CACHE_HOME` and can be changed in local settin
 Do not read or modify `~/.agents` or legacy provider credentials.
 Treat configuration, shortcuts, native selection, process frames, model metadata, and model output as untrusted boundary input.
 Tests must use isolated temporary settings and synthetic source text, never the developer's private configuration or selected content.
-Real default-model tests must disclose the network download and distinguish inference acceptance from protocol fixtures.
 
 ## CLI contract
 
@@ -231,53 +238,19 @@ Terminal automatic color and forced color buffer each completed translation befo
 Color styles the complete output without parsing Markdown or adding syntax highlighting.
 Desktop and native CLI share the same local model, source language, prompt format, and token-budget policy.
 
-## Reproduce cached-model acceptance
+## Deferred integration tests
 
-Run from the repository root inside `nix develop` after installing the locked dependencies.
-The opt-in suite in `app/cli/packaging.test/Inference.test.ts` uses isolated temporary settings and accepts only an existing `file:` GGUF URI, so it cannot download model weights.
-First obtain the 0.8B artifact through the normal verified application download if it is not already cached.
-That initial download requires network access and approximately 573 MB of disk space.
-Do not download larger presets for this check.
-
-Create an isolated JSON configuration at `tmp/local-model.test.json` with a `model` object containing the cached artifact's absolute `file:` URI, pinned `sha256`, and `prompt: "plamo"` from `package/runtime/src/models.ts`.
-Omit `contextSize` and `maxTokens` for the known 0.8B digest to exercise the full 262144-token default and dynamic completion budget.
-Do not point this test at private user configuration.
-Then run:
-
-```bash
-GLOSSSHIFT_TEST_MODEL_CONFIG="$PWD/tmp/local-model.test.json" \
-GLOSSSHIFT_TEST_LLAMA_SERVER="$(command -v llama-server)" \
-GLOSSSHIFT_COREUTILS="$(command -v coreutils)" \
-GLOSSSHIFT_TEST_INSTALLED="$(nix build .#gshift --no-link --print-out-paths)/bin/gshift" \
-vp run test-local-model
-```
-
-The native suite verifies Metal startup with production server arguments, real Japanese and English translations, file safety, and cancellation cleanup.
-The installed suite exercises the independently packaged CLI, while the duplicate installed GPU diagnostic is intentionally skipped.
-Without the opt-in environment variables, real-model suites skip rather than download weights.
-These checks do not fill the context with a 262144-token prompt or establish performance results.
-Check the GUI separately, and stop if macOS permission requirements block selection or interaction.
-
-To opt in to installed package and closure checks, run:
-
-```bash
-GLOSSSHIFT_TEST_INSTALLED="$(nix build .#gshift --no-link --print-out-paths)/bin/gshift" \
-GLOSSSHIFT_TEST_GUI_PACKAGE="$(nix build .#glossshift --no-link --print-out-paths)" \
-vp run test-packaging
-```
-
-Set optional `GLOSSSHIFT_TEST_GUI_SOURCE` and `GLOSSSHIFT_TEST_CLI_SOURCE` to the filtered source paths obtained through Nix evaluation of the corresponding package's `src` attribute to check test and fixture exclusion.
-Set optional `GLOSSSHIFT_TEST_MACOS_HELPER` to the built helper's absolute executable path to check its nonprompting permission response.
-For Apple Silicon, evaluate `.#packages.aarch64-darwin.glossshift.src` and `.#packages.aarch64-darwin.gshift.src` with `nix eval --raw`, and build `.#glossshift-macos-helper` for its `bin/glossshift-macos-helper` path.
-These packaging checks do not grant Accessibility permission or exercise actual selection capture.
+Projektor issue `GLOSSSHIFT-1` tracks later work on tests that directly start application or helper binaries.
+This includes subprocess CLI behavior, real-model inference and cleanup, external-tool adapters, and the Swift selection helper where application behavior requires integration coverage.
+Keep that work separate from the current in-process logic tests.
+Do not restore build-artifact, signature, package-closure, fixed-asset, or third-party-only checks as part of that follow-up.
 
 ## Verification and maintenance
 
 - Run GUI behavior tests through NSH and native CLI tests through Vite+ and Vitest, not a copied controller harness.
-- Check real Vite+ task delegation, official prebuilt host selection, native packaging, and the retained CLI independently.
-- A successful NSH bundle is not proof that the native application, CLI package, or Nix derivation works.
-- Use injected stream fixtures for deterministic cancellation and backpressure checks, then exercise real GGUF inference through the installed native CLI and GUI.
-- Verify installed Nix executables start the packaged server and translate with the real model, not just that packaging completes.
+- Test application behavior with injected streams, temporary filesystem data, and explicit service layers.
+- Do not maintain build, package-layout, signature, asset-format, or direct external-binary execution tests.
+- Keep direct-binary integration coverage deferred in Projektor, separate from the retained application-logic tests.
 - Distinguish synthetic protocol tests from actual model inference and headless layout from native visual review.
 - If Accessibility or screen permissions block an end-user check, report the boundary and stop attempts to bypass it.
 - Keep helper builds separate from TypeScript bundling, with no dependency on generated NSH Rust workspaces.

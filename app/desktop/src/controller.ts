@@ -1,7 +1,7 @@
 import { Effect, Fiber, Option, PubSub, Queue, Ref, Schema, Stream, String } from 'effect'
 
-import { initialState, RequestId, transition } from './domain'
-import type { ControllerMessage, Directive, DisplayMode, Pane, PopupState } from './domain'
+import { ControllerMessage, initialState, RequestId, transition, TranslationEvent } from './domain'
+import type { Directive, DisplayMode, Pane, PopupState } from './domain'
 import { Native } from './ports'
 import type { Fault, NativePorts, PublicSettings } from './ports'
 
@@ -51,7 +51,9 @@ export const createController = (ports: NativePorts, guidance?: string) =>
         const accepted = yield* Effect.sync(() => Queue.offerUnsafe(controls, message))
         if (!accepted) {
           yield* Queue.clear(controls)
-          yield* notify({ _tag: 'ActionFailed', message: 'The translation queue is busy. Try the shortcut again.' })
+          yield* notify(
+            ControllerMessage.ActionFailed({ message: 'The translation queue is busy. Try the shortcut again.' }),
+          )
         }
         yield* Effect.sync(() => Queue.offerUnsafe(wake, undefined))
       }).pipe(Effect.asVoid)
@@ -71,19 +73,25 @@ export const createController = (ports: NativePorts, guidance?: string) =>
     const runRequest = (id: RequestId, targetLanguage: string, capture: Effect.Effect<string, Fault>) =>
       Effect.gen(function* () {
         const text = yield* capture
-        yield* emit({ _tag: 'Captured', id, sourceText: text })
+        yield* emit(ControllerMessage.Captured({ id, sourceText: text }))
         yield* ports.translate({ id, text, targetLanguage, sourceLanguage: settings.sourceLanguage }).pipe(
           Stream.takeUntil((event) => event.id === id && (event._tag === 'Finished' || event._tag === 'Failed')),
           Stream.runForEach(emit),
         )
-        yield* emit({ _tag: 'Failed', id, message: 'The translation stream ended before completion.' })
+        yield* emit(TranslationEvent.Failed({ id, message: 'The translation stream ended before completion.' }))
       }).pipe(
-        Effect.catchTag('ActionRequired', (error) => emit({ _tag: 'Failed', id, message: error.message })),
-        Effect.catchDefect(() => emit({ _tag: 'Failed', id, message: 'The translation service failed unexpectedly.' })),
+        Effect.catchTag('ActionRequired', (error) => emit(TranslationEvent.Failed({ id, message: error.message }))),
+        Effect.catchDefect(() =>
+          emit(TranslationEvent.Failed({ id, message: 'The translation service failed unexpectedly.' })),
+        ),
         Effect.ensuring(
           ports
             .cancel(id)
-            .pipe(Effect.catchTag('ActionRequired', (error) => notify({ _tag: 'Failed', id, message: error.message }))),
+            .pipe(
+              Effect.catchTag('ActionRequired', (error) =>
+                notify(TranslationEvent.Failed({ id, message: error.message })),
+              ),
+            ),
         ),
       )
 
@@ -105,7 +113,7 @@ export const createController = (ports: NativePorts, guidance?: string) =>
             return yield* stop
           case 'Copy':
             yield* ports.copy(directive.text)
-            return yield* send({ _tag: 'Copied' })
+            return yield* send(ControllerMessage.Copied())
           case 'Reveal':
             return yield* ports.reveal
           case 'Hide':
@@ -115,15 +123,16 @@ export const createController = (ports: NativePorts, guidance?: string) =>
         }
       }).pipe(
         Effect.catchTag('ActionRequired', (error) =>
-          notify({
-            _tag: directive._tag === 'Reveal' ? 'RevealFailed' : 'ActionFailed',
-            message: error.message,
-          }),
+          notify(
+            directive._tag === 'Reveal'
+              ? ControllerMessage.RevealFailed({ message: error.message })
+              : ControllerMessage.ActionFailed({ message: error.message }),
+          ),
         ),
       )
 
     const poll = Effect.gen(function* () {
-      if (yield* Ref.getAndSet(cancellation, false)) return Option.some<ControllerMessage>({ _tag: 'Cancel' })
+      if (yield* Ref.getAndSet(cancellation, false)) return Option.some<ControllerMessage>(ControllerMessage.Cancel())
       const priority = yield* Queue.poll(urgent)
       if (Option.isSome(priority)) return priority
       const control = yield* Queue.poll(controls)
@@ -168,23 +177,26 @@ export const createController = (ports: NativePorts, guidance?: string) =>
         Effect.gen(function* () {
           const targetLanguage = String.trim(input.targetLanguage)
           if (String.isEmpty(String.trim(input.text)) || String.isEmpty(targetLanguage)) {
-            return yield* send({
-              _tag: 'ActionFailed',
-              message: 'Enter source text and a target language before translating.',
-            })
+            return yield* send(
+              ControllerMessage.ActionFailed({
+                message: 'Enter source text and a target language before translating.',
+              }),
+            )
           }
           const number = yield* Ref.updateAndGet(sequence, (value) => value + 1n)
           const id = Schema.decodeUnknownSync(RequestId)(`request-${number}`)
-          yield* send({ _tag: 'RequestCaptured', id, text: input.text, targetLanguage })
+          yield* send(ControllerMessage.RequestCaptured({ id, text: input.text, targetLanguage }))
         }),
       requestCaptured: (input: { readonly id: RequestId; readonly targetLanguage: string; readonly text: string }) =>
-        send({ _tag: 'RequestCaptured', id: input.id, targetLanguage: input.targetLanguage, text: input.text }),
-      captureFailed: (message: string) => send({ _tag: 'ActionFailed', message }),
+        send(
+          ControllerMessage.RequestCaptured({ id: input.id, targetLanguage: input.targetLanguage, text: input.text }),
+        ),
+      captureFailed: (message: string) => send(ControllerMessage.ActionFailed({ message })),
       request: (targetLanguage: string) =>
         Effect.gen(function* () {
           const number = yield* Ref.updateAndGet(sequence, (value) => value + 1n)
           const id = Schema.decodeUnknownSync(RequestId)(`request-${number}`)
-          yield* send({ _tag: 'Request', id, targetLanguage })
+          yield* send(ControllerMessage.Request({ id, targetLanguage }))
         }),
       cancel: Effect.gen(function* () {
         yield* Ref.set(cancellation, true)
@@ -193,10 +205,10 @@ export const createController = (ports: NativePorts, guidance?: string) =>
           Queue.offerUnsafe(wake, undefined)
         })
       }),
-      copy: (pane: Pane) => send({ _tag: 'Copy', pane }),
-      setMode: (mode: DisplayMode) => send({ _tag: 'SetMode', mode }),
-      hide: send({ _tag: 'Hide' }),
-      quit: send({ _tag: 'Quit' }),
+      copy: (pane: Pane) => send(ControllerMessage.Copy({ pane })),
+      setMode: (mode: DisplayMode) => send(ControllerMessage.SetMode({ mode })),
+      hide: send(ControllerMessage.Hide()),
+      quit: send(ControllerMessage.Quit()),
     } satisfies PopupController
   })
 

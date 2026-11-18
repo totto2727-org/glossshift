@@ -3,8 +3,8 @@ import type { Prompt } from 'effect/ai'
 
 import { TranslationError } from './config.ts'
 import type { LocalConfig } from './config.ts'
-import { completion, inferenceFailed, invalidMetadata, serverJson, tokenize } from './server-api.ts'
-import type { LocalServer } from './server-api.ts'
+import { completion, inferenceFailed, invalidMetadata, serverJson, tokenize } from './serverApi.ts'
+import type { LocalServer } from './serverApi.ts'
 
 const textContent = (message: Prompt.Message): string =>
   message.role === 'system'

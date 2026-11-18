@@ -9,7 +9,7 @@ The desktop runs TypeScript in the unmodified official NSH 0.5.0 macOS host.
 Selection capture uses a separate one-shot Swift executable.
 The desktop does not start Node or register a custom Rust module.
 The noninteractive `gshift` command runs `app/cli/src/main.ts` on Node.js 26 with native Effect services.
-Its declarative Effect 4 CLI definition lives in `app/cli/src/command.ts`.
+Its declarative Effect 4 CLI definition lives in `app/cli/src/commands/translate.ts`.
 No arguments show help, and `--tui` is rejected.
 The desktop application launches separately.
 
@@ -23,7 +23,7 @@ flowchart TD
   NSH --> UI[Popup and scoped controller]
   NSH --> Swift[One-shot Swift Accessibility helper]
   UI --> NshPlatform[package/nsh-platform NSH services]
-  CLI --> Command[app/cli/src/command.ts Effect 4 CLI]
+  CLI --> Command[app/cli/src/commands/translate.ts Effect 4 CLI]
   Command --> NodePlatform[Native Node Effect services]
   NshPlatform --> Runtime[Shared runtime translation and configuration policy]
   NodePlatform --> Runtime
@@ -139,14 +139,9 @@ Context allocation consumes memory beyond the GGUF file size and can require a s
 PFML special tokens and untrusted source are tokenized separately, with BOS added once and protocol stop tokens suppressed.
 Unsupported languages, context overflow, and incomplete output fail rather than publishing successful partial files.
 
-Real source and installed standalone CLI checks successfully translate cached 0.8B input with the configured 262144-token context, without model downloads.
-They cover Japanese and English output, clean stdout, safe forced symbolic-link replacement, and SIGTERM cleanup of the owned server and authentication file.
-A separate diagnostic check uses the same production server startup with `-c 262144` and verifies Metal plus positive GPU layer offload.
-These results establish full-context configuration and startup with real short-input inference, not a 262144-token prompt, comparative performance, or larger-model acceptance.
-Larger model weights have not been downloaded or run for these changes.
-The GUI bundle's signature and package boundaries are checked separately.
-Accessibility permission is not granted in the verification environment, so actual selection capture, visible GUI behavior, and global shortcut interaction remain unverified.
-See [cached-model acceptance instructions](../AGENTS.md#reproduce-cached-model-acceptance) to reproduce the source and installed CLI checks with isolated settings and existing weights.
+Maintained tests cover inference policy, request handling, cancellation, and storage behavior through injected services.
+They do not start the inference server or establish real-model output, GPU offload, native selection capture, or visible GUI behavior.
+Direct-binary integration tests are deferred to Projektor issue `GLOSSSHIFT-1`.
 See [Dependency compatibility](./dependency-compatibility.md) for exact pins and retained patches.
 
 ## Workspace and TypeScript ownership
@@ -155,7 +150,10 @@ The repository follows the surrounding workspace's `monorepo` project, which sep
 GlossShift applies the same role-based structure directly as `app/*` and `package/*`, without copying another project's unrelated tooling or host assumptions.
 These are PNPM workspace packages with explicit manifests and dependencies, not directories made to look independent by separate compiler configurations.
 `app/desktop` owns the NSH entry, popup adapters, GUI tests, runtime composition, and packaging assets.
-`app/cli/src` owns the native entry, declarative command, batch policy, and unit tests, while `app/cli/packaging.test` owns installed-package and real-model suites.
+`app/cli/src/main.ts` supplies Node services, and `program.ts` owns command dispatch and presentation.
+`commands/translate.ts` and `commands/autostart.ts` own their respective commands.
+`translationPlan.ts`, `translationFiles.ts`, and `translateBatch.ts` separate output planning, filesystem safety, and batch execution.
+CLI logic tests remain beside these modules without subprocess or installed-package suites.
 `package/runtime/src` owns shared configuration, model storage, inference, desktop settings, and autostart policy.
 `package/nsh-platform` owns the public Effect Platform composition, NSH adapters, and its own NSH test host.
 The Swift helper and Nix packaging remain at the root.
@@ -183,13 +181,13 @@ The root `vp run check` performs formatting and lint only, with `typeAware` and 
 
 - Vite+ owns dependency installation, tasks, formatting, lint, and native CLI tests through Vitest.
 - Official NSH commands check each NSH project, run, test, bundle, and package `app/desktop`, and test the reusable `package/nsh-platform` boundary.
-- Root task names remain unchanged while delegating to the workspace projects.
+- Root development and packaging tasks delegate to the workspace projects.
 - Native CLI tests use reusable `.test` helpers and isolated filesystem settings, without a copied NSH harness.
-- Swift helper contract tests run separately with synthetic input and never read another application's selection.
+- Tests that directly start the Swift helper or other external binaries are deferred to Projektor issue `GLOSSSHIFT-1`.
 - Nix uses official NSH binaries and the pinned llama-cpp substitute, builds the small Swift helper separately, and packages the standalone Node CLI independently.
 - Distribution source inputs exclude all tests, test-only helpers, and fixtures. Package derivations run no tests or checks.
 - Model weights remain outside the Nix store and are not fetched during a build.
-- Installed CLI inference, GUI behavior, and package closure inspection are separate checks. A successful bundle alone proves none of them.
+- Maintained tests focus on application logic rather than build artifacts, signatures, package closures, fixed assets, or third-party APIs alone.
 
 Nix generates a small signable Mach-O GUI entry point that runs the audited launch script and replaces itself with the official NSH host.
 The script lives under Resources to preserve the macOS bundle resource seal.

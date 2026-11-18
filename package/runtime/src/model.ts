@@ -2,7 +2,7 @@ import { Effect, FileSystem, Path, Stdio, Stream } from 'effect'
 
 import { defaultModel, modelNotice, TranslationError } from './config.ts'
 import type { LocalConfig } from './config.ts'
-import { runModelUtility } from './model-process.ts'
+import { runModelUtility } from './modelProcess.ts'
 import { startServer } from './server.ts'
 
 const unavailable = () =>

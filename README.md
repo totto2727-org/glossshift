@@ -147,9 +147,8 @@ Explicit settings may reduce the budget but cannot exceed the model's supported 
 Larger models and larger contexts require more disk space and memory, including runtime and context buffers beyond the GGUF file size.
 Set a smaller explicit `contextSize` if the full context does not fit available memory.
 The 31B preset is the largest model in the official PLaMo 3 Translate family.
-Real source and installed CLI checks cover cached 0.8B translation with the configured 262144-token context.
-A production-server startup check at that context verifies Metal and positive GPU layer offload.
-These checks do not validate a 262144-token prompt, larger models, or comparative performance.
+Maintained tests cover application logic through injected services and isolated filesystem data.
+Tests that directly start application, inference, external-tool, or helper binaries are deferred to Projektor issue `GLOSSSHIFT-1`.
 Select a built-in model without creating a settings file:
 
 ```sh
@@ -250,7 +249,7 @@ Diagnostics go to stderr with a nonzero exit status on failure.
 See [AGENTS.md](./AGENTS.md) for repository structure, architecture, toolchain setup, and validation commands.
 Vite+ owns installation, tasks, formatting, lint, and native CLI tests through Vitest.
 NSH owns GUI execution, tests, bundling, and native packaging.
-The CLI runs `app/cli/src/main.ts` on Node.js 26 and uses the declarative Effect 4 command in `app/cli/src/command.ts`.
+The CLI runs `app/cli/src/main.ts` on Node.js 26 and uses the declarative Effect 4 command in `app/cli/src/commands/translate.ts`.
 The PNPM workspace separates applications in `app/*` from reusable libraries in `package/*`, following the role-based layout used by the surrounding workspace's other projects.
 `@glossshift/desktop` and `@glossshift/cli` consume `@glossshift/runtime` through `workspace:*` dependencies, and the desktop also consumes `@glossshift/nsh-platform`.
 Package source exports resolve these dependencies without TypeScript path aliases.

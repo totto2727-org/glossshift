@@ -1,10 +1,10 @@
 import { ConfigProvider, Layer, type Stdio } from 'effect'
 
-import * as NshChildProcess from './platform/NshChildProcess.ts'
-import * as NshConfigProvider from './platform/NshConfigProvider.ts'
-import * as NshFileSystem from './platform/NshFileSystem.ts'
-import * as NshPath from './platform/NshPath.ts'
-import * as NshStdio from './platform/NshStdio.ts'
+import * as NshChildProcess from './platform/nshChildProcess.ts'
+import * as NshConfigProvider from './platform/nshConfigProvider.ts'
+import * as NshFileSystem from './platform/nshFileSystem.ts'
+import * as NshPath from './platform/nshPath.ts'
+import * as NshStdio from './platform/nshStdio.ts'
 
 export { NshChildProcess, NshConfigProvider, NshFileSystem, NshPath, NshStdio }
 

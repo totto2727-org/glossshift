@@ -2,8 +2,7 @@ import { Context, Effect, Schema, Stream } from 'effect'
 
 import type { RequestId, TranslationEvent } from './domain'
 
-export const Fault = Schema.Struct({
-  _tag: Schema.Literal('ActionRequired'),
+export const Fault = Schema.TaggedStruct('ActionRequired', {
   message: Schema.String,
 })
 export type Fault = typeof Fault.Type

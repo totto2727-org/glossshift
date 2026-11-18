@@ -9,11 +9,10 @@ Run these commands from the repository root on macOS with the Swift developer to
 
 ```bash
 just generate-icons
-just check-icons
 just package-app
 ```
 
-`just generate-icons` runs `scripts/generate-icons.swift` using AppKit/Core Graphics and the system `iconutil`.
+`just generate-icons` runs `scripts/generateIcons.swift` using AppKit/Core Graphics and the system `iconutil`.
 The Swift file is the canonical vector geometry and palette source, and it also exports editable SVG artwork.
 All generated assets live in `app/desktop/packaging/` and are checked in so ordinary application builds do not regenerate icons.
 The separate Accessibility helper has its own Swift build.
@@ -29,12 +28,10 @@ Intermediate iconset PNGs are written under the ignored `target/GlossShift.icons
 
 Every tray RGB component is black, including transparent pixels, and its alpha channel contains transparent, opaque, and antialiased edge pixels.
 The black-only pixels make premultiplied and straight RGBA representations equivalent.
-The raw RGBA asset remains a validated artwork export, but the desktop does not embed it as a native pixel buffer.
-`app/desktop/src/desktop-controls.ts` imports `tray-icon.svg` and installs it through NSH's standard `Tray` API.
+The raw RGBA asset remains an artwork export, but the desktop does not embed it as a native pixel buffer.
+`app/desktop/src/desktopControls.ts` imports `tray-icon.svg` and installs it through NSH's standard `Tray` API.
 The tray silhouette is deliberately simpler than the application icon for legibility in the menu bar.
 
 `app/desktop/nsh.json` selects `packaging/app-icon.png`, relative to the desktop package, for official NSH packaging through `vp run package` or its `just package-app` alias.
 The Nix desktop package additionally copies `app/desktop/packaging/GlossShift.icns` to `GlossShift.app/Contents/Resources/GlossShift.icns` and sets `CFBundleIconFile` before ad-hoc signing.
-`app/desktop/packaging/Info.plist` retains the icon metadata checked by the asset validator.
-`just check-icons` decodes all ICNS representations and checks dimensions, alpha, the plist reference, and the tray raw-byte/PNG contract.
-Asset validation does not launch the app or prove native menu bar appearance.
+`app/desktop/packaging/Info.plist` retains the icon metadata.

@@ -3,7 +3,7 @@ import * as NodeServices from '@effect/platform-node/NodeServices'
 import { Cause, Effect, Option, Stdio, Stream } from 'effect'
 import { CliError } from 'effect/cli'
 
-import { runProgram } from './command.ts'
+import { runProgram } from './program.ts'
 
 /** Native Node argv, stdio, filesystem and subprocesses. No NSH platform enters this graph. */
 NodeRuntime.runMain(

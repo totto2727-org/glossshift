@@ -8,7 +8,7 @@ import { generate } from './generation.ts'
 import { loadModel } from './model.ts'
 import { makePrompt } from './prompt.ts'
 import type { TranslationRequest } from './prompt.ts'
-import type { LocalServer } from './server-api.ts'
+import type { LocalServer } from './serverApi.ts'
 
 export { TranslationError } from './config.ts'
 export { TranslationRequest, normalizeLanguage } from './prompt.ts'

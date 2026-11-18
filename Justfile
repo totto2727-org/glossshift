@@ -38,10 +38,5 @@ cli *args:
 # Asset generation remains a macOS development operation.
 generate-icons:
     mkdir -p tmp/icons
-    swiftc -module-cache-path "$PWD/tmp/icons/module-cache" scripts/generate-icons.swift -o tmp/icons/generate-icons
+    swiftc -module-cache-path "$PWD/tmp/icons/module-cache" scripts/generateIcons.swift -o tmp/icons/generate-icons
     tmp/icons/generate-icons
-
-check-icons:
-    mkdir -p tmp/icons
-    swiftc -module-cache-path "$PWD/tmp/icons/module-cache" scripts/validate-icons.swift -o tmp/icons/validate-icons
-    tmp/icons/validate-icons

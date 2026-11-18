@@ -5,8 +5,8 @@ import { ChildProcess } from 'effect/process'
 
 import { TranslationError } from './config.ts'
 import type { LocalConfig } from './config.ts'
-import { serverJson } from './server-api.ts'
-import type { LocalServer } from './server-api.ts'
+import { serverJson } from './serverApi.ts'
+import type { LocalServer } from './serverApi.ts'
 
 const unavailable = () =>
   new TranslationError({

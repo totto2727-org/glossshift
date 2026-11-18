@@ -6,7 +6,7 @@ stdenv.mkDerivation {
   src = lib.fileset.toSource {
     root = ../helper;
     fileset = lib.fileset.unions [
-      ../helper/Selection.swift
+      ../helper/selection.swift
       ../helper/main.swift
     ];
   };
@@ -16,7 +16,7 @@ stdenv.mkDerivation {
     runHook preBuild
     export HOME="$TMPDIR"
     swiftc -O -module-cache-path "$TMPDIR/swift-module-cache" \
-      Selection.swift main.swift -o glossshift-macos-helper
+      selection.swift main.swift -o glossshift-macos-helper
     runHook postBuild
   '';
   installPhase = ''
