@@ -11,7 +11,6 @@ rustPlatform.buildRustPackage {
   src = lib.cleanSource ./.;
   cargoLock = {
     lockFile = ./Cargo.lock;
-    outputHashes."llm-profiles-0.1.0" = "1rarzkrppbka3k2ardmd64x61k36xhaggcxcnxhischbchaivxpx";
   };
 
   postInstall = ''

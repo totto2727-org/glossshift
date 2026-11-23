@@ -24,8 +24,8 @@ package.nix            Nix Rust package definition
 ### Execution rules
 
 - Run commands from the repository root.
-- Cargo pins the independent [`llm-profiles`](https://github.com/totto2727-org/llm-profiles) library to Git revision `d3b3ede46fd823fe400aad85217537799b3ed40f` with its `rig` feature because the renamed library is not yet published to crates.io; no sibling checkout is required.
-- Standalone Nix packaging uses the same pinned Git dependency through `Cargo.lock` and its fixed output hash in `package.nix`; update both when changing the dependency revision, and do not claim a successful Nix build from Cargo checks alone.
+- Cargo uses the published [`llm-profiles`](https://crates.io/crates/llm-profiles/0.1.0) crate with its `rig` feature. Version `0.1.0` was published from the previous Git pin `d3b3ede46fd823fe400aad85217537799b3ed40f`.
+- Standalone Nix packaging uses the Cargo registry checksum recorded in `Cargo.lock`. Do not claim a successful Nix build from Cargo checks alone.
 - Support macOS only until the project explicitly expands its platform scope.
 - Use the named Just recipes below instead of ad-hoc shell workflows; use Cargo directly only when a recipe cannot express the needed target.
 - Keep source code, configuration examples, commit messages, and source documentation in English; `README.md` and `AGENTS.md` are canonical and their Japanese translations are generated with `mdt`.
