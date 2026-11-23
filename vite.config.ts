@@ -20,7 +20,18 @@ export default defineConfig({
     semi: false,
     singleQuote: true,
   },
-  lint: { ignorePatterns, options: { typeAware: false, typeCheck: false } },
+  lint: {
+    ignorePatterns,
+    jsPlugins: ['@totto2727/oxlint'],
+    options: { typeAware: false, typeCheck: false },
+    rules: {
+      'rules/no-eslint-disable-comments': 'error',
+      'rules/no-jsx-script-tag': 'error',
+      'rules/no-optional-error-cause': 'error',
+      'rules/no-redundant-alias': 'error',
+      'rules/require-disable-reason': 'error',
+    },
+  },
   test: { dir: 'app/cli' },
   run: {
     tasks: {

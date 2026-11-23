@@ -22,5 +22,5 @@ fetchPnpmDeps {
   };
   inherit pnpm;
   fetcherVersion = 4;
-  hash = "sha256-k5kJgx1hInziovbHdqqdIwtulS0T//WZPTPZCoJLCIE=";
+  hash = "sha256-99LcqZRWYVbM8afj/JcIl4w3UMrq+gFEP6lLKyQFhC8=";
 }
