@@ -2,6 +2,9 @@
   "name": "@glossshift/cli",
   "private": true,
   "type": "module",
+  "imports": {
+    "#cli/*.ts": "./src/*.ts"
+  },
   "scripts": {
     "typecheck": "vp exec tsc --project ."
   },

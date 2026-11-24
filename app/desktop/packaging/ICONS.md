@@ -29,7 +29,7 @@ Intermediate iconset PNGs are written under the ignored `target/GlossShift.icons
 Every tray RGB component is black, including transparent pixels, and its alpha channel contains transparent, opaque, and antialiased edge pixels.
 The black-only pixels make premultiplied and straight RGBA representations equivalent.
 The raw RGBA asset remains an artwork export, but the desktop does not embed it as a native pixel buffer.
-`app/desktop/src/desktopControls.ts` imports `tray-icon.svg` and installs it through NSH's standard `Tray` API.
+`app/desktop/src/desktop-controls.ts` imports `tray-icon.svg` and installs it through NSH's standard `Tray` API.
 The tray silhouette is deliberately simpler than the application icon for legibility in the menu bar.
 
 `app/desktop/nsh.json` selects `packaging/app-icon.png`, relative to the desktop package, for official NSH packaging through `vp run package` or its `just package-app` alias.

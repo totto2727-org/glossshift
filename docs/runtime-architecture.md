@@ -152,7 +152,7 @@ These are PNPM workspace packages with explicit manifests and dependencies, not 
 `app/desktop` owns the NSH entry, popup adapters, GUI tests, runtime composition, and packaging assets.
 `app/cli/src/main.ts` supplies Node services, and `program.ts` owns command dispatch and presentation.
 `commands/translate.ts` and `commands/autostart.ts` own their respective commands.
-`translationPlan.ts`, `translationFiles.ts`, and `translateBatch.ts` separate output planning, filesystem safety, and batch execution.
+`translation-plan.ts`, `translation-files.ts`, and `translate-batch.ts` separate output planning, filesystem safety, and batch execution.
 CLI logic tests remain beside these modules without subprocess or installed-package suites.
 `package/runtime/src` owns shared configuration, model storage, inference, desktop settings, and autostart policy.
 `package/nsh-platform` owns the public Effect Platform composition, NSH adapters, and its own NSH test host.

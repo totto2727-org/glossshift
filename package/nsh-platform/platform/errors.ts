@@ -1,27 +1,41 @@
-import { PlatformError } from 'effect'
+import { PlatformError, Predicate } from 'effect'
 
-export const unsupported = (module: string, method: string) =>
-  PlatformError.systemError({
-    _tag: 'BadResource',
-    module,
-    method,
+const firstArgument = 0
+type SystemErrorOptions = Omit<Parameters<typeof PlatformError.systemError>[typeof firstArgument], '_tag'>
+
+export const systemError = (
+  tag: PlatformError.SystemErrorTag,
+  options: SystemErrorOptions,
+): PlatformError.PlatformError =>
+  // oxlint-disable-next-line rules/require-tagged-data -- Effect PlatformError.systemError requires the native reason tag in its options.
+  PlatformError.systemError({ _tag: tag, ...options })
+
+export const unsupported = (module: string, method: string): PlatformError.PlatformError =>
+  systemError('BadResource', {
     description: `Unsupported by the official NSH 0.5 host: ${method}`,
+    method,
+    module,
   })
 
-export const failure = (method: string, path: string, cause: unknown, module = 'FileSystem') => {
-  const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined
-  return PlatformError.systemError({
-    _tag:
-      code === 'ENOENT'
-        ? 'NotFound'
-        : code === 'EEXIST'
-          ? 'AlreadyExists'
-          : code === 'EACCES' || code === 'ERR_ACCESS_DENIED'
-            ? 'PermissionDenied'
-            : 'Unknown',
-    module,
-    method,
-    pathOrDescriptor: path,
+const reasons = new Map<string, PlatformError.SystemErrorTag>([
+  ['EACCES', 'PermissionDenied'],
+  ['EEXIST', 'AlreadyExists'],
+  ['ENOENT', 'NotFound'],
+  ['ERR_ACCESS_DENIED', 'PermissionDenied'],
+])
+
+type ErrorDetails = Readonly<{ method: string; path: string; cause: unknown; module: string }>
+
+export const platformFailure = ({ method, path, cause, module }: ErrorDetails): PlatformError.PlatformError => {
+  const code = Predicate.isObject(cause) && !Predicate.isFunction(cause) && 'code' in cause ? cause['code'] : undefined
+  const reason = Predicate.isString(code) ? reasons.get(code) : undefined
+  return systemError(reason ?? 'Unknown', {
     cause,
+    method,
+    module,
+    pathOrDescriptor: path,
   })
 }
+
+export const failure = (method: string, path: string, cause: unknown): PlatformError.PlatformError =>
+  platformFailure({ cause, method, module: 'FileSystem', path })

@@ -3,6 +3,10 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
+  "imports": {
+    "#desktop/platform.ts": "./runtime/platform.ts",
+    "#desktop/tray-icon.svg": "./packaging/tray-icon.svg"
+  },
   "scripts": {
     "typecheck": "nsh check ."
   },

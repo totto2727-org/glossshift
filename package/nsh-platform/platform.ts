@@ -1,25 +1,42 @@
-import { ConfigProvider, Layer, type Stdio } from 'effect'
+import { Predicate, ConfigProvider, Layer } from 'effect'
+import type { FileSystem, Path, Stdio } from 'effect'
+import type { ChildProcessSpawner } from 'effect/process'
 
-import * as NshChildProcess from './platform/nshChildProcess.ts'
-import * as NshConfigProvider from './platform/nshConfigProvider.ts'
-import * as NshFileSystem from './platform/nshFileSystem.ts'
-import * as NshPath from './platform/nshPath.ts'
-import * as NshStdio from './platform/nshStdio.ts'
+import * as NshChildProcess from './platform/nsh-child-process.ts'
+import * as NshConfigProvider from './platform/nsh-config-provider.ts'
+import * as NshFileSystem from './platform/nsh-file-system.ts'
+import * as NshPath from './platform/nsh-path.ts'
+import * as NshStdio from './platform/nsh-stdio.ts'
 
-export { NshChildProcess, NshConfigProvider, NshFileSystem, NshPath, NshStdio }
+// oxlint-disable-next-line oxc/no-barrel-file -- The public NSH platform module exposes its named adapter namespaces alongside layer composition.
+export * as NshChildProcess from './platform/nsh-child-process.ts'
+export * as NshConfigProvider from './platform/nsh-config-provider.ts'
+export * as NshFileSystem from './platform/nsh-file-system.ts'
+export * as NshPath from './platform/nsh-path.ts'
+export * as NshStdio from './platform/nsh-stdio.ts'
 
-export interface Options extends NshFileSystem.Options {
-  readonly cwd: string
-  readonly configProvider?: ConfigProvider.ConfigProvider | undefined
-  readonly stdio?: Layer.Layer<Stdio.Stdio> | undefined
-}
+export type Options = NshFileSystem.Options &
+  Readonly<{
+    cwd: string
+    configProvider?: ConfigProvider.ConfigProvider | undefined
+    stdio?: Layer.Layer<Stdio.Stdio> | undefined
+  }>
 
-/** Compose host services without reading application configuration or selecting a working directory. */
-export const layer = (options: Options) =>
+/**
+ * Compose host services without reading application configuration or selecting a working directory.
+ *
+ * @param {Options} options Working directory, tool, configuration, and Stdio settings.
+ * @returns {Layer.Layer} NSH implementations of the platform services.
+ */
+export const layer = (
+  options: Options,
+): Layer.Layer<FileSystem.FileSystem | Path.Path | Stdio.Stdio | ChildProcessSpawner.ChildProcessSpawner> =>
   Layer.mergeAll(
     NshFileSystem.layer(options),
     NshPath.make(options.cwd),
-    options.configProvider === undefined ? NshConfigProvider.layer : ConfigProvider.layer(options.configProvider),
+    Predicate.isNullish(options.configProvider)
+      ? NshConfigProvider.layer
+      : ConfigProvider.layer(options.configProvider),
     options.stdio ?? NshStdio.unavailable([]),
     NshChildProcess.layer,
   )
