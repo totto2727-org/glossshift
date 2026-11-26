@@ -1,8 +1,6 @@
-// oxlint-disable-next-line unicorn/prefer-node-protocol -- The official NSH 0.5 host resolves this built-in only through its unprefixed name.
-import { randomBytes } from 'crypto'
-
-import { String, Predicate, Config, Effect, FileSystem, Option, Path, Ref, Schema, Stream } from 'effect'
+import { String, Predicate, Config, Effect, Encoding, FileSystem, Option, Path, Ref, Schema, Stream } from 'effect'
 import type { Scope } from 'effect'
+import { SecureRandom } from 'effect/crypto'
 import type { ChildProcessSpawner } from 'effect/process'
 import { ChildProcess } from 'effect/process'
 
@@ -60,13 +58,14 @@ const serverKey = Effect.gen(function* () {
   const directory = yield* fs
     .makeTempDirectoryScoped({ prefix: 'glossshift-server-' })
     .pipe(Effect.mapError(unavailable))
-  const key = randomBytes(authTokenBytes).toString('hex')
+  const random = yield* SecureRandom.SecureRandom
+  const key = Encoding.encodeHex(yield* random.randomBytes(authTokenBytes))
   const keyFile = path.join(directory, 'auth')
   yield* fs
     .writeFileString(keyFile, `${key}\n`, { flag: 'wx', mode: privateKeyMode })
     .pipe(Effect.mapError(unavailable))
   return { key, keyFile }
-})
+}).pipe(Effect.provide(SecureRandom.layerWebCrypto))
 
 const serverEnvironment = Effect.gen(function* () {
   const home = yield* Config.option(Config.String('HOME'))
