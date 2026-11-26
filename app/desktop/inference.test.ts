@@ -1,83 +1,77 @@
-import { loadConfig, TranslationError } from '@glossshift/runtime/config'
+import { loadConfig } from '@glossshift/runtime/config'
 import { verifyModel } from '@glossshift/runtime/model'
-import { runModelUtility } from '@glossshift/runtime/modelProcess'
-import { completion, serverFetch } from '@glossshift/runtime/serverApi'
+import { runModelUtility } from '@glossshift/runtime/model-process'
+import { completion, serverFetch } from '@glossshift/runtime/server-api'
 import { Array, ConfigProvider, Effect, FileSystem, Layer, Path, Sink, Stream } from 'effect'
 import { ChildProcessSpawner } from 'effect/process'
 import { expect, test } from 'nsh/test'
+
+import { server, withFixtureFetch } from './inference-fetch.test.fixture.ts'
+import { runTestEffect } from './inference.test.fixture.ts'
 
 test('explicit model configuration does not require an unused HOME variable', async () => {
   const fs = FileSystem.makeNoop({
     exists: () => Effect.succeed(true),
     readFileString: () => Effect.succeed(JSON.stringify({ cacheDirectory: '/synthetic/cache' })),
   })
-  const result = await Effect.runPromise(
-    loadConfig.pipe(
-      Effect.provideService(FileSystem.FileSystem, fs),
-      Effect.provideService(
-        ConfigProvider.ConfigProvider,
-        ConfigProvider.fromEnvRecord({
-          GLOSSSHIFT_CONFIG: '/synthetic/local.json',
-        }),
-      ),
-      Effect.provide(Path.layer),
-    ),
+  const provider = ConfigProvider.fromEnvRecord({ GLOSSSHIFT_CONFIG: '/synthetic/local.json' })
+  const config = loadConfig.pipe(
+    Effect.provideService(FileSystem.FileSystem, fs),
+    Effect.provideService(ConfigProvider.ConfigProvider, provider),
+    Effect.provide(Path.layer),
   )
+  const result = await runTestEffect(config)
   expect(result.cacheDirectory).toBe('/synthetic/cache')
 })
 
-const utilityFixture = (stdout: string) => {
-  let released = false
-  const output = Stream.succeed(new TextEncoder().encode(stdout))
-  const spawner = ChildProcessSpawner.make(() =>
-    Effect.acquireRelease(
-      Effect.succeed(
-        ChildProcessSpawner.makeHandle({
-          pid: ChildProcessSpawner.ProcessId(1),
-          exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
-          isRunning: Effect.succeed(false),
-          kill: () => Effect.void,
-          stdin: Sink.drain,
-          stdout: output,
-          stderr: Stream.empty,
-          all: output,
-          getInputFd: () => Sink.drain,
-          getOutputFd: () => Stream.empty,
-          unref: Effect.succeed(Effect.void),
-        }),
-      ),
-      () =>
-        Effect.sync(() => {
-          released = true
-        }),
-    ),
-  )
-  return {
-    layer: Layer.mergeAll(
-      Path.layer,
-      Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
-      ConfigProvider.layer(
-        Effect.succeed(
-          ConfigProvider.fromEnvRecord({
-            GLOSSSHIFT_COREUTILS: '/nix/store/fixture/bin/coreutils',
-          }),
-        ),
-      ),
-    ),
-    released: () => released,
-  }
+interface UtilityFixture {
+  layer: Layer.Layer<Path.Path | ChildProcessSpawner.ChildProcessSpawner>
+  released: () => boolean
+}
+
+const utilityHandle = (stdout: string): ChildProcessSpawner.ChildProcessHandle => {
+  const bytes = new TextEncoder().encode(stdout)
+  const output = Stream.succeed(bytes)
+  const exitCode = ChildProcessSpawner.ExitCode(0)
+  return ChildProcessSpawner.makeHandle({
+    all: output,
+    exitCode: Effect.succeed(exitCode),
+    getInputFd: () => Sink.drain,
+    getOutputFd: () => Stream.empty,
+    isRunning: Effect.succeed(false),
+    kill: () => Effect.void,
+    pid: ChildProcessSpawner.ProcessId(1),
+    stderr: Stream.empty,
+    stdin: Sink.drain,
+    stdout: output,
+    unref: Effect.succeed(Effect.void),
+  })
+}
+
+const utilityFixture = (stdout: string): UtilityFixture => {
+  const state = { released: false }
+  const handle = Effect.succeed(utilityHandle(stdout))
+  const release = Effect.sync(() => {
+    state.released = true
+  })
+  const spawner = ChildProcessSpawner.make(() => Effect.acquireRelease(handle, () => release))
+  const provider = ConfigProvider.fromEnvRecord({ GLOSSSHIFT_COREUTILS: '/nix/store/fixture/bin/coreutils' })
+  const environment = ConfigProvider.layer(Effect.succeed(provider))
+  const layer = Layer.mergeAll(Path.layer, Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner), environment)
+  return { layer, released: () => state.released }
 }
 
 test('model verification uses a scoped external digest without requiring FileSystem reads', async () => {
   const digest = 'a'.repeat(64)
   const fixture = utilityFixture(`${digest} */synthetic/model.gguf\0`)
-  await Effect.runPromise(verifyModel('/synthetic/model.gguf', digest).pipe(Effect.provide(fixture.layer)))
+  const verify = verifyModel('/synthetic/model.gguf', digest).pipe(Effect.provide(fixture.layer))
+  await runTestEffect(verify)
   expect(fixture.released()).toBe(true)
 })
 
 test('model utility output quotas fail safely and release the child scope', async () => {
   const fixture = utilityFixture('a'.repeat(8193))
-  const code = await Effect.runPromise(
+  const code = await runTestEffect(
     runModelUtility('sha256sum', []).pipe(
       Effect.as('unexpected success'),
       Effect.catch((error) => Effect.succeed(error.code)),
@@ -89,117 +83,75 @@ test('model utility output quotas fail safely and release the child scope', asyn
 })
 
 test('inference rejects caller-selected non-loopback endpoints before fetching', () => {
-  let rejected = false
-  try {
-    serverFetch(
-      { origin: 'https://example.invalid', key: 'synthetic' },
-      '/health',
-      undefined,
-      new AbortController().signal,
-    )
-  } catch {
-    rejected = true
-  }
-  expect(rejected).toBe(true)
+  const controller = new AbortController()
+  expect(() =>
+    serverFetch({ key: 'synthetic', origin: 'https://example.invalid' }, { endpoint: '/health' }, controller.signal),
+  ).toThrow('Local translation failed.')
 })
+
+const splitSseFixture = (text: string): typeof fetch => {
+  const bytes = new TextEncoder().encode(text)
+  return async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        Array.forEach(bytes, (byte) => controller.enqueue(new Uint8Array([byte])))
+        controller.close()
+      },
+    })
+    return new Response(stream)
+  }
+}
+
+const sseFrame = (frame: Readonly<{ content: string; stop: boolean; stop_type?: string }>, separator = '\n'): string =>
+  `data: ${JSON.stringify(frame)}${separator}${separator}`
 
 test('bounded SSE handles split UTF-8 and split CRLF without exposing protocol markers', async () => {
-  const original = globalThis.fetch
-  const bytes = new TextEncoder().encode(
-    `data: ${JSON.stringify({ content: 'こんにちは', stop: false })}\r\n\r\ndata: ${JSON.stringify({ content: '', stop: true, stop_type: 'word' })}\r\n\r\n`,
-  )
-  globalThis.fetch = async () =>
-    new Response(
-      new ReadableStream({
-        start(controller) {
-          for (const byte of bytes) controller.enqueue(new Uint8Array([byte]))
-          controller.close()
-        },
-      }),
-    )
-  try {
-    const deltas: string[] = []
-    for await (const delta of completion(
-      { origin: 'http://127.0.0.1:1', key: 'synthetic' },
-      [1],
-      8,
-      ['<|plamo:tag|>'],
-      new AbortController().signal,
-    ))
-      deltas.push(delta)
-    expect(Array.join(deltas, '')).toBe('こんにちは')
-  } finally {
-    globalThis.fetch = original
-  }
+  const data = sseFrame({ content: 'こんにちは', stop: false }, '\r\n')
+  const terminal = sseFrame({ content: '', stop: true, stop_type: 'word' }, '\r\n')
+  await withFixtureFetch(splitSseFixture(data + terminal), async () => {
+    const controller = new AbortController()
+    const options = { budget: 8, stops: ['<|plamo:tag|>'], tokens: [1] }
+    const frames = completion(server, options, controller.signal)
+    const stream = Stream.fromAsyncIterable(frames, (cause) => cause)
+    const result = await runTestEffect(Stream.mkString(stream))
+    expect(result).toBe('こんにちは')
+  })
 })
 
-test('truncated inference fails publicly and cancels its reader instead of reporting success', async () => {
-  const original = globalThis.fetch
-  let cancelled = false
-  globalThis.fetch = async () =>
-    new Response(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(
-            new TextEncoder().encode(`data: ${JSON.stringify({ content: '', stop: true, stop_type: 'limit' })}\n\n`),
-          )
-        },
-        cancel() {
-          cancelled = true
-        },
-      }),
-    )
-  try {
-    let code = ''
-    try {
-      for await (const _delta of completion(
-        { origin: 'http://127.0.0.1:1', key: 'synthetic' },
-        [1],
-        1,
-        [],
-        new AbortController().signal,
-      )) {
-        /* A truncated terminal frame cannot produce a successful result. */
-      }
-    } catch (error) {
-      if (error instanceof TranslationError) code = error.code
-    }
-    expect(code).toBe('OutputTooLong')
-    expect(cancelled).toBe(true)
-  } finally {
-    globalThis.fetch = original
+const openSseFixture = (frame: string, state: { cancelled: boolean }): typeof fetch => {
+  const bytes = new TextEncoder().encode(frame)
+  return async () => {
+    const stream = new ReadableStream({
+      cancel() {
+        state.cancelled = true
+      },
+      start(controller) {
+        controller.enqueue(bytes)
+      },
+    })
+    return new Response(stream)
   }
+}
+
+test('truncated inference fails publicly and cancels its reader instead of reporting success', async () => {
+  const state = { cancelled: false }
+  const frame = sseFrame({ content: '', stop: true, stop_type: 'limit' })
+  await withFixtureFetch(openSseFixture(frame, state), async () => {
+    const controller = new AbortController()
+    const frames = completion(server, { budget: 1, stops: [], tokens: [1] }, controller.signal)
+    await expect(frames.next()).rejects.toMatchObject({ code: 'OutputTooLong' })
+    expect(state.cancelled).toBe(true)
+  })
 })
 
 test('ending inference consumption cancels the HTTP response reader', async () => {
-  const original = globalThis.fetch
-  let cancelled = false
-  globalThis.fetch = async () =>
-    new Response(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(
-            new TextEncoder().encode(`data: ${JSON.stringify({ content: 'partial', stop: false })}\n\n`),
-          )
-        },
-        cancel() {
-          cancelled = true
-        },
-      }),
-    )
-  try {
-    for await (const delta of completion(
-      { origin: 'http://127.0.0.1:1', key: 'synthetic' },
-      [1],
-      8,
-      [],
-      new AbortController().signal,
-    )) {
-      expect(delta).toBe('partial')
-      break
-    }
-    expect(cancelled).toBe(true)
-  } finally {
-    globalThis.fetch = original
-  }
+  const state = { cancelled: false }
+  const frame = sseFrame({ content: 'partial', stop: false })
+  await withFixtureFetch(openSseFixture(frame, state), async () => {
+    const controller = new AbortController()
+    const frames = completion(server, { budget: 8, stops: [], tokens: [1] }, controller.signal)
+    await expect(frames.next()).resolves.toMatchObject({ done: false, value: 'partial' })
+    await frames.return()
+    expect(state.cancelled).toBe(true)
+  })
 })

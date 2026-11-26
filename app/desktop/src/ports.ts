@@ -1,44 +1,45 @@
-import { Context, Effect, Schema, Stream } from 'effect'
+import type { Effect, Stream } from 'effect'
+import { Context, Schema } from 'effect'
 
-import type { RequestId, TranslationEvent } from './domain'
+import type { RequestId, TranslationEvent } from './domain.ts'
 
-export const Fault = Schema.TaggedStruct('ActionRequired', {
+export const FaultSchema = Schema.TaggedStruct('ActionRequired', {
   message: Schema.String,
 })
-export type Fault = typeof Fault.Type
+export type Fault = typeof FaultSchema.Type
 
-export const PublicSettings = Schema.Struct({
-  sourceLanguage: Schema.String,
+export const PublicSettingsSchema = Schema.Struct({
   initialStatus: Schema.String,
+  sourceLanguage: Schema.String,
   window: Schema.Struct({
-    width: Schema.Number,
     height: Schema.Number,
-    minWidth: Schema.Number,
     minHeight: Schema.Number,
+    minWidth: Schema.Number,
+    width: Schema.Number,
   }),
 })
-export type PublicSettings = typeof PublicSettings.Type
+export type PublicSettings = typeof PublicSettingsSchema.Type
 
-export interface TranslationRequest {
-  readonly id: RequestId
-  readonly text: string
-  readonly sourceLanguage: string
-  readonly targetLanguage: string
-}
+export type TranslationRequest = Readonly<{
+  id: RequestId
+  text: string
+  sourceLanguage: string
+  targetLanguage: string
+}>
 
 /** Injectable application services run inside the official NSH host. */
-export interface NativePorts {
-  readonly settings: Effect.Effect<PublicSettings, Fault>
-  readonly capture: Effect.Effect<string, Fault>
+export type NativePorts = Readonly<{
+  settings: Effect.Effect<PublicSettings, Fault>
+  capture: Effect.Effect<string, Fault>
   /** A lossless bounded stream. The controller finalizer releases the local request. */
-  readonly translate: (request: TranslationRequest) => Stream.Stream<TranslationEvent, Fault>
+  translate: (request: TranslationRequest) => Stream.Stream<TranslationEvent, Fault>
   /** Idempotent cleanup after the controller interrupts the request stream. */
-  readonly cancel: (id: RequestId) => Effect.Effect<void, Fault>
-  readonly copy: (text: string) => Effect.Effect<void, Fault>
-  readonly reveal: Effect.Effect<void, Fault>
-  readonly hide: Effect.Effect<void, Fault>
-  readonly quit: Effect.Effect<void, Fault>
-  readonly shortcuts: Stream.Stream<string, Fault>
-}
+  cancel: (id: RequestId) => Effect.Effect<void, Fault>
+  copy: (text: string) => Effect.Effect<void, Fault>
+  reveal: Effect.Effect<void, Fault>
+  hide: Effect.Effect<void, Fault>
+  quit: Effect.Effect<void, Fault>
+  shortcuts: Stream.Stream<string, Fault>
+}>
 
 export const Native = Context.Service<NativePorts>('GlossShift/Native')

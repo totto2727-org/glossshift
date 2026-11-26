@@ -1,6 +1,22 @@
-import { Array, Context, Effect, Exit, Layer, Option, Result, Schema, Scope, Semaphore, Stream } from 'effect'
+import {
+  Predicate,
+  Array,
+  Context,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Ref,
+  Result,
+  Schema,
+  Scope,
+  Semaphore,
+  Stream,
+} from 'effect'
+import type { FileSystem, Path, Stdio } from 'effect'
 import { AiError, LanguageModel } from 'effect/ai'
 import type { Response } from 'effect/ai'
+import type { ChildProcessSpawner } from 'effect/process'
 
 import { loadConfig, TranslationError, validateConfig } from './config.ts'
 import type { LocalConfig } from './config.ts'
@@ -8,18 +24,18 @@ import { generate } from './generation.ts'
 import { loadModel } from './model.ts'
 import { makePrompt } from './prompt.ts'
 import type { TranslationRequest } from './prompt.ts'
-import type { LocalServer } from './serverApi.ts'
+import type { LocalServer } from './server-api.ts'
 
 export { TranslationError } from './config.ts'
 export { TranslationRequest, normalizeLanguage } from './prompt.ts'
 
-export interface TranslationService {
-  readonly settings: {
-    readonly sourceLanguage: string
-    readonly model: string
-  }
-  readonly stream: (request: TranslationRequest) => Stream.Stream<string, TranslationError>
-}
+export type TranslationService = Readonly<{
+  settings: Readonly<{
+    sourceLanguage: string
+    model: string
+  }>
+  stream: (request: TranslationRequest) => Stream.Stream<string, TranslationError>
+}>
 
 export const Translation = Context.Service<TranslationService>('GlossShift/LocalTranslation')
 
@@ -36,18 +52,19 @@ const PublicFailure = Schema.Struct({
   ]),
   message: Schema.String,
 })
+const decodePublicFailure = Schema.decodeUnknownOption(PublicFailure)
 
-const toAiError = (error: TranslationError) =>
+const toAiError = (error: TranslationError): AiError.AiError =>
   new AiError.AiError({
-    module: 'GlossShift/LocalTranslation',
     method: 'streamText',
+    module: 'GlossShift/LocalTranslation',
     reason: new AiError.UnknownError({ metadata: { glossshift: { code: error.code, message: error.message } } }),
   })
 
 const fromAiError = (error: AiError.AiError): TranslationError =>
   Option.match(
-    Schema.decodeUnknownOption(PublicFailure)(
-      error.reason._tag === 'UnknownError' ? error.reason.metadata['glossshift'] : undefined,
+    decodePublicFailure(
+      Predicate.isTagged('UnknownError')(error.reason) ? error.reason.metadata['glossshift'] : undefined,
     ),
     {
       onNone: () =>
@@ -59,93 +76,138 @@ const fromAiError = (error: AiError.AiError): TranslationError =>
     },
   )
 
-/** One server per application scope and at most one active inference request. */
-export const makeTranslation = (input: LocalConfig) =>
+type ModelEnvironment = Effect.Services<ReturnType<typeof loadModel>>
+
+interface ModelAllocation {
+  model: Ref.Ref<Option.Option<LocalServer>>
+  scope: Scope.Scope
+}
+
+const rememberModel = (
+  cache: ModelAllocation,
+  scope: Scope.Closeable,
+  loaded: Exit.Exit<LocalServer, TranslationError>,
+): Effect.Effect<LocalServer, TranslationError> =>
   Effect.gen(function* () {
-    const config = yield* validateConfig(input)
-    const applicationScope = yield* Effect.scope
-    const environment = yield* Effect.context<Effect.Services<ReturnType<typeof loadModel>>>()
-    let model = Option.none<LocalServer>()
-    // A failed or interrupted first load must not poison the cache or retain partial native resources.
-    // The request semaphore below also serializes initialization.
-    const getModel = Effect.uninterruptibleMask((restore) =>
+    if (Exit.isFailure(loaded)) {
+      yield* Scope.close(scope, loaded)
+      return yield* Effect.failCause(loaded.cause)
+    }
+    yield* Scope.addFinalizer(cache.scope, Scope.close(scope, Exit.void))
+    yield* Ref.set(cache.model, Option.some(loaded.value))
+    return loaded.value
+  })
+
+const lazyModel = (
+  config: LocalConfig,
+): Effect.Effect<Effect.Effect<LocalServer, TranslationError>, never, ModelEnvironment> =>
+  Effect.gen(function* () {
+    const scope = yield* Effect.scope
+    const environment = yield* Effect.context<ModelEnvironment>()
+    const model = yield* Ref.make(Option.none<LocalServer>())
+    // A failed or interrupted first load leaves the cache empty and releases its partial resources.
+    return Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
-        if (Option.isSome(model)) return model.value
-        const allocationScope = yield* Scope.make()
-        const result = yield* restore(
-          loadModel(config).pipe(
-            Effect.provideService(Scope.Scope, allocationScope),
-            Effect.provideContext(environment),
-          ),
-        ).pipe(Effect.exit)
-        if (Exit.isFailure(result)) {
-          yield* Scope.close(allocationScope, result)
-          return yield* Effect.failCause(result.cause)
+        const cached = yield* Ref.get(model)
+        if (Option.isSome(cached)) {
+          return cached.value
         }
-        yield* Scope.addFinalizer(applicationScope, Scope.close(allocationScope, Exit.void))
-        model = Option.some(result.value)
-        return result.value
+        const allocation = yield* Scope.make()
+        const start = loadModel(config).pipe(
+          Effect.provideService(Scope.Scope, allocation),
+          Effect.provideContext(environment),
+        )
+        const loaded = yield* restore(start).pipe(Effect.exit)
+        return yield* rememberModel({ model, scope }, allocation, loaded)
       }),
     )
-    const lock = yield* Semaphore.make(1)
-    const providerStream = (
-      options: LanguageModel.ProviderOptions,
-    ): Stream.Stream<Response.StreamPartEncoded, AiError.AiError> => {
-      if (options.tools.length > 0 || options.responseFormat.type !== 'text') {
-        return Stream.fail(
-          toAiError(
-            new TranslationError({
-              code: 'InvalidRequest',
-              message: 'The local translation model supports text translation only.',
-            }),
-          ),
-        )
-      }
-      return Stream.succeed<Response.StreamPartEncoded>({ type: 'text-start', id: 'translation' }).pipe(
-        Stream.concat(
-          Stream.unwrap(Effect.map(getModel, (loaded) => generate(loaded, config, options.prompt))).pipe(
-            Stream.map((delta): Response.StreamPartEncoded => ({ type: 'text-delta', id: 'translation', delta })),
-            Stream.mapError(toAiError),
-          ),
-        ),
-        Stream.concat(Stream.succeed<Response.StreamPartEncoded>({ type: 'text-end', id: 'translation' })),
-      )
+  })
+
+const unsupportedPrompt = (): AiError.AiError =>
+  toAiError(
+    new TranslationError({
+      code: 'InvalidRequest',
+      message: 'The local translation model supports text translation only.',
+    }),
+  )
+
+const streamProvider =
+  (config: LocalConfig, getModel: Effect.Effect<LocalServer, TranslationError>) =>
+  (options: LanguageModel.ProviderOptions): Stream.Stream<Response.StreamPartEncoded, AiError.AiError> => {
+    if (Array.isReadonlyArrayNonEmpty(options.tools) || options.responseFormat.type !== 'text') {
+      return Stream.fail(unsupportedPrompt())
     }
+    const start = Stream.succeed<Response.StreamPartEncoded>({ id: 'translation', type: 'text-start' })
+    const end = Stream.succeed<Response.StreamPartEncoded>({ id: 'translation', type: 'text-end' })
+    const generation = Effect.map(getModel, (loaded) => generate(loaded, config, options.prompt))
+    const text = Stream.unwrap(generation).pipe(
+      Stream.map((delta): Response.StreamPartEncoded => ({ delta, id: 'translation', type: 'text-delta' })),
+      Stream.mapError(toAiError),
+    )
+    return start.pipe(Stream.concat(text), Stream.concat(end))
+  }
+
+const encodedParts = (parts: Readonly<Response.StreamPartEncoded[]>): Response.PartEncoded[] => {
+  const deltas = Array.filterMap(parts, (part) =>
+    part.type === 'text-delta' ? Result.succeed(part.delta) : Result.failVoid,
+  )
+  return [{ text: Array.join(deltas, ''), type: 'text' }]
+}
+
+const inferencePermits = 1
+
+interface TranslationProvider {
+  ai: Effect.Success<ReturnType<typeof LanguageModel.make>>
+  config: LocalConfig
+  lock: Semaphore.Semaphore
+}
+
+const streamTranslation = (
+  provider: TranslationProvider,
+  request: TranslationRequest,
+): Stream.Stream<string, TranslationError> => {
+  const { ai, config, lock } = provider
+  const prepare = Effect.gen(function* () {
+    const prompt = yield* makePrompt(
+      { ...request, sourceLanguage: request.sourceLanguage ?? config.sourceLanguage },
+      config,
+    )
+    yield* lock.takeScoped(inferencePermits)
+    // Effect AI normalizes the prompt and decodes every response.
+    return ai.streamText({ prompt }).pipe(
+      Stream.filterMap((part) => (part.type === 'text-delta' ? Result.succeed(part.delta) : Result.failVoid)),
+      Stream.mapError(fromAiError),
+    )
+  })
+  return Stream.unwrap(prepare)
+}
+
+/**
+ * One server per application scope and at most one active inference request.
+ *
+ * @param {LocalConfig} input Configuration for the model and its local server.
+ * @returns {Effect.Effect} Translation service that starts the server on the first request.
+ */
+export const makeTranslation = (
+  input: LocalConfig,
+): Effect.Effect<
+  TranslationService,
+  TranslationError,
+  Path.Path | FileSystem.FileSystem | Stdio.Stdio | Scope.Scope | ChildProcessSpawner.ChildProcessSpawner
+> =>
+  Effect.gen(function* () {
+    const config = yield* validateConfig(input)
+    const getModel = yield* lazyModel(config)
+    const lock = yield* Semaphore.make(inferencePermits)
+    const streamText = streamProvider(config, getModel)
     const ai = yield* LanguageModel.make({
-      streamText: providerStream,
-      generateText: (options) =>
-        providerStream(options).pipe(
-          Stream.runCollect,
-          Effect.map((parts): Array<Response.PartEncoded> => [
-            {
-              type: 'text',
-              text: Array.join(
-                Array.filterMap(parts, (part) =>
-                  part.type === 'text-delta' ? Result.succeed(part.delta) : Result.failVoid,
-                ),
-                '',
-              ),
-            },
-          ]),
-        ),
+      generateText: (options) => streamText(options).pipe(Stream.runCollect, Effect.map(encodedParts)),
+      streamText,
     })
+    const provider = { ai, config, lock }
     return Translation.of({
-      settings: { sourceLanguage: config.sourceLanguage, model: config.model.uri },
-      stream: (request) =>
-        Stream.unwrap(
-          Effect.gen(function* () {
-            const prompt = yield* makePrompt(
-              { ...request, sourceLanguage: request.sourceLanguage ?? config.sourceLanguage },
-              config,
-            )
-            yield* lock.takeScoped(1)
-            // Every translation passes through Effect AI's real prompt normalization and response decoder.
-            return ai.streamText({ prompt }).pipe(
-              Stream.filterMap((part) => (part.type === 'text-delta' ? Result.succeed(part.delta) : Result.failVoid)),
-              Stream.mapError(fromAiError),
-            )
-          }),
-        ),
+      settings: { model: config.model.uri, sourceLanguage: config.sourceLanguage },
+      stream: (request) => streamTranslation(provider, request),
     })
   })
 

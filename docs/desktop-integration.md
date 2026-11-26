@@ -10,7 +10,7 @@ The packaged `GlossShift.app` includes its own application icon for Finder, the 
 Both `just package-app` and the Nix package install the icon inside the application bundle.
 Running a bare development executable does not provide Finder with an application bundle icon.
 
-The menu bar item is installed through NSH's standard `Tray` API in `app/desktop/src/desktopControls.ts` and retained for the connection scope.
+The menu bar item is installed through NSH's standard `Tray` API in `app/desktop/src/desktop-controls.ts` and retained for the connection scope.
 NSH owns the native AppKit event loop, and delayed cleanup from an old scope cannot remove a replacement scope's tray.
 
 ## Launch at login
@@ -69,18 +69,18 @@ The implementation uses user LaunchAgents for compatibility with the application
 ## Contributor reference: native dependencies
 
 Apple Silicon macOS is the only supported platform.
-`app/desktop/src/ports.ts` defines injectable desktop services, and `app/desktop/src/nativeAdapter.ts` composes them with scoped Effect resources.
-`app/desktop/src/selectionClient.ts` launches the separate one-shot Swift helper in `helper/` and validates its bounded JSON response.
+`app/desktop/src/ports.ts` defines injectable desktop services, and `app/desktop/src/native-adapter.ts` composes them with scoped Effect resources.
+`app/desktop/src/selection-client.ts` launches the separate one-shot Swift helper in `helper/` and validates its bounded JSON response.
 The helper uses Apple's ApplicationServices Accessibility APIs, captures selection before the popup receives focus, and never simulates `Cmd+C` or modifies the clipboard.
 Applications without an accessible selected-text value report a stable public failure.
 
-`app/desktop/src/desktopControls.ts` uses the standard NSH clipboard, window, application, and tray APIs.
+`app/desktop/src/desktop-controls.ts` uses the standard NSH clipboard, window, application, and tray APIs.
 `app/desktop/src/domain.ts` owns pure popup transitions, and `app/desktop/src/controller.ts` owns request replacement, cancellation, and bounded event processing.
 The view uses official NSH components and native Tailwind `class` support without an application stylesheet or browser renderer.
 The application-lifetime Effect runtime is released on teardown rather than recreated per render.
 
 Menu bar installation and global shortcuts remain desktop adapters, separate from shared translation policy in `package/runtime/src`.
-Settings and LaunchAgent operations live in `package/runtime/src/desktopConfig.ts` and `package/runtime/src/autostart.ts`.
+Settings and LaunchAgent operations live in `package/runtime/src/desktop-config.ts` and `package/runtime/src/autostart.ts`.
 The `glossshift` launcher delegates autostart operations to the standalone native CLI without starting NSH.
 The reusable NSH Effect Platform lives in `package/nsh-platform`, while application environment interpretation stays in `app/desktop/runtime/platform.ts`.
 A future platform can supply different adapters without changing translation policy.

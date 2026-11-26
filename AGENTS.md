@@ -12,12 +12,12 @@ app/cli/src/main.ts                 Native Node.js 26 CLI entry
 app/cli/src/program.ts              Command dispatch, help, version, and output presentation
 app/cli/src/commands/translate.ts   Declarative Effect 4 translation command
 app/cli/src/commands/autostart.ts   Private desktop autostart command
-app/cli/src/translateBatch.ts       Ordered translation and stdout rendering
-app/cli/src/translationPlan.ts      Language validation and sibling output planning
-app/cli/src/translationFiles.ts     Collision preflight and atomic file operations
+app/cli/src/translate-batch.ts       Ordered translation and stdout rendering
+app/cli/src/translation-plan.ts      Language validation and sibling output planning
+app/cli/src/translation-files.ts     Collision preflight and atomic file operations
 app/cli/src/*.test.ts               Native CLI unit and contract tests
 package/runtime/src/               Shared configuration, model, and inference policy
-package/runtime/src/desktopConfig.ts  Non-destructive TOML settings and validation
+package/runtime/src/desktop-config.ts  Non-destructive TOML settings and validation
 package/runtime/src/autostart.ts    Safe macOS LaunchAgent file operations
 package/nsh-platform/platform.ts    Public application-independent NSH Effect composition
 package/nsh-platform/platform/      NSH service adapters and boundary tests
@@ -108,8 +108,8 @@ Do not add macOS jobs, application builds, all-system evaluation, or flake check
 ### TS application boundary
 
 Do not create `index.ts` or `index.tsx` modules.
-Use a named module beside its child directory, such as `platform.ts` and `platform/nshFileSystem.ts`.
-Use camelCase source, test, and fixture filenames, except framework-required names such as NSH's `App.tsx`.
+Use a named module beside its child directory, such as `platform.ts` and `platform/nsh-file-system.ts`.
+Use kebab-case source, test, and fixture filenames, except framework-required names such as NSH's `App.tsx`.
 Put each CLI command in its own module under `app/cli/src/commands/`, with shared planning and file operations in explicitly named modules.
 Use Effect's `Data.TaggedError`, `Data.TaggedEnum`, and `Schema.TaggedStruct` instead of declaring `_tag` fields in application types or schemas.
 Keep the Platform implementation independent of GlossShift policy so it can be extracted as a library.
@@ -192,7 +192,7 @@ A delayed old scope must not unregister a newer scope's resources.
 Use `app/cli/src/main.ts` only to select Node services and start the program.
 `app/cli/src/program.ts` dispatches commands and presents help, version, and invocation errors.
 Keep the declarative Effect 4 translation command in `app/cli/src/commands/translate.ts` and private autostart dispatch in `app/cli/src/commands/autostart.ts`.
-`translateBatch.ts` executes ordered translations, `translationPlan.ts` defines language and output planning, and `translationFiles.ts` owns file safety.
+`translate-batch.ts` executes ordered translations, `translation-plan.ts` defines language and output planning, and `translation-files.ts` owns file safety.
 Keep reusable translation policy in `package/runtime/src`.
 Keep NSH, Swift, AppKit, global hotkeys, and tray resources outside the CLI dependency graph and package closure.
 Use native arguments, working directory, standard streams, signals, and exit status.

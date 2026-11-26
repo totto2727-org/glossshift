@@ -11,6 +11,7 @@
   "type": "module",
   "devDependencies": {
     "@totto2727/gitignore-patterns": "^0.1.0",
+    "@totto2727/oxlint": "^0.2.0",
     "@tsconfig/node-ts": "^23.6.4",
     "@tsconfig/strictest": "^2.0.8",
     "@types/node": "catalog:",
