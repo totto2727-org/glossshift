@@ -21,8 +21,7 @@ const renderImage: NonNullable<TextViewProps['renderImage']> = (image) => <Text>
 const liveMarkdown = { html: false, math: false, streaming: true } as const
 const completeMarkdown = { html: false, math: false, streaming: false } as const
 
-// oxlint-disable-next-line eslint/func-style -- The shared JSX component rule requires this function declaration.
-export function PaneView(props: PaneProps): JSX.Element {
+export const PaneView = (props: PaneProps): JSX.Element => {
   const copyLabel = <Text class='text-xs'>Copy</Text>
   const copyButton = (
     <Button accessibilityLabel={`Copy ${props.title}`} class='px-1 py-1 rounded bg-muted' onPress={props.onCopy}>

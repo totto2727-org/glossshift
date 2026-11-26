@@ -92,10 +92,9 @@ const createPopupActions = (
   setMode: (mode) => dispatch((controller) => controller.setMode(mode)),
 })
 
-// oxlint-disable-next-line eslint/func-style -- The shared JSX component rule requires this function declaration.
-export function Application(
+export const Application = (
   props: Readonly<{ connect: Effect.Effect<NativeConnection, Fault, Scope.Scope> }>,
-): JSX.Element {
+): JSX.Element => {
   const { state, dispatch } = usePopupConnection(props.connect)
   const actions = createPopupActions(dispatch)
 

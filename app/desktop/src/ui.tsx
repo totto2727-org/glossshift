@@ -63,8 +63,7 @@ const renderCommands = ({ cancel: onCancel, hide: onHide, quit: onQuit, terminal
   )
 }
 
-// oxlint-disable-next-line eslint/func-style -- The shared JSX component rule requires this function declaration.
-export function PopupView(props: PopupViewProps): JSX.Element {
+export const PopupView = (props: PopupViewProps): JSX.Element => {
   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop -- The NSH handler forwards the source pane with this view's native controller.
   const onCopySource = (): void => props.copy('Source')
   // oxlint-disable-next-line react-perf/jsx-no-new-function-as-prop -- The NSH handler forwards the translation pane with this view's native controller.
