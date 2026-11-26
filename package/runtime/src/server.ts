@@ -1,6 +1,7 @@
-import { String, Predicate, Config, Effect, Encoding, FileSystem, Option, Path, Ref, Schema, Stream } from 'effect'
+import { String, Predicate, Config, Effect, FileSystem, Option, Path, Ref, Schema, Stream } from 'effect'
 import type { Scope } from 'effect'
 import { SecureRandom } from 'effect/crypto'
+import { Hex } from 'effect/encoding'
 import type { ChildProcessSpawner } from 'effect/process'
 import { ChildProcess } from 'effect/process'
 
@@ -59,7 +60,7 @@ const serverKey = Effect.gen(function* () {
     .makeTempDirectoryScoped({ prefix: 'glossshift-server-' })
     .pipe(Effect.mapError(unavailable))
   const random = yield* SecureRandom.SecureRandom
-  const key = Encoding.encodeHex(yield* random.randomBytes(authTokenBytes))
+  const key = Hex.encode(yield* random.randomBytes(authTokenBytes))
   const keyFile = path.join(directory, 'auth')
   yield* fs
     .writeFileString(keyFile, `${key}\n`, { flag: 'wx', mode: privateKeyMode })
