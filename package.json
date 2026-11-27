@@ -12,8 +12,8 @@
   "devDependencies": {
     "@totto2727/gitignore-patterns": "^0.1.0",
     "@totto2727/oxlint": "^0.2.0",
-    "@tsconfig/node-ts": "^23.6.4",
-    "@tsconfig/strictest": "^2.0.8",
+    "@tsconfig/node-ts": "^23.6.5",
+    "@tsconfig/strictest": "^2.0.9",
     "@types/node": "catalog:",
     "typescript": "^7.0.2",
     "vite-plus": "catalog:"
@@ -21,5 +21,5 @@
   "engines": {
     "node": ">=26"
   },
-  "packageManager": "pnpm@11.21.0"
+  "packageManager": "pnpm@11.29.0"
 }
